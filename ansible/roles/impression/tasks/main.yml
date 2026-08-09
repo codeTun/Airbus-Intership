@@ -1,6 +1,5 @@
 ---
-# Serveur d'impression : CUPS, files d'attente, quotas et journalisation
-# des travaux pour le suivi de consommation.
+# CUPS, files d'attente, quotas et journalisation des travaux.
 
 - name: Paquets d'impression presents
   ansible.builtin.apt:
@@ -29,10 +28,8 @@
     enabled: true
   tags: [impression, service]
 
-# --- Files d'attente -------------------------------------------------------
-# lpadmin est idempotent sur la creation, mais pas sur la description : on
-# verifie donc l'existence avant, pour ne pas signaler un changement a chaque
-# execution.
+# lpadmin n'est pas idempotent sur la description : on verifie l'existence
+# avant, pour ne pas signaler un changement a chaque execution.
 - name: Files d'attente deja declarees
   ansible.builtin.command: lpstat -p
   register: impression_files_existantes
@@ -72,7 +69,6 @@
   changed_when: false
   tags: [impression, files]
 
-# --- Pare-feu local --------------------------------------------------------
 - name: Impression ouverte aux seuls reseaux autorises
   community.general.ufw:
     rule: allow
@@ -83,7 +79,6 @@
   loop: "{{ impression_reseaux_autorises }}"
   tags: [impression, parefeu]
 
-# --- Verification ----------------------------------------------------------
 - name: Le service repond sur son port
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"

@@ -1,13 +1,10 @@
 ---
-# Pare-feu interne Palo Alto : routage inter-VLAN et inspection applicative.
-#
-# Chaque VLAN devient une zone de securite, avec une sous-interface de
-# niveau 3 dediee. Tout flux entre zones traverse la politique de securite.
+# Routage inter-VLAN et inspection applicative. Chaque VLAN devient une zone
+# de securite avec sa sous-interface de niveau 3.
 
 paloalto_interface_physique: ethernet1/1
 paloalto_routeur_virtuel: default
 
-# Une sous-interface par VLAN adresse, conforme au plan VLAN.
 paloalto_sous_interfaces:
   - {vlan: 10, zone: MGMT, adresse: 10.10.10.1/24, commentaire: Administration et supervision}
   - {vlan: 20, zone: SERVERS, adresse: 10.10.20.1/24, commentaire: Serveurs metiers}
@@ -16,11 +13,10 @@ paloalto_sous_interfaces:
   - {vlan: 50, zone: USERS, adresse: 10.10.50.1/24, commentaire: Postes de travail}
   - {vlan: 99, zone: QUARANTINE, adresse: 10.10.99.1/24, commentaire: Equipements non authentifies}
 
-# Profils de securite appliques aux regles d'autorisation.
 paloalto_groupe_profils: profils-laboratoire
 
-# Matrice de flux, reprise du cahier des charges. Le refus par defaut est
-# assure par la regle implicite de PAN-OS, on ne la redeclare pas.
+# Matrice de flux du cahier des charges. Le refus par defaut est assure par la
+# regle implicite de PAN-OS.
 paloalto_regles:
   - nom: Administration vers tous
     source_zone: [MGMT]

@@ -1,17 +1,11 @@
 #cloud-config
-# -----------------------------------------------------------------------------
 # ${nom} : ${description}
-#
-# Amorcage seulement. Cloud-init rend la machine joignable et conforme au
-# durcissement de base ; l'installation des services revient a Ansible, qui
-# est rejouable. Ne rien ajouter ici de propre a un role.
-# -----------------------------------------------------------------------------
+# Amorcage seulement. L'installation des services revient a Ansible.
 
 hostname: ${nom}
 fqdn: ${nom}.${domaine_dns}
 prefer_fqdn_over_hostname: true
 
-# --- Compte nominatif, acces par cle uniquement (INF-06) ---------------------
 users:
   - name: ${admin_utilisateur}
     gecos: Administrateur du laboratoire
@@ -25,31 +19,24 @@ users:
 disable_root: true
 ssh_pwauth: false
 
-# --- Heure (INF-07) ----------------------------------------------------------
 timezone: ${fuseau_horaire}
 ntp:
   enabled: true
   ntp_client: chrony
-  servers:
-%{ for s in serveurs_ntp ~}
-    - ${s}
-%{ endfor ~}
+  servers: ${jsonencode(serveurs_ntp)}
 
-# --- Paquets strictement necessaires a l'amorcage ----------------------------
 package_update: true
 packages:
-  - qemu-guest-agent   # etat de la machine visible depuis l'hote
-  - chrony             # INF-07
-  - ufw                # INF-06
+  - qemu-guest-agent
+  - chrony
+  - ufw
   - unattended-upgrades
-  - python3            # requis par Ansible
+  - python3
   - python3-apt
 
-# --- Fichiers ----------------------------------------------------------------
 write_files:
-  # Filet de securite memoire : le fichier d'echange ne sert pas en
-  # fonctionnement normal, il evite qu'un pic ponctuel n'oblige le noyau
-  # a arreter brutalement un processus.
+  # Le fichier d'echange ne sert pas en fonctionnement normal. Il evite
+  # qu'un pic ponctuel n'oblige le noyau a arreter un processus.
   - path: /etc/sysctl.d/99-labo.conf
     content: |
       vm.swappiness = 10
@@ -61,7 +48,6 @@ write_files:
       APT::Periodic::Unattended-Upgrade "1";
     permissions: "0644"
 
-  # Carte d'identite de la machine, lue ensuite par Ansible et par la recette.
   - path: /etc/labo-airbus.yaml
     content: |
       machine: ${nom}
@@ -76,14 +62,13 @@ swap:
   size: 2147483648
   maxsize: 2147483648
 
-# --- Mise en service ---------------------------------------------------------
 runcmd:
   - [systemctl, enable, --now, qemu-guest-agent]
   - [systemctl, enable, --now, chrony]
   - [sysctl, --system]
 
-  # Pare-feu local : seul SSH est ouvert a ce stade. Chaque role Ansible
-  # ouvrira ensuite les ports dont son service a besoin.
+  # Seul SSH est ouvert ici. Chaque role Ansible ouvre ensuite les ports
+  # dont son service a besoin.
   - [ufw, default, deny, incoming]
   - [ufw, default, allow, outgoing]
   - [ufw, allow, "22/tcp"]

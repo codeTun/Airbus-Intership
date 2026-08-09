@@ -1,20 +1,10 @@
-###############################################################################
-#  Inventaire du laboratoire : source de verite unique
-#
-#  Ce fichier reprend mot pour mot les tableaux du cahier des charges :
-#    - plan VLAN                    (tableau 6)
-#    - adressage des machines       (tableau 7)
-#    - machines virtuelles          (tableau 8)
-#
-#  Toute modification de dimensionnement ou d'adressage se fait ici, et
-#  nulle part ailleurs. Les modules ne font que consommer ces valeurs.
-###############################################################################
+# Source de verite unique : plan VLAN, adressage et machines, repris des
+# tableaux 6, 7 et 8 du cahier des charges. Les modules ne font que consommer
+# ces valeurs, toute modification se fait ici.
 
 locals {
 
-  # --------------------------------------------------------------- plan VLAN
-  # dhcp = true  : le VLAN accueille des equipements qui n'ont pas d'adresse fixe
-  # reseau = null : VLAN sans adressage, isole (VLAN natif des liens trunk)
+  # reseau = null : VLAN sans adressage, isole. C'est le VLAN natif des trunks.
   vlans = {
     mgmt = {
       id         = 10
@@ -74,13 +64,10 @@ locals {
     }
   }
 
-  # VLAN autorises a sortir vers Internet pendant l'installation des paquets.
+  # Seuls ces VLAN sortent vers Internet, et seulement pendant l'installation.
   vlans_avec_sortie = ["mgmt", "servers"]
 
-  # ------------------------------------------------- serveurs de la partie 1
-  # Terraform ne fait qu'amorcer ces machines : compte, cle SSH, adressage,
-  # durcissement de base. L'installation des services revient a Ansible, qui
-  # se sert du champ "groupe" pour savoir quel role appliquer.
+  # Le champ "groupe" indique a Ansible quel role appliquer.
   serveurs = {
     "srv-print-01" = {
       description = "Serveur d'impression"
@@ -123,10 +110,8 @@ locals {
     }
   }
 
-  # ------------------------------------------------ pare-feux de la partie 1
-  # Images constructeur, sans cloud-init : la configuration se fait ensuite
-  # dans l'interface de l'editeur, puis est exportee et versionnee.
-  # Chaque pare-feu n'est cree que si son image est fournie.
+  # Images constructeur, sans cloud-init. Un pare-feu n'est cree que si son
+  # image est fournie.
   parefeux = {
     "fw-forti-01" = {
       description = "Pare-feu peripherique"
@@ -136,7 +121,7 @@ locals {
       image       = var.image_fortios
       ip_admin    = "10.10.10.254"
       groupe      = "fortinet"
-      # Licence d'evaluation permanente : 3 interfaces au maximum.
+      # La licence d'evaluation plafonne a 3 interfaces.
       reseaux = ["mgmt", "servers"]
     }
 
@@ -148,15 +133,13 @@ locals {
       image       = var.image_panos
       ip_admin    = "10.10.10.253"
       groupe      = "paloalto"
-      # Une sous-interface de niveau 3 par VLAN : tous les VLAN adresses.
+      # Une sous-interface de niveau 3 par VLAN adresse.
       reseaux = ["mgmt", "servers", "equip", "storage", "users", "quarantine"]
     }
   }
 
-  # ------------------------------------------------------------- derivations
-  # Adresse MAC deterministe, dans la plage QEMU 52:54:00.
-  # Construite a partir de l'identifiant de VLAN et du dernier octet de l'IP,
-  # ce qui la rend lisible et stable d'un apply a l'autre.
+  # Adresse MAC deterministe, construite depuis le VLAN et le dernier octet de
+  # l'IP : lisible, et stable d'un apply a l'autre.
   mac_serveurs = {
     for nom, s in local.serveurs :
     nom => format("52:54:00:00:%02x:%02x",
@@ -165,11 +148,32 @@ locals {
     )
   }
 
-  # Adresse du serveur de supervision, utilisee par les autres machines pour
-  # y envoyer leurs journaux.
+  # Adresse du serveur de supervision, ou les autres machines envoient leurs journaux.
   ip_supervision = one([for nom, s in local.serveurs : s.ip if s.groupe == "supervision"])
 
-  # Totaux, repris dans les sorties pour verifier le dimensionnement annonce.
+  # Groupes de l'inventaire Ansible.
+  groupes_serveurs = {
+    for groupe in distinct([for s in local.serveurs : s.groupe]) :
+    groupe => {
+      hosts = {
+        for nom, s in local.serveurs : nom => { ansible_host = s.ip }
+        if s.groupe == groupe
+      }
+    }
+  }
+
+  # Un pare-feu n'entre dans l'inventaire que si son image a ete fournie.
+  groupes_parefeux = {
+    for groupe in distinct([for f in local.parefeux : f.groupe if trimspace(f.image) != ""]) :
+    groupe => {
+      hosts = {
+        for nom, f in local.parefeux : nom => { ansible_host = f.ip_admin }
+        if f.groupe == groupe && trimspace(f.image) != ""
+      }
+    }
+  }
+
+  # Totaux, compares au cahier des charges dans les sorties.
   total_vcpu = sum([for s in local.serveurs : s.vcpu]) + sum([for f in local.parefeux : f.vcpu])
   total_mo   = sum([for s in local.serveurs : s.memoire_mo]) + sum([for f in local.parefeux : f.memoire_mo])
   total_go   = sum([for s in local.serveurs : s.disque_go]) + sum([for f in local.parefeux : f.disque_go])

@@ -1,10 +1,6 @@
 ---
-# Serveur de visioconference : Jitsi Meet auto-heberge.
-#
-# Trois composants : Prosody pour la signalisation, Jicofo pour la gestion
-# des conferences, Jitsi Videobridge pour le transport des flux.
-# Le videobridge relaie sans transcoder : c'est le processeur qui compte,
-# pas la memoire.
+# Jitsi Meet auto-heberge : Prosody pour la signalisation, Jicofo pour les
+# conferences, Videobridge pour les flux.
 
 visioconference_domaine: "visio.{{ domaine_dns }}"
 
@@ -14,8 +10,7 @@ visioconference_paquets_prerequis:
   - curl
   - lua5.2
 
-# Certificat : « auto-signe » convient au laboratoire. En production, basculer
-# sur Let's Encrypt ou sur un certificat interne.
+# Auto-signe convient au laboratoire. En production, passer a Let's Encrypt.
 visioconference_certificat: auto-signe   # auto-signe | fourni
 
 visioconference_port_web: 443
@@ -25,6 +20,5 @@ visioconference_port_repli: 4443         # TCP, quand l'UDP est bloque
 visioconference_reseaux_autorises:
   - "{{ vlan_users }}"
 
-# Les salles sont protegees par mot de passe, l'enregistrement reste desactive.
 visioconference_salles_protegees: true
 visioconference_enregistrement: false

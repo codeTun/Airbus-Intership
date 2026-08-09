@@ -1,15 +1,12 @@
 ---
-# Pare-feu peripherique Fortinet.
-#
-# Point de vigilance : la licence d'evaluation permanente plafonne la machine
-# a trois interfaces, trois regles et trois routes. Le role s'y tient, et
-# verifie la limite avant d'appliquer quoi que ce soit.
+# La licence d'evaluation permanente plafonne a trois interfaces, trois regles
+# et trois routes. Le role verifie cette limite avant d'appliquer.
 
 fortinet_limite_evaluation: true
 fortinet_max_regles: 3
 fortinet_max_interfaces: 3
 
-# Interfaces, dans l'ordre des cartes reseau declarees par Terraform.
+# Dans l'ordre des cartes reseau declarees par Terraform.
 fortinet_interfaces:
   - nom: port1
     role: wan
@@ -24,7 +21,7 @@ fortinet_interfaces:
     description: Administration et liaison vers le Palo Alto
     acces_admin: [ping, https, ssh]
 
-# Regles de filtrage, en refus par defaut. L'ordre compte.
+# Refus par defaut. L'ordre compte.
 fortinet_regles:
   - nom: Sortie du laboratoire
     source_interface: port2

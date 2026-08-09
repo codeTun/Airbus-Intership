@@ -1,12 +1,7 @@
 ---
-# Configuration du pare-feu Palo Alto par son API XML.
-#
-# Prerequis : la machine doit avoir demarre avec son paquet d'amorcage
-# (init-cfg.txt et bootstrap.xml sur un disque attache), ce qui lui donne son
-# adresse d'administration et son compte. Le README decrit ce paquet.
-#
-# La collection paloaltonetworks.panos est idempotente. Les modifications
-# sont ecrites dans la configuration candidate, puis validees en une fois.
+# Configuration par l'API XML. La machine doit avoir demarre avec son paquet
+# d'amorcage, init-cfg.txt et bootstrap.xml sur un disque attache.
+# Les modifications vont dans la configuration candidate, validee en une fois.
 
 - name: Zones de securite creees, une par VLAN
   paloaltonetworks.panos.panos_zone:
@@ -41,7 +36,7 @@
     ntp_server_secondary: "{{ serveurs_ntp[1] | default(omit) }}"
   tags: [paloalto, heure]
 
-# Le serveur syslog s'attache a un profil : il faut donc creer le profil avant.
+# Le serveur syslog s'attache a un profil, cree juste avant.
 - name: Profil de journalisation cree
   paloaltonetworks.panos.panos_syslog_profile:
     provider: "{{ paloalto_connexion }}"
@@ -85,7 +80,6 @@
     description: Configuration du laboratoire appliquee par Ansible
   tags: [paloalto, validation]
 
-# --- Sauvegarde de configuration (exigence INF-10) --------------------------
 - name: Configuration exportee pour versionnement
   paloaltonetworks.panos.panos_export:
     provider: "{{ paloalto_connexion }}"

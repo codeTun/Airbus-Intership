@@ -1,6 +1,6 @@
 ---
-# Serveur de gestion des pointeuses : base PostgreSQL, schema de collecte,
-# sauvegarde quotidienne et surveillance de la derive d'horloge.
+# Base PostgreSQL, schema de collecte, sauvegarde quotidienne et controle de
+# la derive d'horloge.
 
 - name: Paquets presents
   ansible.builtin.apt:
@@ -17,9 +17,7 @@
     enabled: true
   tags: [pointeuses, service]
 
-# --- Base et compte --------------------------------------------------------
-# Le mot de passe est attendu dans un coffre Ansible. Aucun mot de passe en
-# clair dans le depot.
+# Le mot de passe vient du coffre : rien en clair dans le depot.
 - name: Compte applicatif cree
   community.postgresql.postgresql_user:
     name: "{{ pointeuses_utilisateur }}"
@@ -65,7 +63,6 @@
     state: absent
   tags: [pointeuses, base]
 
-# --- Sauvegarde ------------------------------------------------------------
 - name: Repertoire de sauvegarde
   ansible.builtin.file:
     path: "{{ pointeuses_sauvegarde_repertoire }}"
@@ -94,9 +91,8 @@
     cron_file: sauvegarde-pointages
   tags: [pointeuses, sauvegarde]
 
-# --- Heure -----------------------------------------------------------------
-# Une derive fausse directement les pointages : on la verifie a chaque
-# execution plutot que d'attendre une alerte de supervision.
+# Une derive fausse directement les pointages : on la verifie ici plutot que
+# d'attendre une alerte de supervision.
 - name: Derive d'horloge mesuree
   ansible.builtin.command: chronyc tracking
   register: pointeuses_horloge
@@ -113,7 +109,6 @@
     success_msg: Horloge synchronisee, les pointages seront correctement dates.
   tags: [pointeuses, heure]
 
-# --- Pare-feu local --------------------------------------------------------
 - name: Collecte ouverte aux seuls terminaux du VLAN des equipements
   community.general.ufw:
     rule: allow
@@ -123,9 +118,8 @@
     comment: Remontee des pointages depuis les terminaux
   tags: [pointeuses, parefeu]
 
-# La base n'est jamais exposee : elle n'ecoute que sur la boucle locale.
-# La version de PostgreSQL varie selon la distribution, on cherche donc le
-# fichier plutot que de coder un numero en dur.
+# La base n'ecoute que sur la boucle locale. La version varie selon la
+# distribution, on cherche donc le fichier plutot que de figer un numero.
 - name: Fichier de configuration de PostgreSQL localise
   ansible.builtin.find:
     paths: /etc/postgresql

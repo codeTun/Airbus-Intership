@@ -1,9 +1,6 @@
 ---
-# Installation sans interaction de Jitsi Meet.
-#
-# Le paquet pose normalement deux questions : le nom de domaine et le type
-# de certificat. On y repond a l'avance par debconf, ce qui rend le role
-# rejouable et utilisable dans une chaine automatisee.
+# Jitsi Meet installe sans interaction : les deux questions du paquet, nom de
+# domaine et certificat, recoivent leur reponse a l'avance par debconf.
 
 - name: Prerequis presents
   ansible.builtin.apt:
@@ -37,7 +34,6 @@
     enabled: true
   tags: [visio, depot]
 
-# --- Reponses aux questions de l'installateur -------------------------------
 - name: Nom de domaine transmis a l'avance
   ansible.builtin.debconf:
     name: jitsi-meet
@@ -67,7 +63,6 @@
   notify: Redemarrer jitsi
   tags: [visio, installation]
 
-# --- Verification ----------------------------------------------------------
 - name: Les trois composants tournent
   ansible.builtin.service:
     name: "{{ item }}"
@@ -79,7 +74,6 @@
     - jitsi-videobridge2
   tags: [visio, service]
 
-# --- Pare-feu local --------------------------------------------------------
 - name: Acces web ouvert aux postes de travail
   community.general.ufw:
     rule: allow

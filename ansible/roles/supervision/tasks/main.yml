@@ -1,14 +1,9 @@
 ---
-# Supervision Centreon (exigence INF-04).
-#
-# Le role fait trois choses : installer Centreon, recevoir les journaux des
-# autres machines, et declarer chaque machine du laboratoire avec ses sondes.
-# La derniere partie est ce qui satisfait reellement INF-04 : sans elle,
-# Centreon serait installe mais ne surveillerait rien.
+# Installe Centreon, recoit les journaux des autres machines, et declare
+# chaque machine avec ses sondes. C'est cette derniere partie qui satisfait
+# INF-04 : sans elle, Centreon ne surveillerait rien.
 
-# --- Verification prealable ------------------------------------------------
-# Mieux vaut s'arreter net avec un message utile que poser une installation
-# bancale qui echouera plus loin.
+# Mieux vaut s'arreter net avec un message utile qu'installer a moitie.
 - name: Distribution compatible avec Centreon
   ansible.builtin.assert:
     that:
@@ -25,7 +20,6 @@
       compatible avec le depot Centreon.
   tags: [supervision, verification]
 
-# --- Installation ----------------------------------------------------------
 - name: Paquets de base presents
   ansible.builtin.apt:
     name: "{{ supervision_paquets_base }}"
@@ -72,7 +66,6 @@
   failed_when: false
   tags: [supervision, service]
 
-# --- Collecte des journaux -------------------------------------------------
 - name: Repertoire des journaux recus
   ansible.builtin.file:
     path: /var/log/laboratoire
@@ -109,9 +102,8 @@
     comment: Interface web Centreon
   tags: [supervision, parefeu]
 
-# --- Declaration des machines et des sondes --------------------------------
-# C'est ce bloc qui satisfait INF-04. La ligne de commande Centreon (clapi)
-# est utilisee plutot que l'interface web, pour que l'ensemble reste rejouable.
+# La ligne de commande Centreon est preferee a l'interface web, pour que la
+# declaration reste rejouable.
 - name: Machines deja connues de Centreon
   ansible.builtin.command: >-
     /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
@@ -134,7 +126,6 @@
   notify: Redemarrer centreon
   tags: [supervision, hotes]
 
-# Chaque machine recoit les sondes de son groupe, plus les sondes communes.
 - name: Correspondance entre machines et sondes
   ansible.builtin.set_fact:
     supervision_affectations: >-
@@ -174,7 +165,6 @@
   no_log: true
   tags: [supervision, sondes]
 
-# --- Verification ----------------------------------------------------------
 - name: L'interface web repond
   ansible.builtin.uri:
     url: "http://{{ ansible_host }}:{{ supervision_port_web }}/centreon/"

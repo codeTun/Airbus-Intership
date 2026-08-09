@@ -1,15 +1,5 @@
-###############################################################################
-#  Module serveur
-#
-#  Cree une machine Ubuntu Server 22.04 LTS (exigence INF-03) :
-#    - disque propre, derive de l'image de base commune
-#    - disque cloud-init portant le durcissement et le role
-#    - une interface sur le VLAN de la machine, adresse fixe
-#
-#  Le module ne connait pas le role qu'il installe : paquets, commandes et
-#  ports ouverts lui sont transmis. C'est ce qui permet d'ajouter un serveur
-#  en une entree d'inventaire, sans toucher au module.
-###############################################################################
+# Machine Ubuntu amorcee par cloud-init. Le module ne connait pas le role de
+# la machine : ajouter un serveur se fait par une entree d'inventaire.
 
 terraform {
   required_providers {
@@ -20,9 +10,8 @@ terraform {
   }
 }
 
-# Disque propre a la machine. Le volume de base reste intact : seules les
-# differences sont ecrites, ce qui explique l'ecart entre la taille declaree
-# et la place reellement occupee.
+# Le volume de base reste intact, seules les differences sont ecrites. D'ou
+# l'ecart entre la taille declaree et la place occupee.
 resource "libvirt_volume" "disque" {
   name           = "${var.nom}.qcow2"
   pool           = var.pool_stockage
@@ -77,8 +66,7 @@ resource "libvirt_domain" "vm" {
   network_interface {
     network_id = var.reseau_id
     mac        = var.mac
-    # L'adresse est posee par cloud-init : inutile d'attendre un bail DHCP
-    # qui n'arrivera jamais sur les VLAN a adressage fixe.
+    # L'adresse vient de cloud-init : aucun bail DHCP a attendre.
     wait_for_lease = false
   }
 

@@ -1,9 +1,6 @@
 ---
-# Role commun : reaffirme le durcissement pose par cloud-init.
-#
-# Cloud-init ne s'execute qu'une fois. Ce role, lui, est rejouable : il
-# ramene la machine dans l'etat attendu meme si quelqu'un a modifie quelque
-# chose entre-temps. C'est ce qui permet de prouver INF-06 a tout moment.
+# Reaffirme le durcissement pose par cloud-init. Rejouable, il ramene la
+# machine dans l'etat attendu meme apres une modification manuelle.
 
 - name: Paquets de base presents
   ansible.builtin.apt:
@@ -36,7 +33,6 @@
     enabled: true
   tags: [commun, heure]
 
-# --- Acces SSH -------------------------------------------------------------
 - name: Authentification SSH par cle uniquement
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/99-durcissement.conf
@@ -56,7 +52,6 @@
   notify: Redemarrer ssh
   tags: [commun, ssh]
 
-# --- Parametres noyau ------------------------------------------------------
 - name: Parametres noyau de securite
   ansible.posix.sysctl:
     name: "{{ item.key }}"
@@ -90,7 +85,6 @@
   when: not commun_swap.stat.exists
   tags: [commun, noyau]
 
-# --- Mises a jour de securite ----------------------------------------------
 - name: Mises a jour de securite automatiques
   ansible.builtin.copy:
     dest: /etc/apt/apt.conf.d/20auto-upgrades
@@ -110,7 +104,6 @@
     enabled: true
   tags: [commun, maj]
 
-# --- Pare-feu local --------------------------------------------------------
 - name: Politique par defaut, tout refuser en entree
   community.general.ufw:
     direction: incoming
@@ -136,7 +129,6 @@
     state: enabled
   tags: [commun, parefeu]
 
-# --- Journalisation centralisee --------------------------------------------
 - name: Journaux envoyes vers la supervision
   ansible.builtin.copy:
     dest: /etc/rsyslog.d/90-supervision.conf
@@ -152,7 +144,6 @@
   notify: Redemarrer rsyslog
   tags: [commun, journaux]
 
-# --- Trace de configuration ------------------------------------------------
 - name: Carte d'identite de la machine mise a jour
   ansible.builtin.copy:
     dest: /etc/labo-airbus.yaml

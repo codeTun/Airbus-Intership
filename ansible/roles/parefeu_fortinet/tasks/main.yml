@@ -1,12 +1,7 @@
 ---
-# Configuration du pare-feu Fortinet par son API REST.
-#
-# Prerequis : la machine doit deja etre joignable et licenciee. L'amorcage
-# initial se fait par une image ISO de configuration attachee au premier
-# demarrage, decrit dans le README.
-#
-# La collection fortinet.fortios est idempotente : chaque execution ramene le
-# pare-feu a l'etat decrit ici.
+# Configuration par l'API REST. La machine doit deja etre joignable : son
+# amorcage se fait par une ISO attachee au premier demarrage, voir le README.
+# Chaque execution ramene le pare-feu a l'etat decrit ici.
 
 - name: Limites de la licence d'evaluation respectees
   ansible.builtin.assert:
@@ -84,7 +79,6 @@
     label: "{{ item.nom }}"
   tags: [fortinet, regles]
 
-# --- Sauvegarde de configuration (exigence INF-10) --------------------------
 - name: Configuration exportee pour versionnement
   fortinet.fortios.fortios_monitor_fact:
     selector: system_config_backup

@@ -1,7 +1,6 @@
 ---
-# Durcissement applique a toutes les machines (exigence INF-06).
-# Ces valeurs sont volontairement conservatrices : un role metier peut
-# ouvrir un port supplementaire, jamais en refermer un.
+# Durcissement applique a toutes les machines. Un role metier peut ouvrir un
+# port supplementaire, jamais en refermer un.
 
 commun_paquets:
   - chrony
@@ -14,16 +13,12 @@ commun_paquets:
   - python3-debian   # requis par le module de gestion des depots
   - htop
 
-# Journalisation centralisee vers le serveur de supervision (exigence BNF-06
-# du volet reseau, deja utile ici pour tracer les installations).
 commun_syslog_distant: true
 commun_syslog_port: 514
 
-# Le fichier d'echange est pose par cloud-init ; le role verifie seulement
-# qu'il est toujours la et que la valeur de swappiness n'a pas derive.
+# Pose par cloud-init. Le role verifie seulement qu'il n'a pas disparu.
 commun_swappiness: 10
 
-# Ports ouverts sur toutes les machines.
 commun_ports_ouverts:
   - "22/tcp"
 

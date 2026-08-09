@@ -1,15 +1,6 @@
-###############################################################################
-#  Module parefeu
-#
-#  Cree une machine a partir d'une image constructeur (FortiOS ou PAN-OS).
-#  Ces images embarquent leur propre systeme : pas de cloud-init, pas de
-#  compte a provisionner. La configuration se fait ensuite dans l'interface
-#  de l'editeur, puis est exportee et versionnee (exigence INF-08).
-#
-#  Le pare-feu n'est cree que si son image est fournie. Cela permet de
-#  deployer les serveurs seuls sur une machine qui ne peut pas executer ces
-#  images, sans commenter du code.
-###############################################################################
+# Machine a partir d'une image constructeur (FortiOS ou PAN-OS). Ces images
+# embarquent leur propre systeme, donc pas de cloud-init.
+# Sans image fournie, rien n'est cree : les serveurs se deploient quand meme.
 
 terraform {
   required_providers {
@@ -42,7 +33,7 @@ resource "libvirt_domain" "vm" {
   memory      = var.memoire_mo
   autostart   = var.demarrage_automatique
 
-  # Les images constructeur n'embarquent pas d'agent invite.
+  # Pas d'agent invite dans ces images.
   qemu_agent = false
 
   cpu {
@@ -53,8 +44,8 @@ resource "libvirt_domain" "vm" {
     volume_id = libvirt_volume.disque[0].id
   }
 
-  # Une interface par reseau raccorde, dans l'ordre declare : la premiere
-  # correspond a port1 sur FortiOS et a ethernet1/1 sur PAN-OS.
+  # Une interface par reseau, dans l'ordre declare : la premiere est port1
+  # sur FortiOS, ethernet1/1 sur PAN-OS.
   dynamic "network_interface" {
     for_each = var.reseaux_ids
     content {
@@ -69,8 +60,8 @@ resource "libvirt_domain" "vm" {
     target_port = "0"
   }
 
-  # La premiere mise en service passe par la console graphique du
-  # constructeur, avant que l'interface web ne soit joignable.
+  # La premiere mise en service passe par la console, avant que l'interface
+  # web ne reponde.
   graphics {
     type        = "vnc"
     listen_type = "address"

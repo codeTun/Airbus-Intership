@@ -1,9 +1,6 @@
 ---
-# Serveur de supervision Centreon (exigence INF-04).
-#
-# Centreon ne publie de depot que pour Debian et la famille RHEL. Le role
-# le detecte et s'arrete avec un message clair sur Ubuntu, plutot que
-# d'installer a moitie quelque chose qui ne marchera pas.
+# Centreon ne publie de depot que pour Debian et la famille RHEL. Le role le
+# detecte et s'arrete avec un message clair sur les autres distributions.
 
 supervision_version: "24.10"
 supervision_distributions_supportees: [Debian]
@@ -19,14 +16,12 @@ supervision_paquets_base:
 supervision_port_web: 80
 supervision_port_syslog: 514
 
-# Seuils repris du tableau des indicateurs surveilles.
 supervision_seuils:
   processeur: {avertissement: 80, critique: 90}
   memoire: {avertissement: 80, critique: 90}
   disque: {avertissement: 80, critique: 90}
 
-# Sondes propres a chaque groupe de machines, telles que decrites dans le
-# cahier des charges.
+# Sondes propres a chaque groupe, reprises du cahier des charges.
 supervision_controles:
   impression:
     - {nom: Service CUPS, commande: check_systemd_service, argument: cups}
@@ -45,5 +40,5 @@ supervision_controles:
     - {nom: Moteur Centreon, commande: check_systemd_service, argument: centengine}
     - {nom: Base Centreon, commande: check_systemd_service, argument: mariadb}
 
-# Delai maximal entre une anomalie et sa notification (objectif OG-03).
+# Delai maximal entre une anomalie et sa notification.
 supervision_delai_notification_secondes: 60

@@ -1,24 +1,20 @@
-###############################################################################
-#  Parametres du deploiement
-#  Les valeurs par defaut correspondent au cahier des charges.
-#  Ne surcharger que ce qui depend de la machine hote, via terraform.tfvars.
-###############################################################################
+# Les valeurs par defaut suivent le cahier des charges. Ne surcharger dans
+# terraform.tfvars que ce qui depend de la machine hote.
 
-# ----------------------------------------------------------------- hote KVM
 variable "libvirt_uri" {
-  description = "URI de connexion a libvirt sur l'hote de virtualisation."
+  description = "Connexion a libvirt. Distant : qemu+ssh://user@serveur/system"
   type        = string
   default     = "qemu:///system"
 }
 
 variable "pool_stockage" {
-  description = "Pool de stockage libvirt qui recoit les disques des machines."
+  description = "Pool de stockage libvirt qui recoit les disques."
   type        = string
   default     = "default"
 }
 
 variable "prefixe" {
-  description = "Prefixe applique aux noms des objets crees, pour isoler plusieurs laboratoires sur un meme hote."
+  description = "Prefixe des noms d'objets, pour isoler plusieurs laboratoires sur un meme hote."
   type        = string
   default     = "lab"
 
@@ -34,13 +30,8 @@ variable "domaine_dns" {
   default     = "lab.airbus.local"
 }
 
-# --------------------------------------------------------------- images disque
 variable "image_ubuntu" {
-  description = <<-EOT
-    Image de base Ubuntu Server 22.04 LTS au format cloud (exigence INF-03).
-    Une URL est acceptee, libvirt la telecharge au premier apply.
-    Sur un hote sans acces Internet, indiquer un chemin local.
-  EOT
+  description = "Image Ubuntu Server 22.04 LTS au format cloud. Une URL est acceptee, libvirt la telecharge au premier apply."
   type        = string
   default     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 }
@@ -57,15 +48,14 @@ variable "image_panos" {
   default     = ""
 }
 
-# ------------------------------------------------------------------- comptes
 variable "admin_utilisateur" {
-  description = "Compte nominatif cree sur chaque serveur (exigence INF-06). Aucun mot de passe n'est defini, l'acces se fait par cle."
+  description = "Compte nominatif cree sur chaque serveur. Sans mot de passe : l'acces se fait par cle."
   type        = string
   default     = "adminlab"
 }
 
 variable "cle_ssh_publique" {
-  description = "Cle SSH publique autorisee sur les serveurs. Obligatoire : sans elle, les machines seraient inaccessibles."
+  description = "Cle SSH publique autorisee. Sans elle, les machines seraient inaccessibles."
   type        = string
 
   validation {
@@ -74,20 +64,14 @@ variable "cle_ssh_publique" {
   }
 }
 
-# ------------------------------------------------------------- comportement
 variable "acces_internet_construction" {
-  description = <<-EOT
-    Ouvre temporairement une sortie Internet sur les VLAN d'administration et
-    de serveurs, le temps que cloud-init installe les paquets.
-    A repasser a false une fois les services installes : le routage doit alors
-    passer par le pare-feu Palo Alto, comme prevu par l'architecture.
-  EOT
+  description = "Sortie Internet temporaire sur les VLAN d'administration et de serveurs, le temps d'installer les paquets. A repasser a false ensuite : le routage doit alors passer par le Palo Alto."
   type        = bool
   default     = true
 }
 
 variable "demarrage_automatique" {
-  description = "Demarre les machines avec l'hote. A laisser a false sur un poste de travail, ou la memoire est comptee."
+  description = "Demarre les machines avec l'hote. A laisser a false sur un poste de travail."
   type        = bool
   default     = false
 }
@@ -99,7 +83,7 @@ variable "fuseau_horaire" {
 }
 
 variable "serveurs_ntp" {
-  description = "Sources de temps utilisees par chrony (exigence INF-07)."
+  description = "Sources de temps utilisees par chrony."
   type        = list(string)
   default     = ["0.fr.pool.ntp.org", "1.fr.pool.ntp.org"]
 }

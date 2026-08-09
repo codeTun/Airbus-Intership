@@ -1,8 +1,5 @@
-###############################################################################
-#  Sorties
-#  Ce que l'on veut voir apres un apply, et ce qui sert de preuve pour la
-#  recette de la partie 1 (cas TI-01 et TI-05).
-###############################################################################
+# Ce que l'on veut voir apres un apply, et ce qui sert de preuve pour la
+# recette (cas TI-01 et TI-05).
 
 output "plan_vlan" {
   description = "Plan VLAN tel que reellement cree sur l'hote."
