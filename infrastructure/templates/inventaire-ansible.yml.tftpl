@@ -1,0 +1,53 @@
+# -----------------------------------------------------------------------------
+# Inventaire Ansible du laboratoire
+#
+# FICHIER GENERE PAR TERRAFORM. Ne pas modifier a la main : toute retouche
+# sera perdue au prochain « terraform apply ». Les adresses viennent de
+# infrastructure/inventaire.tf, seule source de verite.
+# -----------------------------------------------------------------------------
+all:
+  vars:
+    ansible_user: ${admin_utilisateur}
+    ansible_python_interpreter: /usr/bin/python3
+    domaine_dns: ${domaine_dns}
+    fuseau_horaire: ${fuseau_horaire}
+    serveurs_ntp:
+%{ for s in serveurs_ntp ~}
+      - ${s}
+%{ endfor ~}
+    supervision_ip: ${supervision_ip}
+    vlan_users: ${vlan_users}
+    vlan_equip: ${vlan_equip}
+
+  children:
+
+    # ---------------------------------------------------------------- serveurs
+    serveurs:
+      vars:
+        ansible_become: true
+      children:
+%{ for groupe, machines in groupes_serveurs ~}
+        ${groupe}:
+          hosts:
+%{ for nom, ip in machines ~}
+            ${nom}:
+              ansible_host: ${ip}
+%{ endfor ~}
+%{ endfor ~}
+
+    # --------------------------------------------------------------- pare-feux
+%{ if length(groupes_parefeux) > 0 ~}
+    parefeux:
+      children:
+%{ for groupe, machines in groupes_parefeux ~}
+        ${groupe}:
+          hosts:
+%{ for nom, ip in machines ~}
+            ${nom}:
+              ansible_host: ${ip}
+%{ endfor ~}
+%{ endfor ~}
+%{ else ~}
+    # Aucun pare-feu deploye : les images constructeur n'ont pas ete fournies.
+    # Renseigner image_fortios et image_panos, puis relancer terraform apply.
+%{ endif ~}

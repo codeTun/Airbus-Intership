@@ -1,0 +1,18 @@
+# Genere par Ansible, role supervision. Ne pas modifier a la main.
+# Recoit les journaux des autres machines du laboratoire (exigence BNF-06).
+
+module(load="imudp")
+input(type="imudp" port="{{ supervision_port_syslog }}")
+
+module(load="imtcp")
+input(type="imtcp" port="{{ supervision_port_syslog }}")
+
+# Un fichier par machine emettrice, pour retrouver rapidement une trace.
+template(name="ParMachine" type="string"
+         string="/var/log/laboratoire/%HOSTNAME%/%PROGRAMNAME%.log")
+
+if $fromhost-ip != '127.0.0.1' then {
+    action(type="omfile" dynaFile="ParMachine" createDirs="on"
+           fileCreateMode="0640" dirCreateMode="0750")
+    stop
+}

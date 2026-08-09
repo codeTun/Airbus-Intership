@@ -78,9 +78,9 @@ locals {
   vlans_avec_sortie = ["mgmt", "servers"]
 
   # ------------------------------------------------- serveurs de la partie 1
-  # Les paquets et commandes sont propres au role : le durcissement commun
-  # (compte nominatif, SSH par cle, pare-feu local, mises a jour, NTP, swap)
-  # est applique a tous par le module serveur.
+  # Terraform ne fait qu'amorcer ces machines : compte, cle SSH, adressage,
+  # durcissement de base. L'installation des services revient a Ansible, qui
+  # se sert du champ "groupe" pour savoir quel role appliquer.
   serveurs = {
     "srv-print-01" = {
       description = "Serveur d'impression"
@@ -89,12 +89,7 @@ locals {
       disque_go   = 25
       vlan        = "servers"
       ip          = "10.10.20.11"
-      ports       = [631]
-      paquets     = ["cups", "cups-filters", "printer-driver-all", "samba"]
-      commandes = [
-        "install -d -m 0755 /etc/cups",
-        "systemctl enable --now cups",
-      ]
+      groupe      = "impression"
     }
 
     "srv-visio-01" = {
@@ -104,16 +99,7 @@ locals {
       disque_go   = 25
       vlan        = "servers"
       ip          = "10.10.20.12"
-      ports       = [443, 10000]
-      # Jitsi Meet demande un nom de domaine et un certificat TLS : le depot
-      # et les dependances sont poses ici, la fin de l'installation est
-      # documentee dans le README (etape manuelle assumee).
-      paquets = ["nginx-full", "openjdk-11-jre-headless", "gnupg2", "apt-transport-https"]
-      commandes = [
-        "curl -fsSL https://download.jitsi.org/jitsi-key.gpg.key | gpg --dearmor -o /usr/share/keyrings/jitsi-keyring.gpg",
-        "echo 'deb [signed-by=/usr/share/keyrings/jitsi-keyring.gpg] https://download.jitsi.org stable/' > /etc/apt/sources.list.d/jitsi-stable.list",
-        "apt-get update",
-      ]
+      groupe      = "visioconference"
     }
 
     "srv-pointeuse-01" = {
@@ -123,13 +109,7 @@ locals {
       disque_go   = 30
       vlan        = "servers"
       ip          = "10.10.20.13"
-      ports       = [5432]
-      paquets     = ["postgresql", "postgresql-contrib", "python3-psycopg2"]
-      commandes = [
-        "systemctl enable --now postgresql",
-        # L'heure fausse directement les pointages : on rend la derive visible.
-        "chronyc tracking > /var/log/chrony-etat-initial.log || true",
-      ]
+      groupe      = "pointeuses"
     }
 
     "sup-centreon-01" = {
@@ -139,14 +119,7 @@ locals {
       disque_go   = 60
       vlan        = "mgmt"
       ip          = "10.10.10.30"
-      ports       = [80, 443]
-      # Centreon ne prend officiellement en charge que Debian et la famille
-      # RHEL. Les dependances communes sont installees ici, la suite est
-      # decrite dans le README avec la solution de repli sous Debian 12.
-      paquets = ["apache2", "mariadb-server", "php", "php-mysql", "snmp", "snmpd"]
-      commandes = [
-        "systemctl enable --now mariadb apache2",
-      ]
+      groupe      = "supervision"
     }
   }
 
@@ -162,6 +135,7 @@ locals {
       disque_go   = 40
       image       = var.image_fortios
       ip_admin    = "10.10.10.254"
+      groupe      = "fortinet"
       # Licence d'evaluation permanente : 3 interfaces au maximum.
       reseaux = ["mgmt", "servers"]
     }
@@ -173,6 +147,7 @@ locals {
       disque_go   = 60
       image       = var.image_panos
       ip_admin    = "10.10.10.253"
+      groupe      = "paloalto"
       # Une sous-interface de niveau 3 par VLAN : tous les VLAN adresses.
       reseaux = ["mgmt", "servers", "equip", "storage", "users", "quarantine"]
     }
@@ -189,6 +164,10 @@ locals {
       tonumber(element(split(".", s.ip), 3))
     )
   }
+
+  # Adresse du serveur de supervision, utilisee par les autres machines pour
+  # y envoyer leurs journaux.
+  ip_supervision = one([for nom, s in local.serveurs : s.ip if s.groupe == "supervision"])
 
   # Totaux, repris dans les sorties pour verifier le dimensionnement annonce.
   total_vcpu = sum([for s in local.serveurs : s.vcpu]) + sum([for f in local.parefeux : f.vcpu])

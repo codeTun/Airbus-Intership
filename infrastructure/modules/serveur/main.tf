@@ -44,9 +44,6 @@ resource "libvirt_cloudinit_disk" "init" {
     cle_ssh_publique  = var.cle_ssh_publique
     fuseau_horaire    = var.fuseau_horaire
     serveurs_ntp      = var.serveurs_ntp
-    paquets           = var.paquets
-    commandes         = var.commandes
-    ports             = var.ports
   })
 
   network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {

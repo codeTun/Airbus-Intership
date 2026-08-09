@@ -1,0 +1,39 @@
+---
+# Durcissement applique a toutes les machines (exigence INF-06).
+# Ces valeurs sont volontairement conservatrices : un role metier peut
+# ouvrir un port supplementaire, jamais en refermer un.
+
+commun_paquets:
+  - chrony
+  - ufw
+  - unattended-upgrades
+  - rsyslog
+  - qemu-guest-agent
+  - curl
+  - ca-certificates
+  - python3-debian   # requis par le module de gestion des depots
+  - htop
+
+# Journalisation centralisee vers le serveur de supervision (exigence BNF-06
+# du volet reseau, deja utile ici pour tracer les installations).
+commun_syslog_distant: true
+commun_syslog_port: 514
+
+# Le fichier d'echange est pose par cloud-init ; le role verifie seulement
+# qu'il est toujours la et que la valeur de swappiness n'a pas derive.
+commun_swappiness: 10
+
+# Ports ouverts sur toutes les machines.
+commun_ports_ouverts:
+  - "22/tcp"
+
+commun_sysctl:
+  # Pas de redirection de paquets : ces machines ne sont pas des routeurs.
+  net.ipv4.ip_forward: 0
+  # Ignorer les redirections ICMP, qui peuvent detourner le trafic.
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  # Refuser les paquets dont l'adresse source est incoherente.
+  net.ipv4.conf.all.rp_filter: 1
+  # Journaliser les adresses impossibles.
+  net.ipv4.conf.all.log_martians: 1

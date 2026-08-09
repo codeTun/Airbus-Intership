@@ -1,0 +1,12 @@
+# Genere par Ansible, role commun. Ne pas modifier a la main.
+# Une derive d'horloge fausse les journaux et, sur le serveur de pointeuses,
+# les pointages eux-memes.
+
+{% for serveur in serveurs_ntp %}
+pool {{ serveur }} iburst
+{% endfor %}
+
+driftfile /var/lib/chrony/chrony.drift
+makestep 1.0 3
+rtcsync
+logdir /var/log/chrony

@@ -61,10 +61,6 @@ module "serveur" {
   fuseau_horaire    = var.fuseau_horaire
   serveurs_ntp      = var.serveurs_ntp
 
-  ports     = each.value.ports
-  paquets   = each.value.paquets
-  commandes = each.value.commandes
-
   demarrage_automatique = var.demarrage_automatique
 }
 
@@ -85,4 +81,38 @@ module "parefeu" {
   reseaux_ids   = [for v in each.value.reseaux : module.reseau.ids[v]]
 
   demarrage_automatique = var.demarrage_automatique
+}
+
+# ------------------------------------------------------- inventaire Ansible
+# Ecrit apres la creation des machines, pour qu'Ansible parte des memes
+# adresses que Terraform. C'est ce qui evite les deux inventaires qui
+# divergent, faute classique quand on separe socle et configuration.
+resource "local_file" "inventaire_ansible" {
+  filename        = "${path.module}/../ansible/inventaire/hosts.yml"
+  file_permission = "0644"
+
+  content = templatefile("${path.module}/templates/inventaire-ansible.yml.tftpl", {
+    admin_utilisateur = var.admin_utilisateur
+    domaine_dns       = var.domaine_dns
+    fuseau_horaire    = var.fuseau_horaire
+    serveurs_ntp      = var.serveurs_ntp
+    supervision_ip    = local.ip_supervision
+    vlan_users        = local.vlans["users"].reseau
+    vlan_equip        = local.vlans["equip"].reseau
+
+    groupes_serveurs = {
+      for groupe in distinct([for s in local.serveurs : s.groupe]) :
+      groupe => { for nom, s in local.serveurs : nom => s.ip if s.groupe == groupe }
+    }
+
+    groupes_parefeux = {
+      for groupe in distinct([for f in local.parefeux : f.groupe if trimspace(f.image) != ""]) :
+      groupe => {
+        for nom, f in local.parefeux : nom => f.ip_admin
+        if f.groupe == groupe && trimspace(f.image) != ""
+      }
+    }
+  })
+
+  depends_on = [module.serveur, module.parefeu]
 }

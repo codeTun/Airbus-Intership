@@ -1,0 +1,31 @@
+---
+# Serveur de gestion des pointeuses.
+#
+# Deux points sont sensibles et guident tout ce role :
+#   - une derive d'horloge fausse directement les pointages
+#   - une interruption de collecte fait perdre des donnees irrecuperables
+# D'ou la surveillance de l'heure et la sauvegarde quotidienne.
+
+pointeuses_paquets:
+  - postgresql
+  - postgresql-contrib
+  - python3-psycopg2
+  - acl                 # requis par become_user vers postgres
+
+pointeuses_base: pointages
+pointeuses_utilisateur: pointeuses
+pointeuses_port: 5432
+
+# Reseau des terminaux de pointage.
+pointeuses_reseau_terminaux: "{{ vlan_equip }}"
+
+# Port d'ecoute du collecteur, cote terminaux.
+pointeuses_port_collecte: 5010
+
+# Sauvegarde quotidienne, conservee deux semaines.
+pointeuses_sauvegarde_repertoire: /var/sauvegardes/pointages
+pointeuses_sauvegarde_heure: "23:30"
+pointeuses_sauvegarde_retention_jours: 14
+
+# Derive d'horloge au-dela de laquelle on considere les pointages douteux.
+pointeuses_derive_max_secondes: 2

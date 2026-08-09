@@ -1,0 +1,169 @@
+---
+# Role commun : reaffirme le durcissement pose par cloud-init.
+#
+# Cloud-init ne s'execute qu'une fois. Ce role, lui, est rejouable : il
+# ramene la machine dans l'etat attendu meme si quelqu'un a modifie quelque
+# chose entre-temps. C'est ce qui permet de prouver INF-06 a tout moment.
+
+- name: Paquets de base presents
+  ansible.builtin.apt:
+    name: "{{ commun_paquets }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [commun, paquets]
+
+- name: Fuseau horaire regle
+  community.general.timezone:
+    name: "{{ fuseau_horaire }}"
+  notify: Redemarrer chrony
+  tags: [commun, heure]
+
+- name: Sources de temps declarees
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redemarrer chrony
+  tags: [commun, heure]
+
+- name: Service de temps actif
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+  tags: [commun, heure]
+
+# --- Acces SSH -------------------------------------------------------------
+- name: Authentification SSH par cle uniquement
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-durcissement.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Genere par Ansible, role commun. Ne pas modifier a la main.
+      PasswordAuthentication no
+      PermitRootLogin no
+      PermitEmptyPasswords no
+      ChallengeResponseAuthentication no
+      X11Forwarding no
+      MaxAuthTries 4
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+  notify: Redemarrer ssh
+  tags: [commun, ssh]
+
+# --- Parametres noyau ------------------------------------------------------
+- name: Parametres noyau de securite
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/98-durcissement.conf
+    state: present
+    reload: true
+  loop: "{{ commun_sysctl | dict2items }}"
+  tags: [commun, noyau]
+
+- name: Swappiness conforme au garde-fou memoire
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: "{{ commun_swappiness }}"
+    sysctl_file: /etc/sysctl.d/99-labo.conf
+    state: present
+    reload: true
+  tags: [commun, noyau]
+
+- name: Fichier d'echange toujours en place
+  ansible.builtin.stat:
+    path: /swapfile
+  register: commun_swap
+  tags: [commun, noyau]
+
+- name: Alerter si le fichier d'echange a disparu
+  ansible.builtin.fail:
+    msg: >-
+      /swapfile est absent sur {{ inventory_hostname }}.
+      Le garde-fou memoire ne joue plus son role, recreer la machine.
+  when: not commun_swap.stat.exists
+  tags: [commun, noyau]
+
+# --- Mises a jour de securite ----------------------------------------------
+- name: Mises a jour de securite automatiques
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+  tags: [commun, maj]
+
+- name: Service de mises a jour actif
+  ansible.builtin.service:
+    name: unattended-upgrades
+    state: started
+    enabled: true
+  tags: [commun, maj]
+
+# --- Pare-feu local --------------------------------------------------------
+- name: Politique par defaut, tout refuser en entree
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  tags: [commun, parefeu]
+
+- name: Politique par defaut, autoriser la sortie
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  tags: [commun, parefeu]
+
+- name: Ports communs ouverts
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.split('/')[0] }}"
+    proto: "{{ item.split('/')[1] | default('any') }}"
+  loop: "{{ commun_ports_ouverts }}"
+  tags: [commun, parefeu]
+
+- name: Pare-feu local actif
+  community.general.ufw:
+    state: enabled
+  tags: [commun, parefeu]
+
+# --- Journalisation centralisee --------------------------------------------
+- name: Journaux envoyes vers la supervision
+  ansible.builtin.copy:
+    dest: /etc/rsyslog.d/90-supervision.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Genere par Ansible, role commun.
+      *.* @{{ supervision_ip }}:{{ commun_syslog_port }}
+  when:
+    - commun_syslog_distant | bool
+    - inventory_hostname not in groups['supervision'] | default([])
+  notify: Redemarrer rsyslog
+  tags: [commun, journaux]
+
+# --- Trace de configuration ------------------------------------------------
+- name: Carte d'identite de la machine mise a jour
+  ansible.builtin.copy:
+    dest: /etc/labo-airbus.yaml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      machine: {{ inventory_hostname }}
+      adresse: {{ ansible_host }}
+      groupe: {{ group_names | difference(['all', 'serveurs']) | join(', ') }}
+      amorcage: cloud-init
+      configuration: ansible
+      derniere_configuration: {{ ansible_date_time.iso8601 }}
+  tags: [commun, trace]

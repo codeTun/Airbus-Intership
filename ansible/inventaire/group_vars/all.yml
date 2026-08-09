@@ -1,0 +1,18 @@
+---
+# Variables communes a toutes les machines.
+# Les adresses et les groupes viennent de inventaire/hosts.yml, genere par
+# Terraform. Ne rien dupliquer ici.
+
+# Secrets : jamais en clair dans le depot. Les valeurs reelles sont dans
+# inventaire/group_vars/coffre.yml, chiffre par ansible-vault.
+pointeuses_mot_de_passe: "{{ coffre_pointeuses_mot_de_passe }}"
+supervision_admin: admin
+supervision_admin_mot_de_passe: "{{ coffre_supervision_mot_de_passe }}"
+
+# Connexion aux pare-feux. Les identifiants sont dans le coffre.
+paloalto_connexion:
+  ip_address: "{{ ansible_host }}"
+  username: "{{ coffre_paloalto_utilisateur | default('admin') }}"
+  password: "{{ coffre_paloalto_mot_de_passe }}"
+
+ansible_fortios_api_key: "{{ coffre_fortinet_cle_api | default('') }}"

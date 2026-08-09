@@ -1,0 +1,54 @@
+---
+# Configuration complete du laboratoire.
+#
+#   ansible-playbook site.yml                       tout
+#   ansible-playbook site.yml --limit impression    un seul service
+#   ansible-playbook site.yml --tags parefeu        une seule preoccupation
+#   ansible-playbook site.yml --check --diff        simulation, sans rien changer
+
+- name: Preparation commune a toutes les machines
+  hosts: serveurs
+  gather_facts: true
+  roles:
+    - commun
+
+- name: Serveur d'impression
+  hosts: impression
+  gather_facts: true
+  roles:
+    - impression
+
+- name: Serveur de visioconference
+  hosts: visioconference
+  gather_facts: true
+  roles:
+    - visioconference
+
+- name: Serveur de gestion des pointeuses
+  hosts: pointeuses
+  gather_facts: true
+  roles:
+    - pointeuses
+
+# La supervision passe en dernier : elle declare les autres machines, qui
+# doivent donc deja etre configurees.
+- name: Supervision Centreon
+  hosts: supervision
+  gather_facts: true
+  roles:
+    - supervision
+
+# Les pare-feux se configurent depuis le poste d'administration, par leur API.
+- name: Pare-feu peripherique Fortinet
+  hosts: fortinet
+  gather_facts: false
+  connection: local
+  roles:
+    - parefeu_fortinet
+
+- name: Pare-feu interne Palo Alto
+  hosts: paloalto
+  gather_facts: false
+  connection: local
+  roles:
+    - parefeu_paloalto

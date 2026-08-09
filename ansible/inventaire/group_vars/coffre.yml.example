@@ -1,0 +1,12 @@
+---
+# Copier en coffre.yml puis chiffrer :
+#     ansible-vault encrypt inventaire/group_vars/coffre.yml
+#
+# Le fichier chiffre peut etre versionne sans risque. Le mot de passe du
+# coffre, lui, ne l'est jamais.
+
+coffre_pointeuses_mot_de_passe: a-remplacer
+coffre_supervision_mot_de_passe: a-remplacer
+coffre_paloalto_utilisateur: admin
+coffre_paloalto_mot_de_passe: a-remplacer
+coffre_fortinet_cle_api: a-remplacer

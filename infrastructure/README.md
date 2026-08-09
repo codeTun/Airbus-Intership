@@ -87,29 +87,44 @@ Les sept VLAN du plan sont créés, y compris le VLAN natif 999 sans adressage.
 
 ---
 
-## 5. Durcissement appliqué à chaque serveur
+## 5. Ce que fait cloud-init, et ce qu'il ne fait pas
 
-Sans intervention manuelle, cloud-init pose sur chaque machine :
+Cloud-init **amorce** la machine, rien de plus. Il pose :
 
 - un compte nominatif, sans mot de passe, accessible par clé SSH uniquement
 - le compte `root` et l'authentification par mot de passe désactivés
-- le pare-feu local `ufw` en refus par défaut, ouvert sur SSH et sur les seuls ports du service
-- les mises à jour de sécurité automatiques
-- l'heure synchronisée par chrony
-- un fichier d'échange de 2 Go avec `vm.swappiness=10`, pour absorber un pic sans que le noyau n'arrête un processus
+- l'adressage fixe conforme au plan VLAN
+- le pare-feu local `ufw` en refus par défaut, ouvert sur le seul port SSH
+- les mises à jour de sécurité automatiques et l'heure par chrony
+- un fichier d'échange de 2 Go avec `vm.swappiness=10`
+- `python3`, nécessaire à Ansible
+
+Il **n'installe aucun service métier**. Cloud-init ne s'exécute qu'une fois : il
+ne sait ni se rejouer, ni corriger une dérive. Tout ce qui doit rester vrai dans
+le temps appartient à Ansible, dans `../ansible/`.
 
 ---
 
-## 6. Ce qui reste manuel, et pourquoi
+## 6. Après Terraform : Ansible
 
-Terraform crée les machines, il n'installe pas les applications complexes. Trois étapes restent à faire à la main, et c'est assumé dans le cahier des charges.
+`terraform apply` écrit `../ansible/inventaire/hosts.yml` avec les adresses
+réelles. Il n'y a donc pas d'inventaire à tenir à jour à la main, et les deux
+outils ne peuvent pas diverger.
 
-**Les pare-feux.** Les images constructeur n'acceptent pas cloud-init. Récupérez les fichiers qcow2 auprès de Fortinet et de Palo Alto, renseignez `image_fortios` et `image_panos`, relancez `make appliquer`. La configuration se fait ensuite dans l'interface de l'éditeur, puis s'exporte dans le dépôt Git.
-Tant que ces variables sont vides, les serveurs se déploient seuls et la sortie indique `non déployé`.
+```bash
+cd ../ansible
+make collections
+make configurer
+```
 
-**Jitsi Meet.** L'installation demande un nom de domaine et un certificat TLS, que l'on ne peut pas deviner. Le dépôt est configuré par cloud-init, il reste à lancer `apt install jitsi-meet` et à répondre aux questions.
+Ansible installe et configure les services métiers, la supervision Centreon et
+les deux pare-feux. Voir `../ansible/README.md`.
 
-**Centreon.** L'éditeur ne prend officiellement en charge que Debian et la famille RHEL. Les dépendances sont posées, la suite est à faire depuis la documentation Centreon. En cas de blocage, basculer cette seule machine sous Debian 12 en changeant `image_ubuntu` pour cette machine.
+**Les images des pare-feux** restent à récupérer auprès de Fortinet et de Palo
+Alto. Renseignez `image_fortios` et `image_panos`, relancez `make appliquer`.
+Tant que ces variables sont vides, les serveurs se déploient seuls, la sortie
+indique `non déployé` et les pare-feux n'apparaissent pas dans l'inventaire
+Ansible.
 
 ---
 

@@ -1,0 +1,104 @@
+---
+# Configuration du pare-feu Fortinet par son API REST.
+#
+# Prerequis : la machine doit deja etre joignable et licenciee. L'amorcage
+# initial se fait par une image ISO de configuration attachee au premier
+# demarrage, decrit dans le README.
+#
+# La collection fortinet.fortios est idempotente : chaque execution ramene le
+# pare-feu a l'etat decrit ici.
+
+- name: Limites de la licence d'evaluation respectees
+  ansible.builtin.assert:
+    that:
+      - fortinet_interfaces | length <= fortinet_max_interfaces
+      - fortinet_regles | length <= fortinet_max_regles
+    fail_msg: >-
+      La licence d'evaluation permanente n'autorise que
+      {{ fortinet_max_interfaces }} interfaces et {{ fortinet_max_regles }} regles.
+      La configuration en demande {{ fortinet_interfaces | length }} et
+      {{ fortinet_regles | length }}. Reduire la configuration ou passer sur
+      une licence payante.
+    success_msg: Configuration compatible avec la licence d'evaluation.
+  when: fortinet_limite_evaluation | bool
+  tags: [fortinet, verification]
+
+- name: Interfaces configurees
+  fortinet.fortios.fortios_system_interface:
+    state: present
+    system_interface:
+      name: "{{ item.nom }}"
+      role: "{{ item.role }}"
+      mode: "{{ item.mode }}"
+      ip: "{{ item.adresse | default(omit) }}"
+      description: "{{ item.description }}"
+      allowaccess: "{{ item.acces_admin | join(' ') }}"
+  loop: "{{ fortinet_interfaces }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  tags: [fortinet, reseau]
+
+- name: Serveurs de temps declares (INF-07)
+  fortinet.fortios.fortios_system_ntp:
+    system_ntp:
+      ntpsync: enable
+      type: custom
+      server_mode: disable
+      ntpserver: "{{ serveurs_ntp | map('community.general.dict_kv', 'server') | list }}"
+  when: fortinet_ntp_actif | bool
+  tags: [fortinet, heure]
+
+- name: Journaux envoyes vers la supervision
+  fortinet.fortios.fortios_log_syslogd_setting:
+    log_syslogd_setting:
+      status: enable
+      server: "{{ supervision_ip }}"
+      port: 514
+      mode: udp
+      facility: local7
+  when: fortinet_syslog_actif | bool
+  tags: [fortinet, journaux]
+
+- name: Regles de filtrage appliquees
+  fortinet.fortios.fortios_firewall_policy:
+    state: present
+    firewall_policy:
+      policyid: "{{ index + 1 }}"
+      name: "{{ item.nom }}"
+      srcintf:
+        - name: "{{ item.source_interface }}"
+      dstintf:
+        - name: "{{ item.destination_interface }}"
+      srcaddr:
+        - name: "{{ item.source }}"
+      dstaddr:
+        - name: "{{ item.destination }}"
+      service: "{{ item.service | map('community.general.dict_kv', 'name') | list }}"
+      action: "{{ item.action }}"
+      schedule: always
+      logtraffic: "{{ item.journalisation }}"
+      nat: "{{ 'enable' if item.destination_interface == 'port1' else 'disable' }}"
+  loop: "{{ fortinet_regles }}"
+  loop_control:
+    index_var: index
+    label: "{{ item.nom }}"
+  tags: [fortinet, regles]
+
+# --- Sauvegarde de configuration (exigence INF-10) --------------------------
+- name: Configuration exportee pour versionnement
+  fortinet.fortios.fortios_monitor_fact:
+    selector: system_config_backup
+    params:
+      scope: global
+  register: fortinet_sauvegarde
+  tags: [fortinet, sauvegarde]
+
+- name: Configuration deposee dans le depot
+  ansible.builtin.copy:
+    content: "{{ fortinet_sauvegarde.meta.raw | default('') }}"
+    dest: "{{ playbook_dir }}/../configurations/{{ inventory_hostname }}.conf"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: fortinet_sauvegarde.meta is defined
+  tags: [fortinet, sauvegarde]

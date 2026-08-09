@@ -1,0 +1,12 @@
+---
+# Les collections tierces sont analysees par leurs auteurs, pas par nous.
+exclude_paths:
+  - collections/
+  - inventaire/hosts.yml
+
+# L'inventaire est genere par Terraform : son nom de fichier est impose.
+skip_list:
+  - var-naming[no-role-prefix]   # les variables d'inventaire viennent de Terraform
+
+warn_list:
+  - experimental

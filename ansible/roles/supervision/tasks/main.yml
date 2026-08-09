@@ -1,0 +1,187 @@
+---
+# Supervision Centreon (exigence INF-04).
+#
+# Le role fait trois choses : installer Centreon, recevoir les journaux des
+# autres machines, et declarer chaque machine du laboratoire avec ses sondes.
+# La derniere partie est ce qui satisfait reellement INF-04 : sans elle,
+# Centreon serait installe mais ne surveillerait rien.
+
+# --- Verification prealable ------------------------------------------------
+# Mieux vaut s'arreter net avec un message utile que poser une installation
+# bancale qui echouera plus loin.
+- name: Distribution compatible avec Centreon
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution in supervision_distributions_supportees
+    fail_msg: >-
+      {{ inventory_hostname }} tourne sous {{ ansible_facts.distribution }}
+      {{ ansible_facts.distribution_version }}, or Centreon ne publie de depot
+      que pour {{ supervision_distributions_supportees | join(' et ') }}.
+      Solution prevue au cahier des charges : basculer cette seule machine sous
+      Debian 12, en renseignant la variable image_supervision dans
+      infrastructure/terraform.tfvars, puis relancer terraform apply.
+    success_msg: >-
+      {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }},
+      compatible avec le depot Centreon.
+  tags: [supervision, verification]
+
+# --- Installation ----------------------------------------------------------
+- name: Paquets de base presents
+  ansible.builtin.apt:
+    name: "{{ supervision_paquets_base }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [supervision, paquets]
+
+- name: Cle du depot Centreon
+  ansible.builtin.get_url:
+    url: https://apt-key.centreon.com
+    dest: /usr/share/keyrings/centreon.asc
+    mode: "0644"
+  tags: [supervision, depot]
+
+- name: Depot Centreon declare
+  ansible.builtin.deb822_repository:
+    name: centreon
+    types: [deb]
+    uris: "https://packages.centreon.com/apt-standard-{{ supervision_version }}-stable/"
+    suites: ["{{ ansible_facts.distribution_release }}"]
+    components: [main]
+    signed_by: /usr/share/keyrings/centreon.asc
+    state: present
+    enabled: true
+  tags: [supervision, depot]
+
+- name: Centreon installe
+  ansible.builtin.apt:
+    name: centreon
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  notify: Redemarrer centreon
+  tags: [supervision, installation]
+
+- name: Services Centreon actifs
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [apache2, mariadb, cbd, centengine, gorgoned]
+  failed_when: false
+  tags: [supervision, service]
+
+# --- Collecte des journaux -------------------------------------------------
+- name: Repertoire des journaux recus
+  ansible.builtin.file:
+    path: /var/log/laboratoire
+    state: directory
+    owner: syslog
+    group: adm
+    mode: "0750"
+  tags: [supervision, journaux]
+
+- name: Collecteur syslog configure
+  ansible.builtin.template:
+    src: collecteur-syslog.conf.j2
+    dest: /etc/rsyslog.d/10-collecteur.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redemarrer rsyslog
+  tags: [supervision, journaux]
+
+- name: Reception des journaux ouverte au laboratoire
+  community.general.ufw:
+    rule: allow
+    port: "{{ supervision_port_syslog }}"
+    proto: "{{ item }}"
+    comment: Reception des journaux du laboratoire
+  loop: [udp, tcp]
+  tags: [supervision, parefeu]
+
+- name: Interface web ouverte
+  community.general.ufw:
+    rule: allow
+    port: "{{ supervision_port_web }}"
+    proto: tcp
+    comment: Interface web Centreon
+  tags: [supervision, parefeu]
+
+# --- Declaration des machines et des sondes --------------------------------
+# C'est ce bloc qui satisfait INF-04. La ligne de commande Centreon (clapi)
+# est utilisee plutot que l'interface web, pour que l'ensemble reste rejouable.
+- name: Machines deja connues de Centreon
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HOST -a show
+  register: supervision_hotes_connus
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, hotes]
+
+- name: Machines du laboratoire declarees
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HOST -a add
+    -v "{{ item }};{{ item }};{{ hostvars[item].ansible_host }};generic-host;central;"
+  loop: "{{ groups['serveurs'] | default([]) }}"
+  when: item not in (supervision_hotes_connus.stdout | default(''))
+  changed_when: true
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, hotes]
+
+# Chaque machine recoit les sondes de son groupe, plus les sondes communes.
+- name: Correspondance entre machines et sondes
+  ansible.builtin.set_fact:
+    supervision_affectations: >-
+      {{ supervision_affectations | default([]) + [{
+           'machine': item,
+           'controles': supervision_controles[groupe] | default([])
+         }] }}
+  vars:
+    groupe: >-
+      {{ (hostvars[item].group_names | intersect(supervision_controles.keys() | list) | first)
+         | default('', true) }}
+  loop: "{{ groups['serveurs'] | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  tags: [supervision, sondes]
+
+- name: Sondes declarees machine par machine
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o SERVICE -a add
+    -v "{{ item.0.machine }};{{ item.1.nom }};{{ item.1.commande }}"
+  loop: "{{ query('subelements', supervision_affectations, 'controles', {'skip_missing': True}) }}"
+  loop_control:
+    label: "{{ item.0.machine }} / {{ item.1.nom }}"
+  when: item.0.machine not in (supervision_hotes_connus.stdout | default(''))
+  changed_when: true
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+- name: Configuration Centreon rechargee
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -a APPLYCFG -v central
+  changed_when: true
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# --- Verification ----------------------------------------------------------
+- name: L'interface web repond
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ supervision_port_web }}/centreon/"
+    status_code: [200, 302, 401]
+    timeout: 30
+  register: supervision_web
+  retries: 5
+  delay: 10
+  until: supervision_web is succeeded
+  tags: [supervision, verification]

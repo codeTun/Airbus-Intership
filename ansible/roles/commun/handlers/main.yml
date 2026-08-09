@@ -1,0 +1,15 @@
+---
+- name: Redemarrer chrony
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+
+- name: Redemarrer ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: Redemarrer rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted

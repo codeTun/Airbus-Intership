@@ -1,0 +1,20 @@
+---
+- name: Redemarrer apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
+- name: Redemarrer centreon
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - cbd
+    - centengine
+    - gorgoned
+  failed_when: false
+
+- name: Redemarrer rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted

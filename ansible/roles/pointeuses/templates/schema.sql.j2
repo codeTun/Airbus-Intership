@@ -1,0 +1,33 @@
+-- Genere par Ansible, role pointeuses.
+-- Schema minimal de collecte : un enregistrement par passage de badge.
+
+CREATE TABLE IF NOT EXISTS terminaux (
+    id           SERIAL PRIMARY KEY,
+    identifiant  TEXT NOT NULL UNIQUE,
+    libelle      TEXT NOT NULL,
+    adresse_ip   INET,
+    adresse_mac  MACADDR,          -- servira au MAB en partie 2
+    dernier_vu   TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS pointages (
+    id           BIGSERIAL PRIMARY KEY,
+    terminal_id  INTEGER NOT NULL REFERENCES terminaux(id),
+    badge        TEXT NOT NULL,
+    horodatage   TIMESTAMPTZ NOT NULL,
+    sens         TEXT NOT NULL CHECK (sens IN ('entree', 'sortie')),
+    collecte_le  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (terminal_id, badge, horodatage)
+);
+
+-- Les exports vers la paie interrogent toujours par periode.
+CREATE INDEX IF NOT EXISTS pointages_horodatage_idx ON pointages (horodatage);
+CREATE INDEX IF NOT EXISTS pointages_badge_idx      ON pointages (badge);
+
+-- Vue de controle : date du dernier pointage collecte, surveillee par
+-- Centreon. Aucune collecte depuis 15 minutes declenche une alerte.
+CREATE OR REPLACE VIEW etat_collecte AS
+SELECT
+    max(collecte_le)                                  AS dernier_pointage,
+    EXTRACT(EPOCH FROM (now() - max(collecte_le)))::int AS secondes_depuis
+FROM pointages;

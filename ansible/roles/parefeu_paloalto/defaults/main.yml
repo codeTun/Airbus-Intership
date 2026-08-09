@@ -1,0 +1,74 @@
+---
+# Pare-feu interne Palo Alto : routage inter-VLAN et inspection applicative.
+#
+# Chaque VLAN devient une zone de securite, avec une sous-interface de
+# niveau 3 dediee. Tout flux entre zones traverse la politique de securite.
+
+paloalto_interface_physique: ethernet1/1
+paloalto_routeur_virtuel: default
+
+# Une sous-interface par VLAN adresse, conforme au plan VLAN.
+paloalto_sous_interfaces:
+  - {vlan: 10, zone: MGMT, adresse: 10.10.10.1/24, commentaire: Administration et supervision}
+  - {vlan: 20, zone: SERVERS, adresse: 10.10.20.1/24, commentaire: Serveurs metiers}
+  - {vlan: 30, zone: EQUIP, adresse: 10.10.30.1/24, commentaire: Imprimantes et pointeuses}
+  - {vlan: 40, zone: STORAGE, adresse: 10.10.40.1/24, commentaire: Flux de stockage IP}
+  - {vlan: 50, zone: USERS, adresse: 10.10.50.1/24, commentaire: Postes de travail}
+  - {vlan: 99, zone: QUARANTINE, adresse: 10.10.99.1/24, commentaire: Equipements non authentifies}
+
+# Profils de securite appliques aux regles d'autorisation.
+paloalto_groupe_profils: profils-laboratoire
+
+# Matrice de flux, reprise du cahier des charges. Le refus par defaut est
+# assure par la regle implicite de PAN-OS, on ne la redeclare pas.
+paloalto_regles:
+  - nom: Administration vers tous
+    source_zone: [MGMT]
+    destination_zone: [SERVERS, EQUIP, STORAGE, USERS, QUARANTINE]
+    application: [ssh, ssl, snmp]
+    action: allow
+    profils: true
+
+  - nom: Postes vers serveurs metiers
+    source_zone: [USERS]
+    destination_zone: [SERVERS]
+    application: [ssl, web-browsing, ipp, rtp]
+    action: allow
+    profils: true
+
+  - nom: Equipements vers serveurs
+    source_zone: [EQUIP]
+    destination_zone: [SERVERS]
+    application: [ssl, web-browsing]
+    action: allow
+    profils: true
+
+  - nom: Serveurs vers imprimantes
+    source_zone: [SERVERS]
+    destination_zone: [EQUIP]
+    application: [ipp]
+    action: allow
+    profils: true
+
+  - nom: Serveurs vers stockage
+    source_zone: [SERVERS]
+    destination_zone: [STORAGE]
+    application: [nfs, iscsi]
+    action: allow
+    profils: true
+
+  - nom: Quarantaine vers portail
+    source_zone: [QUARANTINE]
+    destination_zone: [MGMT]
+    application: [dhcp, dns, web-browsing]
+    action: allow
+    profils: true
+
+  - nom: Journaux et temps vers administration
+    source_zone: [SERVERS, EQUIP, USERS, QUARANTINE]
+    destination_zone: [MGMT]
+    application: [syslog, ntp]
+    action: allow
+    profils: false
+
+paloalto_syslog_actif: true

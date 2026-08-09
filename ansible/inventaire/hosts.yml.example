@@ -1,0 +1,55 @@
+# -----------------------------------------------------------------------------
+# Inventaire Ansible du laboratoire
+#
+# EXEMPLE, a titre indicatif. Le vrai fichier hosts.yml est genere par
+# Terraform a chaque apply, a partir de infrastructure/inventaire.tf.
+# Il permet de lancer « make verifier » avant meme d'avoir cree les machines.
+# -----------------------------------------------------------------------------
+all:
+  vars:
+    ansible_user: adminlab
+    ansible_python_interpreter: /usr/bin/python3
+    domaine_dns: lab.airbus.local
+    fuseau_horaire: Europe/Paris
+    serveurs_ntp:
+      - 0.fr.pool.ntp.org
+      - 1.fr.pool.ntp.org
+    supervision_ip: 10.10.10.30
+    vlan_users: 10.10.50.0/24
+    vlan_equip: 10.10.30.0/24
+
+  children:
+
+    # ---------------------------------------------------------------- serveurs
+    serveurs:
+      vars:
+        ansible_become: true
+      children:
+        impression:
+          hosts:
+            srv-print-01:
+              ansible_host: 10.10.20.11
+        pointeuses:
+          hosts:
+            srv-pointeuse-01:
+              ansible_host: 10.10.20.13
+        supervision:
+          hosts:
+            sup-centreon-01:
+              ansible_host: 10.10.10.30
+        visioconference:
+          hosts:
+            srv-visio-01:
+              ansible_host: 10.10.20.12
+
+    # --------------------------------------------------------------- pare-feux
+    parefeux:
+      children:
+        fortinet:
+          hosts:
+            fw-forti-01:
+              ansible_host: 10.10.10.254
+        paloalto:
+          hosts:
+            fw-palo-01:
+              ansible_host: 10.10.10.253

@@ -1,0 +1,36 @@
+---
+# Serveur d'impression, conforme au tableau des services metiers :
+# CUPS, port IPP 631, une file par imprimante, quotas par utilisateur,
+# acces limite au VLAN des postes de travail.
+
+impression_paquets:
+  - cups
+  - cups-filters
+  - cups-bsd
+  - printer-driver-all
+  - samba          # partage compatible Windows si des postes le reclament
+
+impression_port: 631
+
+# Reseaux autorises a imprimer. Par defaut le VLAN des postes de travail,
+# transmis par l'inventaire genere depuis Terraform.
+impression_reseaux_autorises:
+  - "{{ vlan_users }}"
+
+# Files d'attente. Une entree par imprimante physique du VLAN 30.
+# Les adresses sont a completer avec le parc reel.
+impression_files:
+  - nom: imprimante-bureau-01
+    description: Imprimante du plateau, rez-de-chaussee
+    adresse: ipp://10.10.30.11/ipp/print
+    modele: everywhere       # pilote IPP standard, sans installation
+    quota_pages: 500
+
+  - nom: imprimante-bureau-02
+    description: Imprimante du plateau, premier etage
+    adresse: ipp://10.10.30.12/ipp/print
+    modele: everywhere
+    quota_pages: 500
+
+# Duree de conservation des travaux, en secondes.
+impression_retention_travaux: 86400

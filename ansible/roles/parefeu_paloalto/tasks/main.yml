@@ -1,0 +1,95 @@
+---
+# Configuration du pare-feu Palo Alto par son API XML.
+#
+# Prerequis : la machine doit avoir demarre avec son paquet d'amorcage
+# (init-cfg.txt et bootstrap.xml sur un disque attache), ce qui lui donne son
+# adresse d'administration et son compte. Le README decrit ce paquet.
+#
+# La collection paloaltonetworks.panos est idempotente. Les modifications
+# sont ecrites dans la configuration candidate, puis validees en une fois.
+
+- name: Zones de securite creees, une par VLAN
+  paloaltonetworks.panos.panos_zone:
+    provider: "{{ paloalto_connexion }}"
+    zone: "{{ item.zone }}"
+    mode: layer3
+    interface: ["{{ paloalto_interface_physique }}.{{ item.vlan }}"]
+  loop: "{{ paloalto_sous_interfaces }}"
+  loop_control:
+    label: "{{ item.zone }}"
+  tags: [paloalto, zones]
+
+- name: Sous-interfaces de niveau 3 creees
+  paloaltonetworks.panos.panos_l3_subinterface:
+    provider: "{{ paloalto_connexion }}"
+    name: "{{ paloalto_interface_physique }}.{{ item.vlan }}"
+    tag: "{{ item.vlan }}"
+    ip: ["{{ item.adresse }}"]
+    zone_name: "{{ item.zone }}"
+    vr_name: "{{ paloalto_routeur_virtuel }}"
+    comment: "{{ item.commentaire }}"
+    enable_dhcp: false
+  loop: "{{ paloalto_sous_interfaces }}"
+  loop_control:
+    label: "VLAN {{ item.vlan }}"
+  tags: [paloalto, reseau]
+
+- name: Serveurs de temps declares (INF-07)
+  paloaltonetworks.panos.panos_mgtconfig:
+    provider: "{{ paloalto_connexion }}"
+    ntp_server_primary: "{{ serveurs_ntp[0] }}"
+    ntp_server_secondary: "{{ serveurs_ntp[1] | default(omit) }}"
+  tags: [paloalto, heure]
+
+# Le serveur syslog s'attache a un profil : il faut donc creer le profil avant.
+- name: Profil de journalisation cree
+  paloaltonetworks.panos.panos_syslog_profile:
+    provider: "{{ paloalto_connexion }}"
+    syslog_profile: journaux-laboratoire
+  when: paloalto_syslog_actif | bool
+  tags: [paloalto, journaux]
+
+- name: Journaux envoyes vers la supervision
+  paloaltonetworks.panos.panos_syslog_server:
+    provider: "{{ paloalto_connexion }}"
+    syslog_profile: journaux-laboratoire
+    name: supervision
+    server: "{{ supervision_ip }}"
+    transport: UDP
+    port: 514
+    facility: LOG_LOCAL7
+  when: paloalto_syslog_actif | bool
+  tags: [paloalto, journaux]
+
+- name: Regles de securite appliquees
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ paloalto_connexion }}"
+    rule_name: "{{ item.nom }}"
+    source_zone: "{{ item.source_zone }}"
+    destination_zone: "{{ item.destination_zone }}"
+    source_ip: [any]
+    destination_ip: [any]
+    application: "{{ item.application }}"
+    service: [application-default]
+    action: "{{ item.action }}"
+    log_end: true
+    group_profile: "{{ paloalto_groupe_profils if item.profils else omit }}"
+  loop: "{{ paloalto_regles }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  tags: [paloalto, regles]
+
+- name: Configuration candidate validee
+  paloaltonetworks.panos.panos_commit_firewall:
+    provider: "{{ paloalto_connexion }}"
+    description: Configuration du laboratoire appliquee par Ansible
+  tags: [paloalto, validation]
+
+# --- Sauvegarde de configuration (exigence INF-10) --------------------------
+- name: Configuration exportee pour versionnement
+  paloaltonetworks.panos.panos_export:
+    provider: "{{ paloalto_connexion }}"
+    category: configuration
+    filename: "{{ playbook_dir }}/configurations/{{ inventory_hostname }}.xml"
+    create_directory: true
+  tags: [paloalto, sauvegarde]

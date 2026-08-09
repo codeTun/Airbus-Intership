@@ -1,0 +1,40 @@
+---
+# Verification de la recette de la partie 1, sans rien modifier.
+# Correspond aux cas TI-03, TI-04 et TI-05.
+
+- name: Controle de l'etat du laboratoire
+  hosts: serveurs
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Machine amorcee par cloud-init
+      ansible.builtin.stat:
+        path: /var/lib/cloud/instance/amorcage-termine
+      register: amorcage
+
+    - name: Pare-feu local actif
+      ansible.builtin.command: ufw status
+      register: parefeu
+      changed_when: false
+
+    - name: Heure synchronisee
+      ansible.builtin.command: chronyc tracking
+      register: horloge
+      changed_when: false
+
+    - name: Fichier d'echange present
+      ansible.builtin.stat:
+        path: /swapfile
+      register: swap
+
+    - name: Compte rendu
+      ansible.builtin.debug:
+        msg:
+          - "machine        : {{ inventory_hostname }} ({{ ansible_host }})"
+          - "systeme        : {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+          - "processeurs    : {{ ansible_facts.processor_vcpus }}"
+          - "memoire        : {{ (ansible_facts.memtotal_mb / 1024) | round(1) }} Go"
+          - "amorcage       : {{ 'termine' if amorcage.stat.exists else 'INCOMPLET' }}"
+          - "pare-feu local : {{ 'actif' if 'Status: active' in parefeu.stdout else 'INACTIF' }}"
+          - "fichier echange: {{ 'present' if swap.stat.exists else 'ABSENT' }}"
+          - "horloge        : {{ 'synchronisee' if 'System time' in horloge.stdout else 'A VERIFIER' }}"

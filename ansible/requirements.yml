@@ -1,0 +1,13 @@
+---
+# Collections necessaires. Installation : make collections
+collections:
+  - name: ansible.posix
+    version: ">=1.5.0"
+  - name: community.general
+    version: ">=8.0.0"
+  - name: community.postgresql
+    version: ">=3.0.0"
+  - name: fortinet.fortios
+    version: ">=2.3.0"
+  - name: paloaltonetworks.panos
+    version: ">=2.19.0"

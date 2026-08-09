@@ -1,0 +1,20 @@
+---
+# Aligne sur ce qu'attend ansible-lint, pour que les deux outils soient d'accord.
+extends: default
+rules:
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    allowed-values: ["true", "false"]
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+ignore: |
+  collections/
+  inventaire/hosts.yml

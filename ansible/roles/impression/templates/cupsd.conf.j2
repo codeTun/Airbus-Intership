@@ -1,0 +1,55 @@
+# Genere par Ansible, role impression. Ne pas modifier a la main.
+
+LogLevel warn
+PageLogFormat %p %u %j %T %P     # suivi de consommation par utilisateur
+MaxLogSize 10m
+PreserveJobHistory {{ impression_retention_travaux }}
+PreserveJobFiles No
+
+# Ecoute sur le VLAN des serveurs uniquement.
+Listen {{ ansible_host }}:{{ impression_port }}
+Listen /run/cups/cups.sock
+
+Browsing Off
+BrowseLocalProtocols none
+DefaultAuthType Basic
+WebInterface Yes
+
+<Location />
+  Order allow,deny
+  Allow localhost
+{% for reseau in impression_reseaux_autorises %}
+  Allow from {{ reseau }}
+{% endfor %}
+</Location>
+
+# L'administration reste reservee au VLAN d'administration.
+<Location /admin>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+  Allow localhost
+  Allow from {{ supervision_ip }}
+</Location>
+
+<Location /admin/conf>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+  Allow localhost
+</Location>
+
+<Policy default>
+  JobPrivateAccess default
+  JobPrivateValues default
+
+  <Limit Send-Document Send-URI Hold-Job Release-Job Restart-Job Purge-Jobs \
+         Set-Job-Attributes Cancel-Job CUPS-Move-Job>
+    Require user @OWNER @SYSTEM
+    Order deny,allow
+  </Limit>
+
+  <Limit All>
+    Order deny,allow
+  </Limit>
+</Policy>

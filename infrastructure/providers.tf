@@ -17,6 +17,11 @@ terraform {
       source  = "dmacvicar/libvirt"
       version = "~> 0.8.0"
     }
+    # Sert uniquement a ecrire l'inventaire Ansible sur le disque.
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 }
 

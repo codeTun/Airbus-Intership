@@ -1,0 +1,9 @@
+---
+- name: Redemarrer jitsi
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - prosody
+    - jicofo
+    - jitsi-videobridge2

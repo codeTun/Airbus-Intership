@@ -1,0 +1,92 @@
+---
+# Serveur d'impression : CUPS, files d'attente, quotas et journalisation
+# des travaux pour le suivi de consommation.
+
+- name: Paquets d'impression presents
+  ansible.builtin.apt:
+    name: "{{ impression_paquets }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [impression, paquets]
+
+- name: Configuration de CUPS
+  ansible.builtin.template:
+    src: cupsd.conf.j2
+    dest: /etc/cups/cupsd.conf
+    owner: root
+    group: lp
+    mode: "0640"
+    backup: true
+    validate: /usr/sbin/cupsd -t -c %s
+  notify: Redemarrer cups
+  tags: [impression, configuration]
+
+- name: Service d'impression actif
+  ansible.builtin.service:
+    name: cups
+    state: started
+    enabled: true
+  tags: [impression, service]
+
+# --- Files d'attente -------------------------------------------------------
+# lpadmin est idempotent sur la creation, mais pas sur la description : on
+# verifie donc l'existence avant, pour ne pas signaler un changement a chaque
+# execution.
+- name: Files d'attente deja declarees
+  ansible.builtin.command: lpstat -p
+  register: impression_files_existantes
+  changed_when: false
+  failed_when: false
+  tags: [impression, files]
+
+- name: Files d'attente creees
+  ansible.builtin.command: >-
+    lpadmin -p {{ item.nom }}
+      -D "{{ item.description }}"
+      -v {{ item.adresse }}
+      -m {{ item.modele }}
+      -E
+  loop: "{{ impression_files }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  when: item.nom not in impression_files_existantes.stdout
+  changed_when: true
+  notify: Redemarrer cups
+  tags: [impression, files]
+
+- name: Quota de pages par utilisateur
+  ansible.builtin.command: >-
+    lpadmin -p {{ item.nom }}
+      -o job-quota-period=604800
+      -o job-page-limit={{ item.quota_pages }}
+  loop: "{{ impression_files }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  changed_when: false
+  tags: [impression, quotas]
+
+- name: File par defaut du serveur
+  ansible.builtin.command: lpadmin -d {{ impression_files[0].nom }}
+  when: impression_files | length > 0
+  changed_when: false
+  tags: [impression, files]
+
+# --- Pare-feu local --------------------------------------------------------
+- name: Impression ouverte aux seuls reseaux autorises
+  community.general.ufw:
+    rule: allow
+    port: "{{ impression_port }}"
+    proto: tcp
+    src: "{{ item }}"
+    comment: "IPP depuis {{ item }}"
+  loop: "{{ impression_reseaux_autorises }}"
+  tags: [impression, parefeu]
+
+# --- Verification ----------------------------------------------------------
+- name: Le service repond sur son port
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ impression_port }}"
+    timeout: 30
+  tags: [impression, verification]

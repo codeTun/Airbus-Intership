@@ -1,7 +1,10 @@
 #cloud-config
 # -----------------------------------------------------------------------------
 # ${nom} : ${description}
-# Genere par Terraform. Ne pas modifier a la main sur la machine.
+#
+# Amorcage seulement. Cloud-init rend la machine joignable et conforme au
+# durcissement de base ; l'installation des services revient a Ansible, qui
+# est rejouable. Ne rien ajouter ici de propre a un role.
 # -----------------------------------------------------------------------------
 
 hostname: ${nom}
@@ -32,19 +35,15 @@ ntp:
     - ${s}
 %{ endfor ~}
 
-# --- Paquets -----------------------------------------------------------------
+# --- Paquets strictement necessaires a l'amorcage ----------------------------
 package_update: true
-package_upgrade: true
 packages:
-  - qemu-guest-agent
-  - chrony
-  - ufw
+  - qemu-guest-agent   # etat de la machine visible depuis l'hote
+  - chrony             # INF-07
+  - ufw                # INF-06
   - unattended-upgrades
-  - curl
-  - ca-certificates
-%{ for p in paquets ~}
-  - ${p}
-%{ endfor ~}
+  - python3            # requis par Ansible
+  - python3-apt
 
 # --- Fichiers ----------------------------------------------------------------
 write_files:
@@ -56,23 +55,22 @@ write_files:
       vm.swappiness = 10
     permissions: "0644"
 
-  # Mises a jour de securite automatiques (INF-06).
   - path: /etc/apt/apt.conf.d/20auto-upgrades
     content: |
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
     permissions: "0644"
 
-  # Repere de deploiement, utile pour la recette TI-01.
+  # Carte d'identite de la machine, lue ensuite par Ansible et par la recette.
   - path: /etc/labo-airbus.yaml
     content: |
       machine: ${nom}
       role: ${description}
       adresse: ${ip}
-      deploiement: terraform
+      amorcage: cloud-init
+      configuration: ansible
     permissions: "0644"
 
-# --- Fichier d'echange de 2 Go ----------------------------------------------
 swap:
   filename: /swapfile
   size: 2147483648
@@ -84,20 +82,13 @@ runcmd:
   - [systemctl, enable, --now, chrony]
   - [sysctl, --system]
 
-  # Pare-feu local : tout est refuse en entree sauf ce qui est declare.
+  # Pare-feu local : seul SSH est ouvert a ce stade. Chaque role Ansible
+  # ouvrira ensuite les ports dont son service a besoin.
   - [ufw, default, deny, incoming]
   - [ufw, default, allow, outgoing]
   - [ufw, allow, "22/tcp"]
-%{ for port in ports ~}
-  - [ufw, allow, "${port}"]
-%{ endfor ~}
   - [ufw, --force, enable]
 
-  # Commandes propres au role.
-%{ for c in commandes ~}
-  - ${jsonencode(c)}
-%{ endfor ~}
+  - [touch, /var/lib/cloud/instance/amorcage-termine]
 
-  - [touch, /var/lib/cloud/instance/deploiement-termine]
-
-final_message: "${nom} pret apres $UPTIME secondes"
+final_message: "${nom} amorce apres $UPTIME secondes, pret pour Ansible"

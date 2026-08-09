@@ -1,0 +1,49 @@
+---
+# Serveur de supervision Centreon (exigence INF-04).
+#
+# Centreon ne publie de depot que pour Debian et la famille RHEL. Le role
+# le detecte et s'arrete avec un message clair sur Ubuntu, plutot que
+# d'installer a moitie quelque chose qui ne marchera pas.
+
+supervision_version: "24.10"
+supervision_distributions_supportees: [Debian]
+
+supervision_paquets_base:
+  - apache2
+  - mariadb-server
+  - python3-pymysql
+  - snmp
+  - snmpd
+  - rsyslog
+
+supervision_port_web: 80
+supervision_port_syslog: 514
+
+# Seuils repris du tableau des indicateurs surveilles.
+supervision_seuils:
+  processeur: {avertissement: 80, critique: 90}
+  memoire: {avertissement: 80, critique: 90}
+  disque: {avertissement: 80, critique: 90}
+
+# Sondes propres a chaque groupe de machines, telles que decrites dans le
+# cahier des charges.
+supervision_controles:
+  impression:
+    - {nom: Service CUPS, commande: check_systemd_service, argument: cups}
+    - {nom: Port IPP, commande: check_tcp, argument: "631"}
+    - {nom: Travaux en attente, commande: check_cups_queue, argument: "10"}
+  visioconference:
+    - {nom: Prosody, commande: check_systemd_service, argument: prosody}
+    - {nom: Jicofo, commande: check_systemd_service, argument: jicofo}
+    - {nom: Videobridge, commande: check_systemd_service, argument: jitsi-videobridge2}
+    - {nom: Port web, commande: check_tcp, argument: "443"}
+  pointeuses:
+    - {nom: Base PostgreSQL, commande: check_systemd_service, argument: postgresql}
+    - {nom: Derniere collecte, commande: check_derniere_collecte, argument: "900"}
+    - {nom: Derive NTP, commande: check_ntp_time, argument: "2"}
+  supervision:
+    - {nom: Moteur Centreon, commande: check_systemd_service, argument: centengine}
+    - {nom: Base Centreon, commande: check_systemd_service, argument: mariadb}
+
+# Delai maximal entre une anomalie et sa notification (objectif OG-03).
+supervision_delai_notification_secondes: 60

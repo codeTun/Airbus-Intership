@@ -90,25 +90,6 @@ variable "serveurs_ntp" {
   type        = list(string)
 }
 
-variable "ports" {
-  description = "Ports a ouvrir dans le pare-feu local, en plus de SSH."
-  type        = list(number)
-  default     = []
-}
-
-# ------------------------------------------------------------- role
-variable "paquets" {
-  description = "Paquets propres au role de la machine."
-  type        = list(string)
-  default     = []
-}
-
-variable "commandes" {
-  description = "Commandes propres au role, executees apres l'installation des paquets."
-  type        = list(string)
-  default     = []
-}
-
 variable "demarrage_automatique" {
   description = "Demarre la machine avec l'hote."
   type        = bool
