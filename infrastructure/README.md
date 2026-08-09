@@ -3,7 +3,7 @@
 Déploiement automatisé des six machines de la partie 1 du cahier des charges, avec Terraform.
 Cible : virtualisation locale KVM et libvirt, sans cloud public.
 
-Ce code couvre les exigences **INF-01** à **INF-09** : les deux pare-feux, une machine par service, Ubuntu Server 22.04 LTS, la supervision, le plan VLAN, le durcissement, la synchronisation de l'heure, le versionnement et l'automatisation.
+Terraform crée les machines et les réseaux. La configuration des services est faite par Ansible, dans `../ansible/`.
 
 ---
 
@@ -45,7 +45,7 @@ make appliquer                    # crée l'infrastructure
 
 Pour tout supprimer : `make detruire`.
 
-La première exécution télécharge l'image Ubuntu (environ 700 Mo) puis crée les machines. Comptez une vingtaine de minutes, cloud-init installant ensuite les paquets en tâche de fond.
+La première exécution télécharge l'image Ubuntu (environ 700 Mo) puis crée les machines. Comptez une dizaine de minutes.
 
 ---
 
@@ -56,6 +56,7 @@ infrastructure/
 ├── providers.tf              fournisseur libvirt et versions
 ├── variables.tf              paramètres du déploiement
 ├── inventaire.tf             plan VLAN, adressage et machines
+├── templates/                gabarit de l'inventaire Ansible
 ├── main.tf                   assemblage des modules
 ├── outputs.tf                adresses, accès et vérification du dimensionnement
 ├── terraform.tfvars          valeurs locales, non versionné
@@ -150,6 +151,6 @@ Les interfaces des modules ne mentionnent aucun terme propre à libvirt : elles 
 |---|---|
 | **TI-01** Déploiement automatisé | `make appliquer` crée tout en une commande, la sortie `serveurs` liste les adresses attendues |
 | **TI-02** Reconstruction | `make detruire` puis `make appliquer` redonne une infrastructure identique |
-| **TI-05** Remontée dans la supervision | Les machines répondent au ping depuis `sup-centreon-01` |
+| **TI-05** Remontée dans la supervision | Assurée par le rôle Ansible `supervision`, qui déclare chaque machine et ses sondes |
 
-Sur chaque serveur, `/etc/labo-airbus.yaml` indique le nom, le rôle et l'adresse, et le fichier `/var/lib/cloud/instance/deploiement-termine` confirme que cloud-init est allé au bout.
+Sur chaque serveur, `/etc/labo-airbus.yaml` indique le nom, le rôle et l'adresse, et le fichier `/var/lib/cloud/instance/amorcage-termine` confirme que cloud-init est allé au bout.
