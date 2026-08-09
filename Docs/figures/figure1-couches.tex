@@ -1,0 +1,103 @@
+\documentclass[border=12pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[sfdefault]{noto}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\definecolor{marine}{HTML}{1F3864}
+\definecolor{bleuclair}{HTML}{2E75B6}
+\definecolor{vert}{HTML}{3C9A5F}
+\definecolor{violet}{HTML}{7B4FA8}
+\definecolor{gristexte}{HTML}{4A4A4A}
+\definecolor{bordure}{HTML}{C9D3E0}
+\definecolor{fondbleu}{HTML}{EAF2FB}
+\definecolor{fondviolet}{HTML}{F3EFF9}
+\definecolor{fondvert}{HTML}{EBF6EF}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  couche/.style={rounded corners=6pt, line width=1.2pt, text width=5.0cm,
+                 minimum height=5.6cm, anchor=north west},
+  fleche/.style={-{Latex[length=4mm,width=3mm]}, line width=1.6pt, marine},
+  etiq/.style={rounded corners=3pt, inner sep=4pt, font=\sffamily\bfseries\scriptsize},
+]
+
+% ============================== EN-TETE ====================================
+\node[anchor=west, font=\sffamily\bfseries\Large, text=marine] (titre) at (0,0)
+      {LES TROIS COUCHES D'AUTOMATISATION};
+\node[anchor=north west, font=\sffamily\small, text=gristexte] at ($(titre.south west)+(0,-0.06)$)
+      {Qui fait quoi, et ce que l'on peut rejouer};
+
+% =============================== COUCHE 1 ==================================
+\node[couche, draw=bleuclair, fill=fondbleu] (c1) at (0,-1.5) {};
+\node[anchor=north, font=\sffamily\bfseries\large, text=bleuclair] at ($(c1.north)+(0,-0.35)$)
+     {1. SOCLE};
+\node[anchor=north, font=\sffamily\bfseries\Large, text=marine] at ($(c1.north)+(0,-1.0)$)
+     {Terraform};
+\node[anchor=north, font=\sffamily\footnotesize, text=gristexte, align=center, text width=4.4cm]
+     at ($(c1.north)+(0,-1.75)$)
+     {Crée ce qui n'existe pas encore};
+\draw[bordure, line width=0.8pt] ($(c1.north west)+(0.4,-2.5)$) -- ($(c1.north east)+(-0.4,-2.5)$);
+\node[anchor=north west, font=\sffamily\scriptsize, text=gristexte, align=left, text width=4.3cm]
+     at ($(c1.north west)+(0.4,-2.75)$)
+     {\textbullet\ les 6 machines virtuelles\\[2pt]
+      \textbullet\ les 7 réseaux VLAN\\[2pt]
+      \textbullet\ les disques\\[2pt]
+      \textbullet\ l'inventaire Ansible};
+\node[etiq, fill=vert!15, text=vert, anchor=south] at ($(c1.south)+(0,0.28)$) {REJOUABLE};
+
+% =============================== COUCHE 2 ==================================
+\node[couche, draw=violet, fill=fondviolet] (c2) at (5.9,-1.5) {};
+\node[anchor=north, font=\sffamily\bfseries\large, text=violet] at ($(c2.north)+(0,-0.35)$)
+     {2. AMORÇAGE};
+\node[anchor=north, font=\sffamily\bfseries\Large, text=marine] at ($(c2.north)+(0,-1.0)$)
+     {cloud-init};
+\node[anchor=north, font=\sffamily\footnotesize, text=gristexte, align=center, text width=4.4cm]
+     at ($(c2.north)+(0,-1.75)$)
+     {Rend la machine joignable,\\au premier démarrage};
+\draw[bordure, line width=0.8pt] ($(c2.north west)+(0.4,-2.5)$) -- ($(c2.north east)+(-0.4,-2.5)$);
+\node[anchor=north west, font=\sffamily\scriptsize, text=gristexte, align=left, text width=4.3cm]
+     at ($(c2.north west)+(0.4,-2.75)$)
+     {\textbullet\ compte et clé SSH\\[2pt]
+      \textbullet\ adressage fixe du VLAN\\[2pt]
+      \textbullet\ pare-feu local, SSH seul\\[2pt]
+      \textbullet\ heure, swap, python3};
+\node[etiq, fill=red!12, text=red!60!black, anchor=south] at ($(c2.south)+(0,0.28)$)
+     {UNE SEULE FOIS};
+
+% =============================== COUCHE 3 ==================================
+\node[couche, draw=vert, fill=fondvert] (c3) at (11.8,-1.5) {};
+\node[anchor=north, font=\sffamily\bfseries\large, text=vert] at ($(c3.north)+(0,-0.35)$)
+     {3. CONFIGURATION};
+\node[anchor=north, font=\sffamily\bfseries\Large, text=marine] at ($(c3.north)+(0,-1.0)$)
+     {Ansible};
+\node[anchor=north, font=\sffamily\footnotesize, text=gristexte, align=center, text width=4.4cm]
+     at ($(c3.north)+(0,-1.75)$)
+     {Installe et maintient dans l'état};
+\draw[bordure, line width=0.8pt] ($(c3.north west)+(0.4,-2.5)$) -- ($(c3.north east)+(-0.4,-2.5)$);
+\node[anchor=north west, font=\sffamily\scriptsize, text=gristexte, align=left, text width=4.3cm]
+     at ($(c3.north west)+(0.4,-2.75)$)
+     {\textbullet\ les 3 services métiers\\[2pt]
+      \textbullet\ la supervision Centreon\\[2pt]
+      \textbullet\ les 2 pare-feux\\[2pt]
+      \textbullet\ le durcissement, réaffirmé};
+\node[etiq, fill=vert!15, text=vert, anchor=south] at ($(c3.south)+(0,0.28)$) {REJOUABLE};
+
+% =============================== FLECHES ===================================
+\draw[fleche] ($(c1.east)+(0,-2.8)$) -- ($(c2.west)+(0,-2.8)$);
+\draw[fleche] ($(c2.east)+(0,-2.8)$) -- ($(c3.west)+(0,-2.8)$);
+
+% ============================== BAS DE PAGE ================================
+\node[draw=bordure, rounded corners=5pt, line width=1pt, fill=white,
+      text width=16.2cm, minimum height=1.15cm, anchor=north west] (note) at (0,-7.5) {};
+\node[anchor=west, font=\sffamily\footnotesize, text=gristexte, text width=15.4cm, align=left]
+     at ($(note.west)+(0.4,0)$)
+     {\textbf{\color{marine}Pourquoi trois couches et pas deux.}
+      Cloud-init ne s'exécute qu'au premier démarrage : il ne sait ni se rejouer, ni rendre compte,
+      ni corriger une dérive. Tout ce qui doit rester vrai dans le temps appartient donc à Ansible.};
+
+\end{tikzpicture}
+\end{document}
