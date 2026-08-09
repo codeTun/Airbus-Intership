@@ -1,0 +1,1598 @@
+%==============================================================================
+%  CAHIER DES CHARGES
+%  Partie 1 (obligatoire) : mise en place d'une infrastructure virtualisee
+%  Partie 2 (optionnelle) : identification des equipements par adresse MAC
+%  Stage de 45 jours (7 semaines)
+%  Compilation : latexmk -pdf Cahier_des_Charges_Final.tex
+%==============================================================================
+\documentclass[11pt,a4paper]{article}
+
+%------------------------- Encodage et langue ---------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+
+%------------------------- Mise en page ---------------------------------------
+\usepackage[a4paper,top=2.2cm,bottom=2.0cm,left=2.0cm,right=2.0cm,headheight=14pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{lastpage}
+\usepackage{setspace}
+\setstretch{1.0}
+
+%------------------------- Tableaux et listes ---------------------------------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xltabular}
+\usepackage{colortbl}
+\usepackage{ragged2e}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{etoolbox}
+\usepackage{needspace}
+% un titre ne doit jamais rester seul en bas de page, sans son tableau
+\pretocmd{\section}{\needspace{12\baselineskip}}{}{}
+\pretocmd{\subsection}{\needspace{4\baselineskip}}{}{}
+% Les tableaux sont composes en corps reduit, usage courant en documentation technique
+\AtBeginEnvironment{tabularx}{\small}
+
+%------------------------- Graphiques -----------------------------------------
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+\usepackage{pgfgantt}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+
+%------------------------- Couleurs de la charte ------------------------------
+\definecolor{primary}{HTML}{00205B}
+\definecolor{accent}{HTML}{0F7FA5}
+\definecolor{soft}{HTML}{E8EEF5}
+\definecolor{warn}{HTML}{B3541E}
+\definecolor{okgreen}{HTML}{1F7A4D}
+\definecolor{gris}{HTML}{5A5A5A}
+
+%------------------------- Hyperliens -----------------------------------------
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+  colorlinks=true, linkcolor=primary, urlcolor=accent,
+  pdftitle={Cahier des charges - Infrastructure virtualisee et identification par adresse MAC},
+  pdfauthor={Airbus - Stage Infrastructure et Securite Reseau},
+  pdfsubject={Cahier des charges technique},
+  pdfkeywords={Terraform, OpenStack, Centreon, Fortinet, Palo Alto, VLAN, MAC, 802.1X, MAB, RADIUS}
+}
+
+%------------------------- Styles de titres -----------------------------------
+\titleformat{\section}{\normalfont\large\sffamily\bfseries\color{primary}}{\thesection.}{0.6em}{}
+\titlespacing*{\section}{0pt}{11pt}{5pt}
+\titleformat{\subsection}{\normalfont\normalsize\sffamily\bfseries\color{accent!85!black}}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{8pt}{3pt}
+
+%------------------------- En-tetes / pieds de page ---------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\footnotesize\textcolor{primary}{\textbf{\leftmark}}}
+\fancyhead[R]{\footnotesize\textcolor{gris}{\rightmark}}
+\fancyfoot[L]{\footnotesize\textcolor{gris}{Airbus, diffusion interne}}
+\fancyfoot[C]{\footnotesize\textcolor{gris}{v2.0}}
+\fancyfoot[R]{\footnotesize\textcolor{gris}{Page \thepage\ / \pageref{LastPage}}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection.~#1}}
+\newcommand{\bloc}[1]{\markboth{#1}{}}
+
+%------------------------- Table des matieres compacte ------------------------
+\makeatletter
+\renewcommand*\l@part[2]{%
+  \ifnum \c@tocdepth >-2\relax
+    \addpenalty{-\@highpenalty}%
+    \addvspace{6\p@ \@plus\p@}%
+    \begingroup
+      \parindent \z@ \rightskip \@pnumwidth
+      \parfillskip -\@pnumwidth
+      {\leavevmode \large\sffamily\bfseries\color{primary} #1\hfil
+       \hb@xt@\@pnumwidth{\hss #2}}\par
+      \nobreak \global\@nobreaktrue
+      \everypar{\global\@nobreakfalse\everypar{}}%
+    \endgroup
+  \fi}
+\renewcommand*\l@section[2]{%
+  \ifnum \c@tocdepth >\z@
+    \addpenalty\@secpenalty
+    \addvspace{0.5\p@ \@plus\p@}%
+    \setlength\@tempdima{1.6em}%
+    \begingroup
+      \parindent \z@ \rightskip \@pnumwidth
+      \parfillskip -\@pnumwidth
+      \leavevmode \bfseries
+      \advance\leftskip\@tempdima \hskip -\leftskip
+      #1\nobreak\hfil \nobreak\hb@xt@\@pnumwidth{\hss #2}\par
+    \endgroup
+  \fi}
+\makeatother
+
+%------------------------- Colonnes personnalisees ----------------------------
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\Centering\arraybackslash}p{#1}}
+\newcolumntype{K}{>{\bfseries\ttfamily\footnotesize}l}
+\newcommand{\gt}[1]{\strut{\sffamily\bfseries\color{primary}#1}}
+
+\captionsetup{font=small,labelfont={bf,color=primary},skip=4pt,labelsep=period}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+\renewcommand{\arraystretch}{1.08}
+
+%------------------------- Boites ---------------------------------------------
+\newtcolorbox{notebox}[1][Note technique]{
+  enhanced, breakable, colback=soft, colframe=primary,
+  boxrule=0.7pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily\small, title={#1}, coltitle=white}
+
+\newtcolorbox{alertbox}[1][Point de vigilance]{
+  enhanced, breakable, colback=warn!6, colframe=warn,
+  boxrule=0.7pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily\small, title={#1}, coltitle=white}
+
+%------------------------- Page de separation de partie -----------------------
+% #1 surtitre  #2 badge  #3 titre  #4 sous-titre  #5 contenu  #6 entree de sommaire
+\newcommand{\separateur}[6]{%
+  \clearpage
+  \thispagestyle{empty}
+  \addcontentsline{toc}{part}{#6}
+  \null\vspace*{2.0cm}
+  \noindent\textcolor{primary}{\rule{\textwidth}{3pt}}\\[16pt]
+  \noindent{\sffamily\large\bfseries\color{accent} #1}\hfill #2\\[12pt]
+  \noindent{\sffamily\Huge\bfseries\color{primary} #3}\\[14pt]
+  \noindent{\sffamily\normalsize\itshape\color{gris} #4}\\[12pt]
+  \noindent\textcolor{accent}{\rule{\textwidth}{1.2pt}}
+  \vspace{1.3cm}
+
+  \begin{tcolorbox}[enhanced,colback=soft,colframe=primary,boxrule=0.7pt,arc=2pt,
+    left=9pt,right=9pt,top=6pt,bottom=6pt,
+    fonttitle=\bfseries\sffamily\small,title={Contenu de cette partie},coltitle=white]
+  #5
+  \end{tcolorbox}
+  \bloc{#1}
+  \clearpage
+}
+\newcommand{\badgeoblig}{\fcolorbox{okgreen}{okgreen!10}{\sffamily\small\bfseries\color{okgreen}\,OBLIGATOIRE\,}}
+\newcommand{\badgeopt}{\fcolorbox{warn}{warn!10}{\sffamily\small\bfseries\color{warn}\,OPTIONNELLE\,}}
+
+% Banniere compacte, pour les annexes
+\newcommand{\banniere}[2]{%
+  \clearpage\bloc{#1}\addcontentsline{toc}{part}{#1}
+  \noindent\textcolor{primary}{\rule{\textwidth}{2.5pt}}\\[10pt]
+  \noindent{\sffamily\LARGE\bfseries\color{primary} #1}\\[6pt]
+  \noindent{\sffamily\small\itshape\color{gris} #2}\\[6pt]
+  \noindent\textcolor{accent}{\rule{\textwidth}{1pt}}
+  \vspace{10pt}
+}
+
+%------------------------- Style des listings ---------------------------------
+\lstdefinestyle{cli}{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{primary}\bfseries,
+  commentstyle=\color{okgreen}\itshape,
+  numbers=left, numberstyle=\tiny\color{gris}, numbersep=6pt,
+  frame=single, rulecolor=\color{black!25},
+  backgroundcolor=\color{black!3},
+  breaklines=true, showstringspaces=false,
+  columns=fullflexible, keepspaces=true,
+  xleftmargin=12pt, framexleftmargin=12pt, aboveskip=5pt, belowskip=3pt,
+  morecomment=[l]{!}, morecomment=[l]{\#},
+  morekeywords={interface,switchport,authentication,dot1x,mab,radius,server,ip,dhcp,
+  snooping,arp,inspection,spanning-tree,port-channel,channel-group,channel-protocol,
+  lacp,vlan,igroup,create,lun,map,show,aaa,address,key,trunk,native,allowed,mode,
+  access,event,fail,action,authorize,violation,maximum,portfast,bpduguard,enable,
+  load-balance,verify,source,nonegotiate,trust,pae,authenticator,control,order,priority}
+}
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{primary}\bfseries,
+  stringstyle=\color{warn},
+  commentstyle=\color{okgreen}\itshape,
+  numbers=left, numberstyle=\tiny\color{gris}, numbersep=6pt,
+  frame=single, rulecolor=\color{black!25},
+  backgroundcolor=\color{black!3},
+  breaklines=true, showstringspaces=false,
+  columns=fullflexible, keepspaces=true,
+  xleftmargin=12pt, framexleftmargin=12pt, aboveskip=5pt, belowskip=3pt,
+  morecomment=[l]{\#}, morestring=[b]",
+  morekeywords={terraform,required_providers,resource,variable,provider,output,
+  type,default,map,object,string,for_each,each,value,file,source,version,tags}
+}
+\lstset{style=cli}
+
+%------------------------- Macros ---------------------------------------------
+\AtBeginDocument{\setlist[itemize,1]{label=\textbullet}}
+\newcommand{\ttb}[1]{\texttt{\small #1}}
+\newcommand{\rid}[1]{\textcolor{primary}{\textbf{\small #1}}}
+\newcommand{\oblig}{\textcolor{okgreen}{\small\textbf{[Obligatoire]}}}
+\newcommand{\opt}{\textcolor{warn}{\small\textbf{[Optionnel]}}}
+
+\begin{document}
+
+%==============================================================================
+% PAGE DE GARDE
+%==============================================================================
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[primary] ($(current page.north west)+(0,-2.55cm)$) rectangle ($(current page.north east)+(0,-2.95cm)$);
+  \fill[accent]  ($(current page.south west)+(0,2.30cm)$) rectangle ($(current page.south east)+(0,2.38cm)$);
+\end{tikzpicture}
+
+\begin{center}
+\vspace*{0.4cm}
+{\sffamily\Large\bfseries\color{primary} AIRBUS}\\[3pt]
+{\sffamily\small\color{gris} Direction des Systèmes d'Information}\\[1pt]
+{\sffamily\small\color{gris} Service Infrastructure et Sécurité Réseau}
+
+\vspace{2.0cm}
+
+{\sffamily\Large\bfseries\color{gris} CAHIER DES CHARGES}
+
+\vspace{0.9cm}
+
+{\sffamily\LARGE\bfseries\color{primary}
+Mise en place d'une infrastructure virtualisée\\[8pt]
+et identification des équipements\\[8pt]
+par adresse MAC}
+
+\vspace{0.5cm}
+{\normalsize\itshape\color{gris} Stage d'été, 45 jours}
+\end{center}
+
+\vspace{1.1cm}
+
+\begin{tcolorbox}[enhanced,colback=soft,colframe=primary,boxrule=0.8pt,arc=2pt,
+  left=10pt,right=10pt,top=8pt,bottom=8pt,
+  fonttitle=\bfseries\sffamily\small,title={Un projet en deux parties},coltitle=white]
+\setlength{\parskip}{5pt}
+\noindent\textbf{\color{primary}Partie 1} \hfill \oblig\\[1pt]
+Créer et configurer les machines virtuelles du laboratoire : deux pare-feux, trois serveurs
+métiers et une machine de supervision.
+
+\noindent\textbf{\color{primary}Partie 2} \hfill \opt\\[1pt]
+Raccorder les équipements aux commutateurs selon leur adresse MAC, avec attribution
+automatique du VLAN.
+
+{\footnotesize\color{gris} La partie 2 n'est lancée que si la partie 1 est terminée et validée. Conditions au \S\,2.3.}
+\end{tcolorbox}
+
+\vspace{1.0cm}
+
+\begin{center}
+\begin{tabular}{@{}>{\bfseries\sffamily\color{primary}}l@{\hspace{1.4em}}l@{}}
+\toprule
+Référence & CDC-RES-INFRA-MAC-2026-001 \\
+Version & 2.0, pour validation \\
+Classification & Diffusion interne \\
+Date d'édition & \today \\
+Durée & 45 jours, répartis sur 7 semaines \\
+\midrule
+Auteur & \makebox[6cm][l]{\dotfill} \\
+Tuteur entreprise & \makebox[6cm][l]{\dotfill} \\
+Tuteur académique & \makebox[6cm][l]{\dotfill} \\
+Période du stage & \makebox[6cm][l]{\dotfill} \\
+\bottomrule
+\end{tabular}
+
+\vfill
+{\footnotesize\color{gris} Document de travail. Ne pas diffuser à l'extérieur de l'organisation.}
+\end{center}
+\end{titlepage}
+
+%==============================================================================
+% FICHE DE SUIVI
+%==============================================================================
+\bloc{Fiche de suivi du document}
+\section*{Fiche de suivi du document}
+\addcontentsline{toc}{section}{Fiche de suivi du document}
+
+\noindent\begin{tabularx}{\textwidth}{C{1.4cm} C{2.2cm} C{2.4cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Version} & \textbf{Date} & \textbf{Rédacteur} & \textbf{Nature de la modification} \\
+\midrule
+0.5 & \dotfill & \dotfill & Trame initiale et étude de l'existant. \\
+1.0 & \dotfill & \dotfill & Première version, volet réseau uniquement. \\
+2.0 & \today & \dotfill & Ajout de la partie infrastructure, de l'automatisation et de la supervision. Le volet réseau devient optionnel. Document réorganisé. \\
+\bottomrule
+\end{tabularx}
+
+\vspace{8pt}
+\noindent\begin{tabularx}{\textwidth}{L{3.1cm} Y C{2.6cm} C{2.6cm}}
+\toprule
+\rowcolor{soft}\textbf{Rôle} & \textbf{Nom ou entité} & \textbf{Date} & \textbf{Visa} \\
+\midrule
+Rédacteur & \dotfill & \dotfill & \dotfill \\
+Vérificateur & Responsable Infrastructure Réseau & \dotfill & \dotfill \\
+Approbateur & Responsable Sécurité & \dotfill & \dotfill \\
+\bottomrule
+\end{tabularx}
+
+\vspace{12pt}
+\begin{notebox}[Comment lire ce document]
+Le document comporte trois blocs. L'\textbf{introduction générale} pose le contexte, les objectifs et le planning. La \textbf{partie 1} décrit l'infrastructure à construire : c'est le cœur du stage, elle est obligatoire. La \textbf{partie 2} décrit une évolution du réseau, lancée seulement si le calendrier le permet.
+
+Chaque élément porte une référence unique : \rid{INF} pour les exigences d'infrastructure, \rid{OG} et \rid{OBJ} pour les objectifs, \rid{BF} et \rid{BNF} pour les besoins du volet réseau, \rid{C} pour les contraintes, \rid{L} pour les limites de l'existant, \rid{R} pour les risques, \rid{TI} et \rid{TC} pour les cas de test, \rid{LV} pour les livrables. Ces références sont reprises telles quelles lors de la recette.
+
+Convention : \textbf{DOIT} désigne une exigence obligatoire, qui conditionne la recette. \textbf{DEVRAIT} désigne une exigence recommandée, dont tout écart doit être justifié.
+\end{notebox}
+
+%==============================================================================
+% TABLE DES MATIERES ET GLOSSAIRE
+%==============================================================================
+\clearpage
+\bloc{Table des matières}
+{\setstretch{0.94}\setcounter{tocdepth}{2}\footnotesize\tableofcontents}
+
+\clearpage
+\bloc{Définitions et abréviations}
+\section*{Définitions et abréviations}
+\addcontentsline{toc}{section}{Définitions et abréviations}
+\noindent Les termes sont regroupés par domaine, puis classés par ordre alphabétique.
+
+\vspace{6pt}
+{\small\renewcommand{\arraystretch}{1.0}
+\begin{longtable}{L{2.9cm} L{12.8cm}}
+\toprule
+\rowcolor{soft}\gt{Terme} & \strut\textbf{\sffamily Définition} \\
+\midrule
+\endfirsthead
+\toprule
+\rowcolor{soft}\gt{Terme} & \strut\textbf{\sffamily Définition} \\
+\midrule
+\endhead
+
+\rowcolor{accent!14}\multicolumn{2}{l}{\sffamily\footnotesize\bfseries\color{primary} 1. RÉSEAU ET SEGMENTATION} \\
+\gt{802.1Q} & Étiquetage des trames, qui fait circuler plusieurs VLAN sur un même lien. \\
+\gt{ACL} & Liste de contrôle d'accès appliquée sur un équipement réseau. \\
+\gt{CAM} & Table dans laquelle un commutateur mémorise les adresses MAC vues sur chaque port. \\
+\gt{DTP} & Protocole Cisco de négociation automatique du mode trunk entre commutateurs. \\
+\gt{LACP} & Protocole qui négocie l'agrégation de plusieurs liens physiques. \\
+\gt{Port-Channel} & Groupe de liens physiques agrégés, vu comme un lien logique unique. \\
+\gt{SVI} & Interface virtuelle assurant le routage d'un VLAN sur un commutateur. \\
+\gt{VLAN} & Réseau local virtuel : segment logique indépendant du câblage. \\
+\gt{vPC} & Agrégation de liens répartie sur deux châssis, pour la redondance. \\
+\addlinespace[2pt]
+
+\rowcolor{accent!14}\multicolumn{2}{l}{\sffamily\footnotesize\bfseries\color{primary} 2. IDENTIFICATION ET SÉCURITÉ} \\
+\gt{802.1X} & Contrôle d'accès au réseau par port, avec authentification de l'équipement. \\
+\gt{DAI} & Contrôle de cohérence des messages ARP, qui bloque les réponses falsifiées. \\
+\gt{EAP} & Cadre d'authentification transporté par le 802.1X entre l'équipement et le serveur. \\
+\gt{IPSG} & Filtrage des adresses IP sources non légitimes sur un port d'accès. \\
+\gt{MAB} & Authentification d'un équipement sur la seule base de son adresse MAC. \\
+\gt{MAC} & Identifiant physique d'une interface réseau, codé sur 48 bits. \\
+\gt{RADIUS} & Service centralisé qui répond aux demandes d'authentification. \\
+\addlinespace[2pt]
+
+\rowcolor{accent!14}\multicolumn{2}{l}{\sffamily\footnotesize\bfseries\color{primary} 3. SYSTÈMES, VIRTUALISATION ET AUTOMATISATION} \\
+\gt{cloud-init} & Configure une machine virtuelle à son premier démarrage. \\
+\gt{FortiOS} & Système d'exploitation embarqué des pare-feux Fortinet. \\
+\gt{IaC} & \textit{Infrastructure as Code} : description de l'infrastructure dans des fichiers versionnés. \\
+\gt{LTS} & Version d'un système bénéficiant d'un support de longue durée. \\
+\gt{OpenStack} & Plateforme libre permettant d'héberger un cloud privé. \\
+\gt{PAN-OS} & Système d'exploitation embarqué des pare-feux Palo Alto. \\
+\gt{Terraform} & Crée une infrastructure à partir d'une description en fichiers texte. \\
+\addlinespace[2pt]
+
+\rowcolor{accent!14}\multicolumn{2}{l}{\sffamily\footnotesize\bfseries\color{primary} 4. SERVICES, SUPERVISION ET STOCKAGE} \\
+\gt{CUPS} & Service d'impression standard des systèmes Linux. \\
+\gt{IPP} & Protocole d'impression réseau, sur le port 631. \\
+\gt{Jitsi Meet} & Solution libre de visioconférence, hébergeable entièrement sur site. \\
+\gt{LUN} & Volume logique exposé par une baie de stockage. \\
+\gt{NTP} & Protocole de synchronisation de l'heure entre machines. \\
+\gt{SNMP} & Protocole d'interrogation des équipements, utilisé pour la supervision. \\
+\gt{WWPN} & Identifiant unique d'un port Fibre Channel, équivalent d'une adresse MAC. \\
+\bottomrule
+\end{longtable}}
+% longtable consomme un numero de tableau meme sans legende
+\addtocounter{table}{-1}
+
+%##############################################################################
+\separateur{Introduction générale}{}{Présentation, objectifs\\ et organisation}
+{Ce qui est demandé, pourquoi, et comment le travail se répartit sur les 45 jours du stage.}
+{\begin{itemize}[leftmargin=*,itemsep=3pt,topsep=2pt]
+\item \textbf{Section 1.} Objet du document, contexte et besoin.
+\item \textbf{Section 2.} Les deux parties du projet, leur priorité et le périmètre.
+\item \textbf{Section 3.} Objectifs et indicateurs de réussite.
+\item \textbf{Section 4.} Étapes, planning, livrables et risques.
+\end{itemize}}{Introduction générale}
+%##############################################################################
+
+%==============================================================================
+\section{Présentation du projet}
+%==============================================================================
+
+\subsection{Objet du document}
+Ce document définit le contenu de mon stage : ce qui doit être réalisé, avec quels moyens, et à quelles conditions le travail sera considéré comme terminé. Il sert de référence commune entre mon tuteur entreprise, mon tuteur académique et moi. Une fois validé, il fige le périmètre du stage.
+
+\subsection{Contexte}
+Le service Infrastructure et Sécurité Réseau exploite le réseau interne, les pare-feux et les services communs. Deux difficultés reviennent régulièrement.
+
+L'équipe ne dispose pas d'un environnement de test isolé. Les nouvelles configurations sont validées sur des équipements de préproduction partagés, ce qui interdit les essais un peu risqués, en particulier sur les fonctions de sécurité.
+
+Par ailleurs, le VLAN d'un équipement est inscrit en dur dans la configuration du port du commutateur. Déplacer un matériel demande donc une intervention manuelle, soit 30 à 60 minutes d'immobilisation.
+
+\subsection{Le besoin}
+Le besoin principal est de disposer d'un laboratoire virtualisé, complet et reproductible, où l'on peut installer, casser et reconstruire une infrastructure sans risque pour la production.
+
+Un second besoin, moins urgent, est d'étudier une architecture où la politique réseau suit l'équipement plutôt que la prise murale. Ce travail se déroule dans le laboratoire, il ne peut donc venir qu'après.
+
+%==============================================================================
+\section{Organisation du projet}
+%==============================================================================
+
+\subsection{Deux parties, deux niveaux de priorité}
+Le projet comporte deux parties de nature différente. La première est le cœur du stage et doit être livrée. La seconde est une étude complémentaire, lancée seulement si le calendrier le permet.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\footnotesize,
+  ob/.style={draw=okgreen,fill=okgreen!8,rounded corners=3pt,minimum height=2.6cm,text width=6.2cm,align=center,inner sep=6pt},
+  op/.style={draw=warn,fill=warn!7,rounded corners=3pt,minimum height=2.6cm,text width=6.2cm,align=center,inner sep=6pt},
+  ar/.style={-{Latex[length=2.6mm]},very thick,gris}]
+\node[ob] (p1) at (0,0) {{\sffamily\bfseries\color{primary}PARTIE 1}\\[3pt]
+  {\color{okgreen}\bfseries\footnotesize OBLIGATOIRE}\\[6pt]
+  Créer et configurer les\\ machines virtuelles\\[4pt]
+  \scriptsize 2 pare-feux, 3 serveurs métiers,\\ 1 supervision, déploiement automatisé};
+\node[op] (p2) at (8.9,0) {{\sffamily\bfseries\color{primary}PARTIE 2}\\[3pt]
+  {\color{warn}\bfseries\footnotesize OPTIONNELLE}\\[6pt]
+  Raccorder les équipements\\ selon leur adresse MAC\\[4pt]
+  \scriptsize VLAN attribué automatiquement,\\ sécurisation du réseau};
+\draw[ar] (p1) -- node[midway,above,font=\scriptsize\bfseries,text=gris]{si validée} node[midway,below,font=\scriptsize,text=gris]{au point V4} (p2);
+\end{tikzpicture}
+\caption{Les deux parties du projet et leur priorité}
+\end{figure}
+
+\subsection{Partie 1 : mise en place de l'infrastructure}
+\noindent\oblig\quad Monter un laboratoire complet à base de machines virtuelles. Six machines sont à créer, configurer et documenter : deux pare-feux de constructeurs différents, un serveur d'impression, un serveur de visioconférence, un serveur de gestion des pointeuses et une machine de supervision. Le déploiement est automatisé avec Terraform, ce qui permet de reconstruire l'ensemble à l'identique autant de fois que nécessaire.
+
+\subsection{Partie 2 : identification par adresse MAC}
+\noindent\opt\quad Cette partie s'appuie sur le laboratoire pour tester une autre façon de raccorder les équipements. Aujourd'hui, le VLAN dépend du port sur lequel on branche le matériel. L'idée est de le faire dépendre de l'adresse MAC : le commutateur interroge un serveur d'authentification, qui lui indique le VLAN à appliquer. Le matériel peut alors être déplacé sans aucune reconfiguration.
+
+\begin{notebox}[Conditions de lancement de la partie 2]
+La partie 2 n'est lancée que si les trois conditions suivantes sont réunies, constatées au point de validation \rid{V4} avec le tuteur.
+\begin{itemize}[leftmargin=*,itemsep=1pt,topsep=3pt]
+\item La partie 1 est terminée et ses six cas de test, \rid{TI-01} à \rid{TI-06}, sont passés avec succès, au plus tard à la fin de la semaine 4.
+\item Les images de commutateurs virtuels sont disponibles et fonctionnelles.
+\item L'hôte de virtualisation dispose des ressources pour les machines supplémentaires.
+\end{itemize}
+\vspace{2pt}
+Si une condition manque, la partie 2 se limite à une étude documentaire et à une proposition d'architecture. Ce repli n'a aucun effet sur la recette de la partie 1.
+\end{notebox}
+
+\subsection{Périmètre}\label{sec:perimetre}
+\begin{table}[H]
+\centering
+\caption{Périmètre du projet}
+\begin{tabularx}{\textwidth}{L{2.4cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Statut} & \textbf{Éléments} \\
+\midrule
+\textbf{\color{okgreen}Inclus}\newline\footnotesize partie 1 & Construction du laboratoire virtualisé ; déploiement des deux pare-feux ; installation des trois services métiers ; supervision centralisée sous Centreon ; automatisation du déploiement avec Terraform ; documentation et recette. \\
+\midrule
+\textbf{\color{warn}Optionnel}\newline\footnotesize partie 2 & Authentification des équipements par 802.1X et MAB avec attribution dynamique du VLAN ; agrégation de liens et répartition de charge par hachage MAC ; durcissement de la couche 2 ; filtrage inter-VLAN sur pare-feu ; accès au stockage par identité. \\
+\midrule
+\textbf{Exclu} & Déploiement en production ; réseau étendu et réseau sans fil ; refonte du plan d'adressage de production ; achat de matériel ; migration des applications ; reprise des données réelles des services métiers. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%==============================================================================
+\section{Objectifs}
+%==============================================================================
+Chaque objectif est associé à un indicateur mesurable, vérifié lors de la recette.
+
+\begin{table}[H]
+\centering
+\caption{Objectifs de la partie 1 et indicateurs}
+\begin{tabularx}{\textwidth}{L{1.4cm} Y L{4.6cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Objectif} & \textbf{Indicateur} \\
+\midrule
+\rid{OG-01} & Disposer d'un laboratoire isolé de la production et reconstructible à l'identique. & Infrastructure recréée depuis zéro en moins de 2 heures. \\
+\rid{OG-02} & Héberger chaque service métier sur une machine dédiée, configurée et documentée. & Les trois services testés depuis un poste client. \\
+\rid{OG-03} & Superviser toute l'infrastructure depuis un point unique. & 100 \% des machines visibles dans la supervision, alerte en moins de 60 s. \\
+\rid{OG-04} & Automatiser la création des machines virtuelles. & Déploiement lancé par une seule commande. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces quatre objectifs conditionnent la réussite du stage. Ceux de la partie 2, qui ne sont évalués que si celle-ci est lancée, figurent au \S\,\ref{sec:objp2}.
+
+%==============================================================================
+\section{Déroulement du projet}
+%==============================================================================
+
+\subsection{Étapes et points de validation}
+Le projet est découpé en étapes réalisables et réversibles indépendamment. Ce découpage permet de livrer quelque chose d'utile même si l'une d'elles prend du retard.
+
+\begin{table}[H]
+\centering
+\caption{Étapes, semaines et points de validation}
+\begin{tabularx}{\textwidth}{L{0.9cm} L{2.9cm} Y C{1.4cm} C{1.0cm}}
+\toprule
+\rowcolor{soft}\textbf{Étape} & \textbf{Intitulé} & \textbf{Contenu} & \textbf{Semaines} & \textbf{Validation} \\
+\midrule
+\multicolumn{5}{@{}l}{\footnotesize\bfseries\color{okgreen} Partie 1, obligatoire} \\
+E0 & Préparation & Étude de l'existant, validation du cahier des charges, choix de la plateforme d'hébergement. & S1 & V1 \\
+E1 & Socle et automatisation & Préparation de l'hôte ou du compte cloud, code Terraform, réseaux et VLAN, création des machines. & S2 & V2 \\
+E2 & Pare-feux & Fortinet et Palo Alto : zones, règles, routage inter-VLAN, journalisation. & S2 et S3 & \\
+E3 & Services métiers & Impression, visioconférence et pointeuses, avec essais depuis un poste client. & S3 & V3 \\
+E4 & Supervision & Centreon : hôtes, sondes, seuils, notifications, tableaux de bord. & S4 & V4 \\
+\midrule
+\multicolumn{5}{@{}l}{\footnotesize\bfseries\color{warn} Partie 2, optionnelle} \\
+E5 & Identification par MAC & Serveur RADIUS, 802.1X et MAB, VLAN dynamique, agrégation de liens. & S5 & V5 \\
+E6 & Sécurité et stockage & Durcissement de la couche 2, profils de sécurité, matrice de flux, zoning par WWPN. & S6 & \\
+\midrule
+\multicolumn{5}{@{}l}{\footnotesize\bfseries\color{primary} Clôture} \\
+E7 & Recette et restitution & Cahiers de recette, rapport de stage, préparation de la soutenance. & S7 & V6 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le point de validation \rid{V4}, en fin de semaine 4, commande la suite : la partie 2 y est lancée ou abandonnée.
+
+\subsection{Planning prévisionnel}
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+  hgrid, vgrid,
+  x unit=0.98cm, y unit title=0.5cm, y unit chart=0.42cm,
+  title height=1, title label font=\scriptsize,
+  bar height=0.5, bar label font=\scriptsize,
+  group label font=\bfseries\scriptsize,
+  milestone label font=\scriptsize\itshape,
+  bar/.style={fill=accent!55, draw=accent!85},
+  group/.style={fill=primary!85, draw=primary},
+  milestone/.style={fill=red!70!black, draw=red!70!black}
+]{1}{7}
+\gantttitle{Semaines du stage (45 jours)}{7} \\
+\gantttitlelist{1,...,7}{1} \\
+\ganttgroup{E0 Préparation}{1}{1} \\
+\ganttbar{Étude de l'existant et cahier des charges}{1}{1} \\
+\ganttmilestone{V1 Cahier des charges validé}{1} \\
+\ganttgroup{E1 Socle et automatisation}{2}{2} \\
+\ganttbar{Terraform, réseaux, VLAN, machines}{2}{2} \\
+\ganttmilestone{V2 Socle déployé}{2} \\
+\ganttgroup{E2 Pare-feux}{2}{3} \\
+\ganttbar{Fortinet et Palo Alto}{2}{3} \\
+\ganttgroup{E3 Services métiers}{3}{3} \\
+\ganttbar{Impression, visioconférence, pointeuses}{3}{3} \\
+\ganttmilestone{V3 Services opérationnels}{3} \\
+\ganttgroup{E4 Supervision}{4}{4} \\
+\ganttbar{Centreon, sondes, tableaux de bord}{4}{4} \\
+\ganttmilestone{V4 Décision sur la partie 2}{4} \\
+\ganttgroup[group/.append style={fill=warn!65,draw=warn}]{E5 et E6, optionnelles}{5}{6} \\
+\ganttbar[bar/.append style={fill=warn!30,draw=warn!70}]{RADIUS, 802.1X, MAB, agrégation}{5}{5} \\
+\ganttbar[bar/.append style={fill=warn!30,draw=warn!70}]{Durcissement, pare-feu, stockage}{6}{6} \\
+\ganttmilestone{V5 Identification par MAC validée}{5} \\
+\ganttgroup{E7 Recette et restitution}{7}{7} \\
+\ganttbar{Recette, rapport et soutenance}{7}{7} \\
+\ganttmilestone{V6 Recette prononcée}{7}
+\end{ganttchart}
+\caption{Planning prévisionnel, les étapes optionnelles en orange}
+\end{figure}
+
+\subsection{Livrables et risques}
+\begin{table}[H]
+\centering
+\caption{Livrables attendus}
+\begin{tabularx}{\textwidth}{L{1.4cm} L{3.9cm} Y C{1.3cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Livrable} & \textbf{Description} & \textbf{Validation} \\
+\midrule
+\rid{LV-01} & Cahier des charges & Le présent document, validé par les tuteurs. & V1 \\
+\rid{LV-02} & Code Terraform & Fichiers d'infrastructure versionnés, commentés, avec leur procédure d'usage. & V2 \\
+\rid{LV-03} & Dossier d'architecture & Schémas, plan VLAN, plan d'adressage. & V3 \\
+\rid{LV-04} & Dossier de supervision & Hôtes et sondes, seuils, traitement des alertes. & V4 \\
+\rid{LV-05} & Configurations de référence & Configurations des pare-feux et des serveurs, versionnées et restaurables. & V4 \\
+\rid{LV-06} & Dossier du volet réseau, optionnel & Architecture cible, configurations des commutateurs, mesures de charge. & V5 \\
+\rid{LV-07} & PV de recette et rapport de stage & Résultats des cas de recette, procédures d'exploitation, support de soutenance. & V6 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Principaux risques}
+\begin{tabularx}{\textwidth}{L{4.9cm} L{4.1cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Risque} & \textbf{Conséquence} & \textbf{Mesure de réduction} \\
+\midrule
+Ressources insuffisantes sur le poste & Machines non démarrables & Démarrage par groupes, ou bascule vers le cloud \\
+Images ou licences indisponibles & Retard sur l'étape des pare-feux & Demande dès S1, solutions libres en remplacement \\
+Puce Apple Silicon, images en x86\_64 & Blocage du scénario local & Décision en S1, scénario cloud prêt en repli \\
+Retard sur la partie 1 & Partie 2 non réalisable & Partie 2 optionnelle, repli sur une étude \\
+Fonctions absentes des commutateurs & Partie 2 non validable & Vérification au point de validation V4 avant engagement \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%##############################################################################
+\separateur{Partie 1}{\badgeoblig}{Mise en place de\\ l'infrastructure virtualisée}
+{Volet principal du stage : créer et configurer les six machines virtuelles du laboratoire.}
+{\begin{itemize}[leftmargin=*,itemsep=3pt,topsep=2pt]
+\item \textbf{Section 5.} Exigences à respecter.
+\item \textbf{Section 6.} Architecture, plan VLAN et adressage.
+\item \textbf{Section 7.} Les six machines et leur rôle.
+\item \textbf{Section 8.} Choix techniques et poste de travail.
+\item \textbf{Section 9.} Automatisation avec Terraform.
+\item \textbf{Section 10.} Supervision avec Centreon.
+\item \textbf{Section 11.} Recette de la partie 1.
+\end{itemize}}{Partie 1 : infrastructure virtualisée (obligatoire)}
+%##############################################################################
+
+%==============================================================================
+\section{Exigences de la partie 1}
+%==============================================================================
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{1.4cm} Y C{2.3cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Exigence} & \textbf{Niveau} \\
+\midrule
+\rid{INF-01} & Deux pare-feux virtuels, un Fortinet et un Palo Alto, \textbf{DOIVENT} être déployés et intégrés à l'architecture. & Obligatoire \\
+\rid{INF-02} & Chaque service métier \textbf{DOIT} disposer de sa propre machine, sans mutualisation. & Obligatoire \\
+\rid{INF-03} & Les serveurs \textbf{DOIVENT} être installés sous Ubuntu Server 22.04 LTS. Les pare-feux font exception et gardent le système de leur constructeur. & Obligatoire \\
+\rid{INF-04} & Une machine de supervision sous Centreon \textbf{DOIT} surveiller toutes les autres. & Obligatoire \\
+\rid{INF-05} & Le plan d'adressage et le découpage VLAN \textbf{DOIVENT} être validés avant tout déploiement. & Obligatoire \\
+\rid{INF-06} & Chaque serveur \textbf{DOIT} être durci : compte nominatif, accès SSH par clé, pare-feu local actif, mises à jour de sécurité automatiques. & Obligatoire \\
+\rid{INF-07} & L'heure \textbf{DOIT} être synchronisée par NTP sur toutes les machines, pare-feux compris. & Obligatoire \\
+\rid{INF-08} & Les configurations et le code d'infrastructure \textbf{DOIVENT} être versionnés dans un dépôt Git. & Obligatoire \\
+\rid{INF-09} & La création des machines virtuelles \textbf{DOIT} être automatisée avec Terraform. & Obligatoire \\
+\rid{INF-10} & La configuration d'un serveur \textbf{DEVRAIT} être sauvegardée avant toute modification importante. & Recommandé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[Précision sur le système d'exploitation]
+Les serveurs métiers et la machine de supervision tournent sous Ubuntu Server 22.04 LTS, dont le support court jusqu'en avril 2027. Les deux pare-feux font exception : FortiGate et Palo Alto sont livrés sous forme d'images virtuelles complètes, qui embarquent leur propre système (FortiOS et PAN-OS). Il n'est ni possible ni souhaitable de les installer sur Ubuntu.
+\end{notebox}
+
+%==============================================================================
+\section{Architecture de l'infrastructure}
+%==============================================================================
+
+\subsection{Principe retenu}
+Le filtrage se fait en cascade. Le pare-feu Fortinet occupe la position périmétrique : point d'entrée depuis le réseau d'entreprise, il assure la traduction d'adresses et bloque ce qui n'a rien à faire dans le laboratoire. Le Palo Alto est placé derrière lui et assure le routage entre VLAN ainsi que l'inspection applicative des flux.
+
+Utiliser deux constructeurs différents répond à deux intentions : un incident sur une famille de produits ne compromet pas toute la chaîne de filtrage, et cela permet de comparer les deux solutions les plus répandues du marché.
+
+\subsection{Schéma de l'architecture}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\footnotesize, scale=0.95, transform shape,
+  net/.style={draw=gris,fill=white,rounded corners=2pt,minimum width=5.0cm,minimum height=0.62cm,align=center},
+  fw/.style={draw=warn,fill=warn!12,rounded corners=2pt,minimum width=7.6cm,minimum height=0.9cm,align=center},
+  sw/.style={draw=primary,fill=primary!85,text=white,rounded corners=2pt,minimum width=7.6cm,minimum height=0.75cm,align=center},
+  leaf/.style={draw=primary,fill=soft,rounded corners=2pt,text width=2.45cm,minimum height=1.35cm,align=center,font=\scriptsize,inner sep=3pt},
+  sup/.style={draw=accent,fill=accent!12,rounded corners=2pt,text width=2.45cm,minimum height=1.35cm,align=center,font=\scriptsize,inner sep=3pt},
+  lnk/.style={-{Latex[length=2mm]},thick,primary!80}]
+
+\node[net] (int) at (0,6.5) {Internet ou réseau d'entreprise};
+\node[fw]  (fg)  at (0,5.35) {\textbf{Pare-feu Fortinet} \ttfamily fw-forti-01\\[1pt]\scriptsize filtrage périmétrique, NAT, VPN};
+\node[fw]  (pa)  at (0,3.9) {\textbf{Pare-feu Palo Alto} \ttfamily fw-palo-01\\[1pt]\scriptsize routage inter-VLAN et inspection applicative};
+\node[sw]  (sw)  at (0,2.6) {Commutateur virtuel, liaison trunk 802.1Q};
+\draw[lnk] (int)--(fg); \draw[lnk] (fg)--(pa); \draw[lnk] (pa)--(sw);
+
+\node[sup]  (c1) at (-4.35,0.75) {\ttfamily sup-centreon-01\\[1pt] Supervision\\ VLAN 10};
+\node[leaf] (c2) at (-1.45,0.75) {\ttfamily srv-print-01\\[1pt] Impression\\ VLAN 20};
+\node[leaf] (c3) at ( 1.45,0.75) {\ttfamily srv-visio-01\\[1pt] Visioconférence\\ VLAN 20};
+\node[leaf] (c4) at ( 4.35,0.75) {\ttfamily srv-pointeuse-01\\[1pt] Pointeuses\\ VLAN 20};
+\foreach \n in {c1,c2,c3,c4} { \draw[lnk] (sw.south) -- (\n.north); }
+
+\node[font=\scriptsize,text=okgreen] at (0,-0.32) {\textbf{Toutes les machines sont supervisées depuis le VLAN 10 d'administration}};
+\end{tikzpicture}
+\caption{Architecture générale du laboratoire virtualisé}
+\end{figure}
+
+\subsection{Plan VLAN et adressage}\label{sec:vlan}
+Ce plan est défini dès la partie 1 et reste valable pour la partie 2, ce qui évite toute reprise d'adressage.
+
+\begin{table}[H]
+\centering
+\caption{Plan VLAN}
+\begin{tabularx}{\textwidth}{C{1.3cm} L{2.9cm} L{3.0cm} L{2.5cm} Y}
+\toprule
+\rowcolor{soft}\textbf{VLAN} & \textbf{Nom} & \textbf{Sous-réseau} & \textbf{Passerelle} & \textbf{Usage} \\
+\midrule
+10 & MGMT & 10.10.10.0/24 & 10.10.10.1 & Administration et supervision \\
+20 & SERVERS & 10.10.20.0/24 & 10.10.20.1 & Serveurs métiers \\
+30 & EQUIP & 10.10.30.0/24 & 10.10.30.1 & Imprimantes, pointeuses, bancs d'essais \\
+40 & STORAGE & 10.10.40.0/24 & 10.10.40.1 & Flux de stockage IP \\
+50 & USERS & 10.10.50.0/24 & 10.10.50.1 & Postes de travail \\
+99 & QUARANTINE & 10.10.99.0/24 & 10.10.99.1 & Équipements non authentifiés \\
+999 & NATIVE-UNUSED & sans adressage & sans passerelle & VLAN natif des trunks, inutilisé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Adressage des machines}
+\begin{tabularx}{\textwidth}{L{3.5cm} C{1.4cm} L{3.1cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Machine} & \textbf{VLAN} & \textbf{Adresse} & \textbf{Remarque} \\
+\midrule
+\ttfamily fw-forti-01 & trunk & 10.10.10.254 & Interface d'administration \\
+\ttfamily fw-palo-01 & trunk & 10.10.10.253 & Une sous-interface de niveau 3 par VLAN \\
+\ttfamily sup-centreon-01 & 10 & 10.10.10.30 & Supervision \\
+\ttfamily srv-print-01 & 20 & 10.10.20.11 & Impression \\
+\ttfamily srv-visio-01 & 20 & 10.10.20.12 & Visioconférence \\
+\ttfamily srv-pointeuse-01 & 20 & 10.10.20.13 & Gestion des pointeuses \\
+\ttfamily rad-01 & 10 & 10.10.10.20 & Serveur RADIUS, partie 2 \\
+\ttfamily stor-01 & 40 & 10.10.40.10 & Stockage, partie 2 \\
+\ttfamily clt-01 & 50 & attribution DHCP & Poste client de test \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Les imprimantes et les pointeuses reçoivent leur adresse par DHCP dans le VLAN 30. Ce détail compte pour la partie 2 : ces équipements n'ont pas de client 802.1X et devront donc être identifiés par leur adresse MAC.
+
+%==============================================================================
+\section{Les six machines et leur rôle}
+%==============================================================================
+
+\subsection{Inventaire}\label{sec:vm}
+\begin{table}[H]
+\centering
+\caption{Machines virtuelles de la partie 1}
+\begin{tabularx}{\textwidth}{L{1.1cm} L{3.2cm} Y L{2.45cm} C{1.0cm} C{0.95cm} C{1.2cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Nom} & \textbf{Rôle} & \textbf{Système} & \textbf{vCPU} & \textbf{RAM} & \textbf{Disque} \\
+\midrule
+VM-01 & \ttfamily fw-forti-01 & Pare-feu périmétrique & FortiOS & 1 & 2 Go & 40 Go \\
+VM-02 & \ttfamily fw-palo-01 & Pare-feu interne, routage inter-VLAN & PAN-OS & 2 & 8 Go & 60 Go \\
+VM-03 & \ttfamily srv-print-01 & Serveur d'impression & Ubuntu 22.04 & 1 & 2 Go & 25 Go \\
+VM-04 & \ttfamily srv-visio-01 & Serveur de visioconférence & Ubuntu 22.04 & 2 & 4 Go & 25 Go \\
+VM-05 & \ttfamily srv-pointeuse-01 & Gestion des pointeuses & Ubuntu 22.04 & 1 & 2 Go & 30 Go \\
+VM-06 & \ttfamily sup-centreon-01 & Supervision Centreon & Ubuntu 22.04 & 4 & 8 Go & 60 Go \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Total}} & \textbf{11} & \textbf{26 Go} & \textbf{240 Go} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Chaque machine est dimensionnée au plus juste, à partir des prérequis publiés par l'éditeur du composant qu'elle héberge, avec une marge uniquement là où la charge est réelle. Les disques sont alloués à la demande, en \emph{thin provisioning} : les 240 Go annoncés représentent moins de 80 Go réellement occupés au démarrage.
+
+\begin{notebox}[Comment ces valeurs ont été fixées]
+Trois contraintes d'éditeur commandent le tableau. La licence d'évaluation permanente de FortiGate-VM est plafonnée à \textbf{1 vCPU et 2 Go} : au-delà, les ressources sont allouées mais jamais utilisées. Palo Alto documente que les vCPU excédentaires par rapport au modèle licencié \textbf{ne sont pas exploités}, et impose un disque de 60 Go ; le modèle VM-100 réclame 6,5 Go de mémoire, d'où les 8 Go retenus. Centreon publie 4 vCPU et 8 Go pour un serveur central autonome, valeur conservée telle quelle.
+
+Pour les trois serveurs Ubuntu, le système consomme environ 300 Mo au repos. CUPS et PostgreSQL tiennent largement dans 2 Go, tandis que Jitsi Videobridge, seul composant réellement sollicité, obtient 2 vCPU dédiés et 4 Go, ce qui correspond au palier « petites réunions » de l'éditeur.
+\end{notebox}
+
+\begin{alertbox}[Deux garde-fous contre les plantages]
+Un fichier d'échange de 2 Go est créé sur chaque serveur Ubuntu, avec \ttb{vm.swappiness=10}. Il ne sert jamais en fonctionnement normal mais évite qu'un pic ponctuel n'oblige le noyau à arrêter brutalement un processus.
+
+Sur les pare-feux, la réservation mémoire est fixe et le \emph{ballooning} de l'hyperviseur désactivé. FortiOS passe en mode conservation dès 88 \% de mémoire occupée et cesse alors d'inspecter normalement les nouvelles sessions : sur une machine à 2 Go, l'inspection doit rester en mode \emph{flow-based}. C'est la seule limite réelle de ce dimensionnement, et elle est sans effet ici puisque l'inspection applicative est portée par le Palo Alto.
+\end{alertbox}
+
+\subsection{Les deux pare-feux}
+Le \textbf{FortiGate} filtre les échanges entre le laboratoire et l'extérieur : interfaces et zones, règles en refus par défaut, traduction d'adresses, accès VPN SSL pour l'administration à distance et envoi des journaux vers le collecteur syslog.
+
+Le \textbf{Palo Alto} porte une sous-interface de niveau 3 par VLAN, ce qui en fait le point de routage du laboratoire. Chaque VLAN devient une zone de sécurité et aucun flux ne passe d'une zone à l'autre sans être soumis à la politique de sécurité. Les profils activés couvrent l'antivirus, l'anti-spyware, la protection contre les vulnérabilités et le filtrage d'URL.
+
+\subsection{Les trois services métiers}
+\begin{table}[H]
+\centering
+\caption{Services métiers : logiciel, ports et point d'attention}
+\begin{tabularx}{\textwidth}{L{2.6cm} L{3.1cm} L{2.9cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Service} & \textbf{Logiciel} & \textbf{Ports à ouvrir} & \textbf{Point d'attention} \\
+\midrule
+Impression & CUPS & IPP 631 & Une file par imprimante, quotas par utilisateur, accès limité au VLAN des postes. \\
+Visioconférence & Jitsi Meet\newline\footnotesize Prosody, Jicofo, Videobridge & 443 en TCP, 10000 en UDP & Certificat TLS obligatoire, sans quoi le navigateur refuse l'accès à la caméra. \\
+Pointeuses & Collecteur et base PostgreSQL & 5432 en local, port constructeur vers les pointeuses & Heure synchronisée par NTP, sauvegarde quotidienne de la base. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le \textbf{serveur d'impression} centralise les files d'attente et publie les imprimantes en IPP. Les imprimantes restent dans le VLAN 30 et ne dialoguent qu'avec ce serveur.
+
+Le \textbf{serveur de visioconférence} s'appuie sur Jitsi Meet, une solution libre qui s'installe entièrement sur site et ne dépend d'aucun service extérieur, ce qui répond à la contrainte de confidentialité. Les salles sont protégées par mot de passe et l'enregistrement n'est pas activé.
+
+Le \textbf{serveur de gestion des pointeuses} collecte les passages de badge, les stocke dans une base PostgreSQL et produit des exports pour la gestion des temps. Deux points sont sensibles : un décalage d'horloge fausse directement les pointages, et une interruption prolongée de la collecte entraîne une perte de données difficile à reconstituer. Les deux font l'objet d'une alerte dédiée dans Centreon.
+
+\subsection{La machine de supervision}
+La machine \ttb{sup-centreon-01} héberge Centreon et surveille toutes les autres. Son rôle est détaillé au \S\,\ref{sec:centreon}. Un point est à surveiller : Centreon ne prend officiellement en charge que Debian et les distributions de la famille RHEL. L'installation sur Ubuntu 22.04 reste réalisable, les deux systèmes partageant la même base, mais si une difficulté bloquante apparaît, je proposerai à mon tuteur de basculer cette seule machine sous Debian 12.
+
+%==============================================================================
+\section{Choix techniques et environnement de travail}
+%==============================================================================
+
+\subsection{Solutions retenues}
+\begin{table}[H]
+\centering
+\caption{Solutions retenues et justifications}
+\begin{tabularx}{\textwidth}{L{3.0cm} L{4.0cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Composant} & \textbf{Solution} & \textbf{Justification} \\
+\midrule
+Système des serveurs & Ubuntu Server 22.04 LTS & Support jusqu'en 2027, documentation abondante, image facile à durcir et à dupliquer. \\
+Pare-feux & Fortinet FortiGate VM et Palo Alto VM-Series & Deux solutions de référence, licences d'évaluation disponibles, identification applicative des flux côté Palo Alto. \\
+Services métiers & CUPS, Jitsi Meet, PostgreSQL & Solutions libres, hébergeables sur site, standards dans leur domaine. \\
+Supervision & Centreon & Déjà exploitée par le service, connecteurs SNMP matures. \\
+Automatisation & Terraform & Description déclarative réutilisable sur le cloud comme sur OpenStack. \\
+Versionnement & Git & Historique des configurations et retour arrière possible. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Poste de développement}
+Le poste utilisé est un MacBook sous macOS. Il sert de station d'administration et, selon le scénario retenu, d'hôte de virtualisation. L'outillage se compose de Homebrew, Terraform, Git, du client OpenStack ou AWS CLI selon la cible, de Visual Studio Code pour le code d'infrastructure, et de VMware Fusion ou UTM pour l'exécution locale des machines.
+
+\subsection{Contraintes matérielles et solution de repli}\label{sec:contraintes}
+Deux limites conditionnent le choix entre déploiement local et déploiement cloud.
+
+La première tient aux ressources. Après optimisation, les six machines cumulent 26 Go de mémoire. Sur un hôte de 32 Go, quatre machines peuvent tourner ensemble sans difficulté, ce qui couvre tous les essais de la partie 1 : les deux pare-feux, un serveur métier et la supervision représentent 20 Go. Le laboratoire complet reste démarrable, mais il est plus confortable de laisser au repos les serveurs métiers que l'on ne teste pas sur le moment.
+
+\begin{alertbox}[Architecture du processeur]
+Les images FortiOS et PAN-OS n'existent qu'en x86\_64. Si le MacBook est équipé d'une puce Apple Silicon, elles ne peuvent pas s'exécuter localement à une vitesse utilisable. Le déploiement sur AWS, Azure ou sur un serveur x86 mutualisé devient alors la solution de repli. Ce point sera décidé avec mon tuteur dès la première semaine, car il détermine le scénario d'automatisation.
+\end{alertbox}
+
+%==============================================================================
+\section{Automatisation avec Terraform}
+%==============================================================================
+
+\subsection{Principe et bénéfices}
+Créer six machines à la main prend du temps et donne rarement deux fois le même résultat : une option oubliée, une taille de disque différente, une interface mal rattachée, et le laboratoire ne se comporte plus comme prévu. L'approche Infrastructure as Code (IaC) consiste à décrire l'infrastructure dans des fichiers texte, puis à laisser l'outil créer exactement ce qui est décrit.
+
+Le bénéfice tient en quatre points : la même description produit toujours la même infrastructure, le déploiement complet se lance en une seule commande, une modification se fait dans le fichier plutôt que machine par machine, et le code versionné dans Git garde la trace de chaque changement.
+
+\subsection{Deux scénarios possibles}
+Le choix de la plateforme dépend des moyens mis à disposition. Les deux scénarios utilisent Terraform et seul le fournisseur change, ce qui limite le travail de reprise en cas de bascule.
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des deux scénarios de déploiement}
+\begin{tabularx}{\textwidth}{L{2.6cm} Y Y}
+\toprule
+\rowcolor{soft} & \textbf{A. Cloud public, AWS ou Azure} & \textbf{B. Local, OpenStack} \\
+\midrule
+Fournisseur Terraform & \ttfamily hashicorp/aws \newline \ttfamily hashicorp/azurerm & \ttfamily terraform-provider-\newline openstack/openstack \\
+Ressources créées & Réseau virtuel, sous-réseaux, groupes de sécurité, instances & Réseaux Neutron, sous-réseaux, groupes de sécurité, instances \\
+Prérequis & Compte ouvert et financé, utilisateur technique avec droits de création & Projet OpenStack et identifiants, images importées dans Glance \\
+Avantage & Supprime la contrainte matérielle du poste de travail & Aucun coût récurrent, aucune donnée qui sort de l'entreprise \\
+Point d'attention & Images de pare-feux facturées à l'heure, budget à valider au préalable & Dépend de la disponibilité d'une plateforme OpenStack interne \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Deux règles s'appliquent dans les deux cas. Le fichier d'état de Terraform contient des informations sensibles : il est stocké dans un espace distant chiffré, jamais dans le dépôt Git. Les clés d'accès ne figurent pas dans le code et sont fournies par variables d'environnement. Le scénario A est retenu si le MacBook ne peut pas héberger les images x86\_64.
+
+\subsection{Maîtrise du coût dans le scénario cloud}
+Le dimensionnement du \S\,\ref{sec:vm} se traduit directement en types d'instance, et donc en facture. Le tableau ci-dessous donne la correspondance retenue.
+
+\begin{table}[H]
+\centering
+\caption{Types d'instance correspondant au dimensionnement}
+\begin{tabularx}{\textwidth}{L{4.2cm} L{3.0cm} L{3.0cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Machine} & \textbf{AWS} & \textbf{Azure} & \textbf{Remarque} \\
+\midrule
+Serveurs métiers, RADIUS, client & \ttfamily t3.small & \ttfamily B1ms & Le palier le plus économique compatible avec 2 Go. \\
+\ttfamily srv-visio-01 & \ttfamily t3.medium & \ttfamily B2s & Deux vCPU non partagés pour le videobridge. \\
+\ttfamily fw-forti-01 & \ttfamily t3.medium & \ttfamily B2s & Le plus petit gabarit acceptant l'image constructeur. \\
+\ttfamily fw-palo-01 & \ttfamily m5.large & \ttfamily D2s\_v3 & Plancher imposé par PAN-OS. \\
+\ttfamily sup-centreon-01 & \ttfamily t3.large & \ttfamily B2ms & Dimensionnement officiel Centreon. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Quatre leviers réduisent la facture sans rien changer au projet. Les instances sont \textbf{arrêtées en dehors des heures de travail} : un laboratoire utilisé huit heures par jour, cinq jours par semaine, ne tourne qu'un quart du mois, et le calcul ne porte alors que sur les volumes. Les images de pare-feux sont déployées en \textbf{BYOL} avec les licences d'évaluation plutôt qu'à l'heure depuis la place de marché, ce qui supprime le surcoût de licence, de loin le premier poste de dépense. Les volumes sont en \textbf{gp3}, moins cher que gp2 à performance égale. Enfin, aucune \textbf{adresse IP publique} n'est attribuée en dehors du pare-feu périmétrique, l'accès aux autres machines passant par lui.
+
+\begin{alertbox}[Limites de la licence d'évaluation FortiGate]
+La licence d'évaluation permanente est gratuite et sans expiration, mais elle plafonne la machine à trois interfaces, trois règles de filtrage et trois routes, et ne donne accès à aucune mise à jour de signatures. C'est suffisant pour le rôle périmétrique décrit ici, qui n'utilise qu'une interface externe, une interface interne et l'administration. En revanche, toute extension de ce rôle imposera une licence payante. L'inspection applicative reste portée par le Palo Alto, qui n'est pas concerné par cette limite.
+\end{alertbox}
+
+\subsection{Organisation du code et cycle de travail}
+Le code est découpé en modules (\ttb{reseau}, \ttb{serveur}, \ttb{parefeu}), et le fichier \ttb{inventaire.tf} rassemble le plan VLAN, l'adressage et les machines. Ajouter un serveur revient à ajouter une entrée dans ce seul fichier, sans toucher aux modules. La configuration interne des serveurs, c'est-à-dire les paquets, les utilisateurs et les clés SSH, est réalisée par cloud-init au premier démarrage.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  st/.style={draw=primary,fill=soft,rounded corners=2pt,text width=2.35cm,minimum height=1.0cm,align=center,inner sep=3pt},
+  fin/.style={draw=okgreen,fill=okgreen!8,rounded corners=2pt,text width=2.35cm,minimum height=1.0cm,align=center,inner sep=3pt},
+  ar/.style={-{Latex[length=2.2mm]},thick,primary!80}]
+\node[st]  (a) at (0,0)    {Fichiers \ttfamily .tf\\ description de l'infrastructure};
+\node[st]  (b) at (2.95,0) {\ttfamily terraform init\\ récupération du fournisseur};
+\node[st]  (c) at (5.90,0) {\ttfamily terraform plan\\ aperçu des changements};
+\node[st]  (d) at (8.85,0) {\ttfamily terraform apply\\ création des machines};
+\node[fin] (e) at (11.8,0) {Infrastructure conforme\\ état à jour};
+\node[st]  (f) at (11.8,-2.0) {\ttfamily terraform destroy\\ remise à zéro};
+\draw[ar] (a)--(b); \draw[ar] (b)--(c); \draw[ar] (c)--(d); \draw[ar] (d)--(e);
+\draw[ar] (e)--(f);
+\draw[ar] (f.west) -- node[midway,above,font=\scriptsize,text=primary]{reconstruction à l'identique} (0,-2.0) -- (a.south);
+\end{tikzpicture}
+\caption{Cycle de travail avec Terraform}
+\end{figure}
+
+L'étape \ttb{plan} précède systématiquement l'\ttb{apply} : elle affiche ce qui va être créé, modifié ou détruit, et c'est le dernier moment où une erreur peut être corrigée sans conséquence.
+
+Terraform crée et détruit des ressources, mais ne configure pas les services applicatifs : l'installation de CUPS, de Jitsi ou de Centreon reste réalisée par cloud-init et par des scripts documentés. Cette frontière est assumée, l'objectif étant d'automatiser le socle et non de tout industrialiser en 45 jours. Deux exemples de code figurent en annexe~\ref{ann:terraform}.
+
+%==============================================================================
+\section{Supervision avec Centreon}\label{sec:centreon}
+%==============================================================================
+
+\subsection{Rôle et modes de collecte}
+Centreon doit permettre de savoir à tout moment si une machine répond, si ses ressources sont suffisantes et si ses services fonctionnent, puis de prévenir sans délai en cas d'anomalie. C'est aussi l'outil qui produit les statistiques et les tableaux de bord présentés en soutenance.
+
+Trois méthodes de collecte sont utilisées. Les serveurs Ubuntu sont interrogés par les sondes \textit{centreon-plugins} exécutées à distance par SSH, ce qui évite d'installer un agent. Les pare-feux remontent leurs informations en SNMP version 3, avec authentification et chiffrement. Certains contrôles applicatifs se font enfin par simple connexion au port du service.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize, scale=0.92, transform shape,
+  cen/.style={draw=accent,fill=accent!14,rounded corners=2pt,text width=2.7cm,minimum height=1.3cm,align=center},
+  tgt/.style={draw=primary,fill=soft,rounded corners=2pt,text width=2.9cm,minimum height=0.6cm,align=center},
+  ops/.style={draw=okgreen,fill=okgreen!8,rounded corners=2pt,text width=2.9cm,minimum height=0.7cm,align=center},
+  ar/.style={-{Latex[length=2mm]},thick,primary!75}]
+\node[cen] (c) at (0,0) {\ttfamily sup-centreon-01\\[1pt]\textbf{Centreon}};
+\node[tgt] (t1) at (6.0, 2.10) {\ttfamily srv-print-01};
+\node[tgt] (t2) at (6.0, 1.30) {\ttfamily srv-visio-01};
+\node[tgt] (t3) at (6.0, 0.50) {\ttfamily srv-pointeuse-01};
+\node[tgt] (t4) at (6.0,-0.50) {\ttfamily fw-forti-01};
+\node[tgt] (t5) at (6.0,-1.30) {\ttfamily fw-palo-01};
+\node[ops] (o)  at (0,-2.9) {Messagerie de l'équipe};
+\foreach \t in {t1,t2,t3,t4,t5} { \draw[ar] (c.east) -- (\t.west); }
+\node[font=\scriptsize,text=accent,fill=white,inner sep=1pt] at (3.05,1.58) {SSH, centreon-plugins};
+\node[font=\scriptsize,text=accent,fill=white,inner sep=1pt] at (3.05,-1.00) {SNMP v3};
+\draw[ar] (c.south) -- node[midway,left,font=\scriptsize,text=okgreen,align=right]{notifications,\\escalade à 30 min} (o.north);
+\end{tikzpicture}
+\caption{Collecte et notification assurées par Centreon}
+\end{figure}
+
+\subsection{Points de contrôle et alertes}
+\begin{table}[H]
+\centering
+\caption{Indicateurs surveillés et seuils}
+\begin{tabularx}{\textwidth}{L{3.4cm} Y L{4.5cm}}
+\toprule
+\rowcolor{soft}\textbf{Cible} & \textbf{Indicateurs} & \textbf{Seuil d'alerte} \\
+\midrule
+Toutes les machines & Disponibilité, processeur, mémoire, espace disque, durée de fonctionnement & Avertissement à 80 \%, critique à 90 \% \\
+\ttfamily srv-print-01 & Service CUPS, port 631, travaux en attente & Service arrêté ou file bloquée depuis plus de 10 min \\
+\ttfamily srv-visio-01 & Prosody, Jicofo, Videobridge, port 443, conférences actives & Un composant arrêté est critique \\
+\ttfamily srv-pointeuse-01 & Base PostgreSQL, dernier pointage collecté, dérive NTP & Aucune collecte depuis 15 min, dérive supérieure à 2 s \\
+Pare-feux & Interfaces, sessions, processeur, tunnels VPN, débit & Interface tombée ou charge supérieure à 85 \% \\
+\ttfamily sup-centreon-01 & Auto-supervision du moteur, de la base et du disque & Moteur arrêté \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Les notifications partent par courriel vers l'équipe, avec une escalade si l'incident n'est pas acquitté au bout de 30 minutes. Les maintenances planifiées sont déclarées à l'avance pour éviter les alertes inutiles. Toute anomalie doit être détectée et notifiée en moins de 60 secondes, conformément à \rid{OG-03}. Trois vues sont préparées : une vue d'ensemble utilisable comme écran mural, une vue par service métier et une vue réseau reprenant l'état des pare-feux.
+
+%==============================================================================
+\section{Recette de la partie 1}
+%==============================================================================
+La partie 1 est terminée lorsque les six cas ci-dessous sont passés avec succès et consignés dans le procès-verbal de recette.
+
+\begin{table}[H]
+\centering
+\caption{Cahier de recette de l'infrastructure}
+\begin{tabularx}{\textwidth}{L{1.3cm} L{4.6cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Objet du test} & \textbf{Critère d'acceptation} \\
+\midrule
+\rid{TI-01} & Déploiement automatisé & Toutes les machines créées par une seule commande, conformes au plan d'adressage. \\
+\rid{TI-02} & Destruction puis reconstruction & Infrastructure identique à l'originale, remise en service en moins de 2 heures. \\
+\rid{TI-03} & Filtrage par les deux pare-feux & Les flux autorisés passent, les autres sont bloqués et journalisés sur les deux équipements. \\
+\rid{TI-04} & Fonctionnement des services métiers & Impression d'un document de test, conférence à deux participants, collecte d'un pointage. \\
+\rid{TI-05} & Remontée dans la supervision & 100 \% des machines visibles dans Centreon, sondes en état correct. \\
+\rid{TI-06} & Détection d'une panne & Arrêt volontaire d'un service, alerte reçue en moins de 60 secondes. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%##############################################################################
+\separateur{Partie 2}{\badgeopt}{Identification des équipements\\ par adresse MAC}
+{Volet complémentaire, lancé uniquement si la partie 1 est terminée et validée au point de validation V4.}
+{\begin{itemize}[leftmargin=*,itemsep=3pt,topsep=2pt]
+\item \textbf{Section 12.} Objet, limites de l'existant et objectifs.
+\item \textbf{Section 13.} Architecture cible et identification par adresse MAC.
+\item \textbf{Section 14.} Exigences du volet réseau.
+\item \textbf{Section 15.} Sécurité et matrice de flux.
+\item \textbf{Section 16.} Moyens complémentaires et recette.
+\end{itemize}
+\vspace{5pt}
+{\footnotesize\itshape Si la partie 2 n'est pas lancée, ce volet reste une étude documentaire et la recette du stage porte uniquement sur la partie 1.}}{Partie 2 : identification par adresse MAC (optionnelle)}
+%##############################################################################
+
+%==============================================================================
+\section{Objet et objectifs du volet réseau}
+%==============================================================================
+
+\subsection{Ce que traite cette partie}
+Aujourd'hui, brancher un équipement sur un port du commutateur suffit à lui ouvrir le VLAN configuré sur ce port. Le VLAN dépend donc de l'emplacement, pas de l'équipement. Déplacer une imprimante d'un bureau à un autre oblige à reconfigurer le commutateur.
+
+Cette partie inverse la logique. Le commutateur lit l'adresse MAC de l'équipement qui se raccorde, la soumet à un serveur d'authentification, puis applique le VLAN que celui-ci lui indique. Le port devient indifférent et le déplacement ne demande plus aucune intervention.
+
+\subsection{Limites de la situation actuelle}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize, scale=0.92, transform shape,
+  sw/.style={draw=primary,fill=soft,rounded corners=2pt,minimum width=2.6cm,minimum height=0.72cm,align=center},
+  core/.style={draw=primary,fill=primary!85,text=white,rounded corners=2pt,minimum width=3.0cm,minimum height=0.78cm,align=center},
+  dev/.style={draw=gris,fill=white,minimum width=1.6cm,minimum height=0.6cm,align=center,font=\scriptsize},
+  lnk/.style={-,thick,primary!80},
+  blk/.style={-,thick,red!70!black,dashed}]
+\node[core] (core) at (0,3.4) {C\oe ur de réseau\\\scriptsize Routage inter-VLAN par ACL};
+\node[sw] (a1) at (-3.2,1.8) {Accès SW-A};
+\node[sw] (a2) at ( 3.2,1.8) {Accès SW-B};
+\draw[lnk] (core) -- (a1); \draw[lnk] (core) -- (a2);
+\draw[blk] (a1) -- node[midway,above,font=\scriptsize,text=red!70!black]{lien bloqué par STP} (a2);
+\node[dev] (p1) at (-4.4,0.5) {Serveur\\\ttfamily Gi1/0/1};
+\node[dev] (p2) at (-2.1,0.5) {Banc test\\\ttfamily Gi1/0/2};
+\node[dev] (p3) at ( 2.1,0.5) {Poste\\\ttfamily Gi1/0/5};
+\node[dev] (p4) at ( 4.4,0.5) {Imprimante\\\ttfamily Gi1/0/6};
+\draw[lnk] (a1) -- (p1); \draw[lnk] (a1) -- (p2);
+\draw[lnk] (a2) -- (p3); \draw[lnk] (a2) -- (p4);
+\node[draw=warn,fill=warn!8,rounded corners=2pt,align=center,text width=7.6cm,font=\scriptsize]
+  at (0,-0.75) {\textbf{Liaison statique} : 1 port physique, 1 VLAN, 1 équipement identifié\\
+  \textit{Tout déplacement impose une reconfiguration manuelle.}};
+\end{tikzpicture}
+\caption{Situation actuelle, le VLAN est lié au port physique}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Limites relevées}
+\begin{tabularx}{\textwidth}{L{1.3cm} L{4.5cm} Y C{1.6cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Limite} & \textbf{Impact} & \textbf{Criticité} \\
+\midrule
+\rid{L-01} & Le port physique détermine l'identité de l'équipement & Toute mobilité impose une reconfiguration manuelle, soit 30 à 60 minutes d'immobilisation. & Élevée \\
+\rid{L-02} & Aucune authentification de l'équipement & Un port actif donne accès au VLAN sans vérifier ce qui s'y raccorde. & Critique \\
+\rid{L-03} & Risque d'erreur humaine & Une erreur de VLAN ou d'ACL entraîne une indisponibilité ou une exposition. & Élevée \\
+\rid{L-04} & Liens redondants bloqués par le spanning-tree & La bande passante disponible n'est pas exploitée. & Moyenne \\
+\rid{L-05} & Filtrage inter-VLAN limité aux ACL & Ni l'application ni le contenu des flux ne sont inspectés. & Élevée \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Objectifs}\label{sec:objp2}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{1.4cm} Y L{4.6cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Objectif} & \textbf{Indicateur} \\
+\midrule
+\rid{OBJ-01} & Rendre l'identité de l'équipement indépendante de son emplacement. & Aucune action manuelle lors d'un déplacement. \\
+\rid{OBJ-02} & Réduire le délai de remise en service après un déplacement. & 30 s au maximum, contre 30 à 60 min aujourd'hui. \\
+\rid{OBJ-03} & Authentifier tout équipement avant de lui ouvrir un accès. & 100 \% des ports d'accès sous contrôle. \\
+\rid{OBJ-04} & Exploiter l'intégralité des liens redondants. & Écart de charge entre liens $\leq$ 20 \%. \\
+\rid{OBJ-05} & Inspecter et superviser les flux inter-VLAN. & 100 \% des flux inspectés, détection $\leq$ 60 s. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%==============================================================================
+\section{Architecture cible}
+%==============================================================================
+
+\subsection{Principes et vue d'ensemble}
+Quatre principes guident la conception. L'identité prime sur l'emplacement : la politique réseau est attachée à l'équipement et non au port. La défense se fait en profondeur : l'identification par adresse MAC n'est qu'un mécanisme d'attribution, complété par des contrôles indépendants. Le point de contrôle est unique : aucun trafic entre VLAN n'échappe à l'inspection. Enfin, chaque décision est journalisée et chaque étape reste retirable séparément.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize, scale=0.90, transform shape,
+  box/.style={draw=primary,fill=soft,rounded corners=2pt,minimum width=2.5cm,minimum height=0.72cm,align=center},
+  fw/.style={draw=warn,fill=warn!12,rounded corners=2pt,minimum width=3.4cm,minimum height=0.82cm,align=center},
+  srv/.style={draw=accent,fill=accent!10,rounded corners=2pt,minimum width=2.4cm,minimum height=0.68cm,align=center,font=\scriptsize},
+  dev/.style={draw=gris,fill=white,minimum width=1.7cm,minimum height=0.58cm,align=center,font=\scriptsize},
+  lnk/.style={-,thick,primary!80},
+  agg/.style={-,very thick,accent}]
+\node[fw] (pa) at (0,4.4) {Pare-feu Palo Alto\\\scriptsize Routage inter-VLAN et profils};
+\node[box] (n1) at (-2.5,3.0) {Cœur 1};
+\node[box] (n2) at ( 2.5,3.0) {Cœur 2};
+\draw[lnk] (pa) -- (n1); \draw[lnk] (pa) -- (n2);
+\draw[agg] (n1) -- (n2);
+\node[font=\scriptsize,text=accent,fill=white,inner sep=1.5pt] at (0,3.0) {vPC peer-link};
+\node[box] (acc) at (0,1.45) {Commutateur d'accès\\\scriptsize 802.1X et MAB};
+\draw[agg] (n1) -- node[midway,left,font=\scriptsize,text=accent,xshift=-2pt]{Port-Channel} (acc);
+\draw[agg] (n2) -- node[midway,right,font=\scriptsize,text=accent,xshift=2pt]{hachage \ttfamily src-dst-mac} (acc);
+\node[dev] (d1) at (-3.3,0.1) {Serveur métier};
+\node[dev] (d2) at (-1.1,0.1) {Imprimante};
+\node[dev] (d3) at ( 1.1,0.1) {Pointeuse};
+\node[dev] (d4) at ( 3.3,0.1) {Poste};
+\foreach \d in {d1,d2,d3,d4} { \draw[lnk] (acc) -- (\d); }
+\node[font=\scriptsize,text=okgreen] at (0,-0.65) {\textbf{Port indifférent}, la politique suit l'adresse MAC};
+\node[srv] (rad) at (-5.7,3.0) {RADIUS\\\scriptsize Référentiel MAC};
+\node[srv] (cen) at (-5.7,1.85) {Centreon\\\scriptsize Supervision};
+\node[srv] (net) at ( 5.7,3.0) {NetApp\\\scriptsize Zoning WWPN};
+\node[srv] (sec) at ( 5.7,1.85) {Scan vuln.\\\scriptsize OpenVAS, ClamAV};
+\draw[lnk,dashed] (rad) -- (n1);
+\draw[lnk,dashed] (net) -- (n2);
+\draw[lnk,dashed] (cen) .. controls (-3.4,1.25) .. (acc);
+\draw[lnk,dashed] (sec) .. controls ( 3.4,1.25) .. (acc);
+\end{tikzpicture}
+\caption{Architecture cible : attribution du VLAN par identité et inspection centralisée}
+\end{figure}
+
+\subsection{Identification par adresse MAC}
+L'attribution dynamique du VLAN repose sur le couple \textbf{802.1X} et \textbf{MAB}, associé à un serveur \textbf{RADIUS}. Le commutateur joue le rôle d'authentificateur : tant qu'aucune authentification n'a abouti, le port ne laisse passer que le trafic d'authentification.
+
+Le 802.1X est privilégié pour les équipements qui disposent d'un client, postes et serveurs, car l'identité y est portée par un certificat. Le MAB prend le relais pour les matériels qui n'en ont pas, comme les imprimantes et les pointeuses. En cas d'échec, l'équipement part dans le VLAN 99, où seuls le DHCP, le DNS et un portail d'information restent accessibles.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize, scale=0.88, transform shape,
+  lane/.style={draw=primary,fill=soft,minimum width=2.4cm,minimum height=0.58cm,align=center,font=\footnotesize\bfseries},
+  msg/.style={-{Latex[length=2mm]},thick,primary!85},
+  rej/.style={-{Latex[length=2mm]},thick,red!70!black,dashed},
+  act/.style={draw=primary,fill=soft,rounded corners=2pt,font=\scriptsize,inner sep=3pt}]
+\node[lane] (E) at (0,0)    {Équipement};
+\node[lane] (S) at (4.4,0)  {Commutateur};
+\node[lane] (R) at (8.8,0)  {RADIUS};
+\node[lane] (N) at (12.8,0) {VLAN attribué};
+
+\begin{scope}[on background layer]
+  \fill[okgreen!8,rounded corners=2pt] (-1.55,-3.00) rectangle (14.35,-5.45);
+  \fill[red!6,rounded corners=2pt]     (-1.55,-5.80) rectangle (14.35,-7.45);
+\end{scope}
+
+\foreach \n in {E,S,R,N} { \draw[dashed,gris] (\n.south) -- ++(0,-7.25); }
+
+\draw[msg] (0,-0.9) -- (4.4,-0.9) node[midway,above,font=\scriptsize]{1. Raccordement, première trame};
+\draw[msg] (4.4,-1.7) -- (8.8,-1.7) node[midway,above,font=\scriptsize]{2. Access-Request (MAC ou identité EAP)};
+\node[act] at (8.8,-2.4) {3. Vérification dans le référentiel};
+
+\node[font=\scriptsize\bfseries,text=okgreen,anchor=west,fill=okgreen!8,inner sep=2pt]
+  at (-1.45,-3.35) {Cas nominal : équipement reconnu};
+\draw[msg] (8.8,-3.98) -- (4.4,-3.98) node[midway,above,font=\scriptsize]{4. Access-Accept + VLAN + Filter-Id};
+\node[act] at (4.4,-4.55) {5. Application du VLAN et de l'ACL sur le port};
+\draw[msg] (4.4,-5.16) -- (12.8,-5.16) node[midway,above,font=\scriptsize]{6. Accès autorisé, session journalisée};
+
+\node[font=\scriptsize\bfseries,text=red!70!black,anchor=west,fill=red!6,inner sep=2pt]
+  at (-1.45,-6.15) {Cas dégradé : équipement inconnu ou serveur RADIUS indisponible};
+\draw[rej] (8.8,-6.72) -- (4.4,-6.72) node[midway,above,font=\scriptsize,text=red!70!black]{4bis. Access-Reject};
+\draw[rej] (4.4,-7.26) -- (12.8,-7.26) node[midway,above,font=\scriptsize,text=red!70!black]{5bis. Bascule en VLAN 99 (quarantaine)};
+\end{tikzpicture}
+\caption{Séquence d'authentification et attribution dynamique du VLAN}
+\end{figure}
+
+Les attributs renvoyés par le serveur sont conformes à la RFC 3580 : \ttb{Tunnel-Type}, \ttb{Tunnel-Medium-Type}, \ttb{Tunnel-Private-Group-Id} qui porte l'identifiant du VLAN, et \ttb{Filter-Id} qui porte le nom de l'ACL. Si le serveur RADIUS devient indisponible, les sessions établies sont maintenues et les nouveaux raccordements basculent vers le VLAN 99, qui tient alors lieu de VLAN de secours (\rid{BNF-03}).
+
+\subsection{Agrégation de liens, routage et stockage}
+Les liens entre l'accès et le cœur sont agrégés en \textbf{Port-Channel} négocié par \textbf{LACP}. L'algorithme \ttb{src-dst-mac} calcule une empreinte à partir des adresses MAC source et destination, et le résultat détermine le lien emprunté. Les paquets d'un même flux empruntent donc toujours le même lien et arrivent dans leur ordre d'émission. La fonction \textbf{vPC} répartit ensuite les liens d'un même Port-Channel sur deux châssis, ce qui lève la limite \rid{L-04}.
+
+Le routage inter-VLAN, aujourd'hui réalisé par des interfaces SVI filtrées par ACL, est transféré au pare-feu Palo Alto, raccordé en trunk et configuré comme décrit au \S\,7.2.
+
+Le même raisonnement s'applique au stockage. Le Fibre Channel ne transporte pas d'adresses MAC mais identifie les ports par un WWPN. Le zoning logiciel, fondé sur le WWPN, attache l'autorisation à l'identité de l'initiateur, alors que le zoning matériel l'attache au port de la fabrique. Le premier rend un déplacement de serveur transparent, le second impose une reconfiguration. Le zoning \textbf{DOIT} donc être réalisé par WWPN, et les flux de stockage IP restent confinés dans le VLAN 40.
+
+\begin{notebox}[Deux mécanismes complémentaires, à ne pas confondre]
+L'algorithme \ttb{src-dst-mac} répartit la charge entre les liens agrégés, mais il ne supprime pas la reconfiguration lors d'un déplacement : cette propriété vient du couple MAB et 802.1X associé à l'attribution dynamique du VLAN. Le premier sert la performance (\rid{OBJ-04}), le second la mobilité (\rid{OBJ-01} et \rid{OBJ-02}).
+
+À noter également : la granularité de répartition est le flux, jamais le paquet. Un unique flux entre deux équipements ne dépassera donc pas le débit d'un lien physique. Si le trafic était dominé par quelques flux à très haut débit, l'algorithme \ttb{src-dst-ip} devrait être évalué. Ce point fait l'objet du cas \rid{TC-06}.
+\end{notebox}
+
+%==============================================================================
+\section{Exigences de la partie 2}
+%==============================================================================
+
+\subsection{Besoins fonctionnels}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{1.4cm} Y C{2.3cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Besoin fonctionnel} & \textbf{Niveau} \\
+\midrule
+\rid{BF-01} & Identifier chaque équipement par son adresse MAC lors de son raccordement. & Obligatoire \\
+\rid{BF-02} & Attribuer dynamiquement le VLAN correspondant, quel que soit le port utilisé. & Obligatoire \\
+\rid{BF-03} & Appliquer dynamiquement la politique de filtrage associée au profil de l'équipement. & Obligatoire \\
+\rid{BF-04} & Authentifier par 802.1X les équipements qui disposent d'un client, avec repli sur MAB. & Obligatoire \\
+\rid{BF-05} & Placer tout équipement non reconnu dans un VLAN de quarantaine. & Obligatoire \\
+\rid{BF-06} & Répartir le trafic sur tous les liens agrégés selon un hachage des adresses MAC. & Obligatoire \\
+\rid{BF-07} & Faire passer tous les flux inter-VLAN par un pare-feu appliquant des profils de sécurité. & Obligatoire \\
+\rid{BF-08} & Autoriser les accès au stockage sur l'identité de l'initiateur et non sur son port. & Obligatoire \\
+\rid{BF-09} & Superviser les liens, les authentifications et les équipements, et alerter en cas d'anomalie. & Obligatoire \\
+\rid{BF-10} & Produire un inventaire dynamique associant adresse MAC, VLAN, port et horodatage. & Recommandé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Besoins non fonctionnels et contraintes}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{1.6cm} L{2.7cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Catégorie} & \textbf{Exigence} \\
+\midrule
+\rid{BNF-01} & Performance & L'authentification et l'attribution du VLAN \textbf{DOIVENT} s'achever en moins de 30 secondes. \\
+\rid{BNF-02} & Disponibilité & La perte d'un lien agrégé \textbf{DOIT} être transparente, convergence $\leq$ 1 seconde. \\
+\rid{BNF-03} & Disponibilité & L'indisponibilité du service d'authentification \textbf{NE DOIT PAS} couper les sessions établies. \\
+\rid{BNF-04} & Sécurité & Aucun accès au réseau \textbf{NE DOIT} être possible sans authentification préalable. \\
+\rid{BNF-05} & Sécurité & Les mesures de durcissement du \S\,\ref{sec:durcissement} \textbf{DOIVENT} couvrir 100 \% des ports d'accès. \\
+\rid{BNF-06} & Sécurité & Les journaux d'authentification et de filtrage \textbf{DOIVENT} être centralisés et horodatés. \\
+\rid{BNF-07} & Exploitabilité & Toute anomalie \textbf{DOIT} être détectée et notifiée en moins de 60 secondes. \\
+\rid{BNF-08} & Maintenabilité & Les configurations \textbf{DOIVENT} être versionnées et restaurables. \\
+\midrule
+\rid{C-01} & Technique & Réutilisation du parc de commutation existant, sans achat de matériel. \\
+\rid{C-02} & Technique & Imprimantes, pointeuses et une partie des bancs d'essais n'ont pas de client 802.1X : le MAB est obligatoire pour eux. \\
+\rid{C-03} & Technique & Laboratoire hébergé sur le poste décrit au \S\,\ref{sec:contraintes}, avec les limites qui y sont exposées. \\
+\rid{C-04} & Sécurité & Le modèle de sécurité \textbf{NE DOIT PAS} reposer sur la seule adresse MAC (\S\,\ref{sec:risques}). \\
+\rid{C-05} & Planning & Réalisation dans les semaines 5 et 6, sous réserve du point de validation V4. \\
+\rid{C-06} & Budgétaire & Priorité aux licences détenues, aux versions d'évaluation et aux solutions libres. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%==============================================================================
+\section{Sécurité}
+%==============================================================================
+
+\subsection{Risques et mesures de réduction}\label{sec:risques}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{1.3cm} L{3.9cm} C{1.5cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Risque} & \textbf{Criticité} & \textbf{Mesure de réduction} \\
+\midrule
+\rid{R-01} & Usurpation d'adresse MAC & Critique & 802.1X en priorité ; \textit{port-security} ; DHCP Snooping avec DAI et IPSG ; alerte sur adresse dupliquée. \\
+\rid{R-02} & Indisponibilité du serveur RADIUS & Élevée & Deux instances ; maintien des sessions ; bascule des nouveaux raccordements vers le VLAN 99. \\
+\rid{R-03} & Saut de VLAN par double étiquetage ou DTP & Élevée & VLAN natif dédié et inutilisé ; DTP désactivé ; VLAN autorisés restreints sur les trunks. \\
+\rid{R-04} & Saturation de la table CAM & Élevée & Limitation du nombre d'adresses par port ; \textit{storm-control} ; supervision du remplissage. \\
+\rid{R-05} & Boucle de niveau 2 & Moyenne & BPDU Guard, Root Guard et PortFast sur les ports d'accès. \\
+\rid{R-06} & Vulnérabilité non corrigée & Élevée & Scan hebdomadaire ; plan de correction ; durcissement des images. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{alertbox}[Le point de sécurité central de cette partie]
+Une adresse MAC est lisible sur le réseau et modifiable par logiciel : c'est un identifiant, jamais un secret. Le MAB ne constitue donc pas une authentification forte. Il est retenu comme mécanisme d'attribution automatique, obligatoirement adossé à trois contrôles indépendants : le 802.1X partout où il est possible (\rid{BF-04}), le durcissement de la couche 2, et l'inspection applicative de tous les flux inter-VLAN (\rid{BF-07}). Cette exigence est formalisée par la contrainte \rid{C-04}.
+\end{alertbox}
+
+\subsection{Durcissement de la couche 2}\label{sec:durcissement}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{L{5.2cm} Y C{2.0cm}}
+\toprule
+\rowcolor{soft}\textbf{Mesure} & \textbf{Objectif} & \textbf{Risque couvert} \\
+\midrule
+\textit{Port-security} limité à 1 ou 2 adresses, mode \textit{restrict} & Limiter les adresses apprises par port et alerter en cas de dépassement. & R-01, R-04 \\
+DHCP Snooping, DAI et IP Source Guard & Construire la table IP et MAC de confiance, rejeter les messages incohérents. & R-01 \\
+VLAN natif dédié, DTP désactivé, VLAN autorisés restreints & Neutraliser le double étiquetage et la négociation automatique de trunk. & R-03 \\
+BPDU Guard, Root Guard et PortFast & Protéger la topologie spanning-tree. & R-05 \\
+\textit{Storm-control} & Limiter les tempêtes de diffusion. & R-04 \\
+Désactivation des ports inutilisés & Réduire la surface d'exposition physique. & R-01 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Matrice de flux inter-VLAN}
+Le principe appliqué est le refus par défaut : tout flux non explicitement autorisé est bloqué et journalisé.
+
+\begin{table}[H]
+\centering
+\caption{Matrice de flux de référence}
+\begin{tabularx}{\textwidth}{L{2.45cm} L{2.1cm} Y C{1.55cm} L{1.75cm}}
+\toprule
+\rowcolor{soft}\textbf{Source} & \textbf{Destination} & \textbf{Service} & \textbf{Action} & \textbf{Profil} \\
+\midrule
+MGMT & Tous & SSH 22, HTTPS 443, SNMP 161 & Autoriser & Strict \\
+USERS & SERVERS & HTTPS 443 et UDP 10000 pour la visioconférence, IPP 631 pour l'impression & Autoriser & Complet \\
+EQUIP & SERVERS & HTTPS 443 et TCP 5000 à 5010 pour la remontée des pointages et des bancs & Autoriser & Complet \\
+SERVERS & EQUIP & IPP 631 pour l'envoi des travaux aux imprimantes & Autoriser & Complet \\
+SERVERS & STORAGE & NFS 2049, iSCSI 3260 & Autoriser & Antivirus \\
+SERVERS & Extérieur & HTTPS 443, DNS 53, NTP 123 & Autoriser & Filtrage d'URL \\
+QUARANTINE & Portail & DHCP 67, DNS 53, HTTP 80 & Autoriser & Journalisé \\
+Tous & MGMT & Syslog 514 et NTP 123 vers le collecteur et le serveur de temps & Autoriser & Journalisé \\
+Tous & MGMT & Tout autre flux & \textbf{Refuser} & Journalisé \\
+Tous & Tous & Tout autre flux & \textbf{Refuser} & Journalisé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Les règles d'autorisation \textbf{DOIVENT} être associées à un groupe de profils couvrant l'antivirus, l'anti-spyware, la protection contre les vulnérabilités, le filtrage d'URL et le blocage des exécutables non nécessaires. Un scan de vulnérabilités authentifié est exécuté chaque semaine avec OpenVAS. Aucune vulnérabilité critique \textbf{NE DOIT} rester sans traitement. Tous les équipements exportent leurs journaux vers un collecteur syslog centralisé et synchronisé par NTP (\rid{BNF-06}).
+
+%==============================================================================
+\section{Moyens complémentaires et recette}
+%==============================================================================
+
+\subsection{Machines et outils supplémentaires}\label{sec:envp2}
+Les choix communs aux deux parties figurent au \S\,8. Cette partie ajoute une contrainte sur l'hôte : l'hyperviseur \textbf{DOIT} prendre en charge plusieurs réseaux virtuels, l'étiquetage 802.1Q et le mode promiscuité, faute de quoi ni les VLAN ni le 802.1X ne peuvent être validés.
+
+\begin{table}[H]
+\centering
+\caption{Machines et outils propres à la partie 2}
+\begin{tabularx}{\textwidth}{L{1.9cm} L{2.9cm} Y C{0.9cm} C{0.9cm}}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Nom} & \textbf{Rôle} & \textbf{vCPU} & \textbf{RAM} \\
+\midrule
+VM-07 & \ttfamily rad-01 & FreeRADIUS et référentiel des adresses MAC, sous Ubuntu 22.04 & 1 & 2 Go \\
+VM-08 & \ttfamily stor-01 & Simulateur NetApp ONTAP, LUN et partages NFS. Le simulateur refuse de démarrer sous 6 Go. & 2 & 6 Go \\
+VM-09 & \ttfamily clt-01 & Poste client de test, Ubuntu Server avec \ttfamily wpa\_supplicant & 1 & 2 Go \\
+SW-01, SW-02 & \ttfamily sw-acc-01/02 & Commutateurs d'accès sous Cisco IOSvL2. Le second permet de valider le déplacement exigé par \rid{TC-03}. & 1 & 1 Go \\
+SW-03, SW-04 & \ttfamily sw-nx-01/02 & Commutateurs cœur sous Cisco Nexus 9300v, pour le vPC. & 2 & 10 Go \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+OpenVAS et ClamAV sont installés sur la machine de supervision de la partie 1, dont la mémoire passe alors de 8 à 12 Go, le nombre de vCPU restant inchangé.
+
+\begin{alertbox}[Les commutateurs cœur ne tiennent pas sur un portable]
+Cisco impose 10 Go de mémoire par Nexus 9300v. Les deux châssis nécessaires au vPC réclament donc 20 Go à eux seuls, auxquels s'ajoutent le serveur RADIUS, le poste client et le pare-feu interne : le total dépasse ce qu'un poste de 32 Go peut fournir.
+
+En déploiement local, la partie 2 se limite donc aux deux commutateurs d'accès sous IOSvL2, qui ne consomment que 1 Go chacun. Cette topologie valide l'essentiel : authentification 802.1X et MAB, attribution dynamique du VLAN, quarantaine, agrégation LACP et hachage \ttb{src-dst-mac}, ainsi que le déplacement d'un équipement d'un commutateur à l'autre. Seul le cas \rid{TC-07}, qui porte sur la perte d'un châssis vPC, exige les Nexus et n'est donc exécuté que dans le scénario cloud.
+\end{alertbox}
+
+\subsection{Cahier de recette}
+\begin{table}[H]
+\centering
+\caption{Cahier de recette du volet réseau}
+\begin{tabularx}{\textwidth}{L{1.3cm} L{4.6cm} Y}
+\toprule
+\rowcolor{soft}\textbf{Réf.} & \textbf{Objet du test} & \textbf{Critère d'acceptation} \\
+\midrule
+\rid{TC-01} & Authentification 802.1X d'un poste & Accès accordé, VLAN attendu attribué, session journalisée. \\
+\rid{TC-02} & Authentification MAB d'une imprimante ou d'une pointeuse & Accès accordé sur la base de l'adresse MAC en moins de 30 s. \\
+\rid{TC-03} & Déplacement vers un autre port, puis un autre commutateur & VLAN et ACL identiques, aucune action manuelle, délai $\leq$ 30 s. \\
+\rid{TC-04} & Raccordement d'un équipement inconnu & Placement en VLAN 99, accès restreint, alerte remontée. \\
+\rid{TC-05} & Indisponibilité du serveur RADIUS & Sessions maintenues, nouveaux accès en VLAN 99, alerte émise. \\
+\rid{TC-06} & Répartition de charge \ttb{src-dst-mac} & Trafic réparti sur tous les membres, écart $\leq$ 20 \% avec au moins 8 couples d'adresses. \\
+\rid{TC-07} & Perte d'un membre du Port-Channel ou d'un châssis vPC & Continuité du trafic, convergence $\leq$ 1 s, aucune session TCP perdue. \\
+\rid{TC-08} & Filtrage inter-VLAN et profils de sécurité & Flux autorisés fonctionnels, flux non autorisés bloqués, fichier de test EICAR bloqué. \\
+\rid{TC-09} & Usurpation d'adresse MAC et saturation de la table CAM & Détection par \textit{port-security} et DAI, blocage ou alerte, journalisation. \\
+\rid{TC-10} & Accès au stockage après changement de port de fabrique & LUN toujours accessible sans modifier le zoning. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Critères d'acceptation chiffrés}
+\begin{tabularx}{\textwidth}{Y C{3.0cm} C{3.0cm}}
+\toprule
+\rowcolor{soft}\textbf{Indicateur} & \textbf{Cible} & \textbf{Seuil minimal} \\
+\midrule
+Délai de remise en service après un déplacement & $\leq$ 30 s & $\leq$ 60 s \\
+Actions manuelles par déplacement & 0 & 0 \\
+Taux de réussite des authentifications & $\geq$ 99 \% & $\geq$ 97 \% \\
+Écart de charge entre les membres du Port-Channel & $\leq$ 10 \% & $\leq$ 20 \% \\
+Convergence après perte d'un lien & $\leq$ 1 s & $\leq$ 3 s \\
+Couverture d'inspection des flux inter-VLAN & 100 \% & 100 \% \\
+Cas de recette obligatoires réussis & 100 \% & 100 \% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%##############################################################################
+\bloc{Conclusion}
+%==============================================================================
+\section{Conclusion}
+%==============================================================================
+Le projet répond d'abord à un besoin simple : disposer d'un environnement de travail complet et maîtrisé. La partie 1 y répond en construisant un laboratoire virtualisé de six machines, avec deux pare-feux de constructeurs différents, trois services métiers et une supervision centralisée. L'automatisation avec Terraform permet en plus de reconstruire cet ensemble à l'identique en moins de deux heures. C'est le résultat attendu du stage et il sera livré.
+
+La partie 2 va plus loin en changeant la façon dont le réseau décide qui a le droit d'aller où : le VLAN est attribué après authentification, le trafic est réparti sur tous les liens redondants et le routage inter-VLAN passe par un pare-feu à inspection applicative. Le délai de remise en service après un déplacement tombe alors de plusieurs dizaines de minutes à moins d'une minute, sans aucune action manuelle. Cette partie reste optionnelle : elle s'appuie sur le laboratoire de la partie 1 et ne peut donc venir qu'après. À défaut, elle sera livrée sous forme d'étude documentaire, ce qui garde sa valeur pour l'équipe sans mettre en cause la réussite du stage.
+
+Un dernier point de vigilance. Une adresse MAC est un identifiant public et falsifiable, pas un secret : le MAB n'est donc jamais employé seul, mais toujours adossé au 802.1X lorsque c'est possible, au durcissement de la couche 2 et à un filtrage applicatif. Sous cette réserve, l'architecture proposée répond aux objectifs fixés et constitue un socle documenté et reproductible.
+
+%##############################################################################
+\appendix
+\addtocontents{toc}{\protect\setcounter{tocdepth}{1}}
+\banniere{Annexes}{Configurations, code et commandes de vérification, à reprendre tels quels lors de la mise en œuvre.}
+%##############################################################################
+
+%==============================================================================
+\section{Configurations de référence}\label{ann:config}
+%==============================================================================
+
+\subsection{Commutateur d'accès : 802.1X, MAB et durcissement}
+\begin{lstlisting}
+! --- Parametres AAA et RADIUS ---
+aaa new-model
+aaa authentication dot1x default group radius
+aaa authorization network default group radius
+dot1x system-auth-control
+radius server RAD-01
+ address ipv4 10.10.10.20 auth-port 1812 acct-port 1813
+ key <CLE_PARTAGEE>
+!
+! --- Port d'acces : 802.1X prioritaire, repli MAB, quarantaine ---
+interface range GigabitEthernet1/0/1 - 24
+ switchport mode access
+ switchport nonegotiate
+ authentication order dot1x mab
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication event fail action authorize vlan 99
+ authentication event server dead action authorize vlan 99
+ mab
+ dot1x pae authenticator
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ ip verify source
+!
+! --- Durcissement de couche 2 ---
+ip dhcp snooping
+ip dhcp snooping vlan 10,20,30,40,50,99
+ip arp inspection vlan 10,20,30,40,50,99
+!
+! --- La liaison montante est declaree de confiance, sans quoi les reponses
+!     du serveur DHCP et les messages ARP legitimes seraient rejetes ---
+interface Port-channel1
+ ip dhcp snooping trust
+ ip arp inspection trust
+!
+show authentication sessions interface Gi1/0/3 details
+\end{lstlisting}
+
+\subsection{Agrégation de liens et répartition de charge}
+\begin{lstlisting}
+! --- Algorithme de hachage global base sur les adresses MAC ---
+port-channel load-balance src-dst-mac
+!
+interface Port-channel1
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,40,50,99
+!
+interface range TenGigabitEthernet1/1/1 - 2
+ channel-protocol lacp
+ channel-group 1 mode active
+!
+show etherchannel load-balance
+show etherchannel 1 summary
+\end{lstlisting}
+
+\subsection{FreeRADIUS : référentiel des équipements pour le MAB}
+\begin{lstlisting}
+# /etc/freeradius/3.0/mods-config/files/authorize
+# Adresse MAC en minuscules, sans separateur
+
+0050569a1c3f  Cleartext-Password := "0050569a1c3f"
+    Tunnel-Type = VLAN,
+    Tunnel-Medium-Type = IEEE-802,
+    Tunnel-Private-Group-Id = "30",
+    Filter-Id = "ACL-EQUIP"
+
+# Refus par defaut : tout equipement inconnu part en quarantaine
+DEFAULT  Auth-Type := Reject
+\end{lstlisting}
+
+\subsection{Stockage : autorisation par identité}
+\begin{lstlisting}
+# Groupe d'initiateurs base sur le WWPN, independant du port de fabrique
+igroup create -vserver svm_lab -igroup ig_srv_01 -protocol fcp -ostype linux -initiator 21:00:00:24:ff:8b:1a:2c
+lun map -vserver svm_lab -path /vol/vol_app/lun_app01 -igroup ig_srv_01 -lun-id 0
+
+# Zoning logiciel de la fabrique : un initiateur, une cible
+zonecreate "z_srv01_netapp", "21:00:00:24:ff:8b:1a:2c; 20:01:00:a0:98:11:22:33"
+cfgadd "cfg_prod", "z_srv01_netapp"
+cfgenable "cfg_prod"
+\end{lstlisting}
+
+%==============================================================================
+\section{Exemples de code Terraform}\label{ann:terraform}
+%==============================================================================
+Le même découpage est utilisé pour les deux plateformes : une description des serveurs d'un côté, une ressource générique de l'autre. Passer d'OpenStack à AWS revient à changer le fournisseur et le nom des ressources.
+
+\subsection{Déploiement local sur OpenStack}
+\begin{lstlisting}[style=code]
+terraform {
+  required_providers {
+    openstack = {
+      source  = "terraform-provider-openstack/openstack"
+      version = "~> 1.53"
+    }
+  }
+}
+
+# Reseau des serveurs metiers (VLAN 20)
+resource "openstack_networking_network_v2" "servers" {
+  name           = "net-servers"
+  admin_state_up = true
+}
+
+resource "openstack_networking_subnet_v2" "servers" {
+  name            = "subnet-servers"
+  network_id      = openstack_networking_network_v2.servers.id
+  cidr            = "10.10.20.0/24"
+  gateway_ip      = "10.10.20.1"
+  dns_nameservers = ["10.10.10.1"]
+}
+
+# Les trois serveurs metiers, decrits une seule fois
+variable "serveurs" {
+  type = map(object({ ip = string, flavor = string }))
+  default = {
+    "srv-print-01"     = { ip = "10.10.20.11", flavor = "m1.medium" }
+    "srv-visio-01"     = { ip = "10.10.20.12", flavor = "m1.large"  }
+    "srv-pointeuse-01" = { ip = "10.10.20.13", flavor = "m1.medium" }
+  }
+}
+
+resource "openstack_compute_instance_v2" "metier" {
+  for_each    = var.serveurs
+  name        = each.key
+  image_name  = "ubuntu-22.04-server"
+  flavor_name = each.value.flavor
+  key_pair    = "cle-stage"
+  user_data   = file("cloud-init/${each.key}.yaml")
+
+  network {
+    uuid        = openstack_networking_network_v2.servers.id
+    fixed_ip_v4 = each.value.ip
+  }
+}
+\end{lstlisting}
+
+\subsection{Déploiement sur AWS}
+\begin{lstlisting}[style=code]
+provider "aws" {
+  region = var.region
+}
+
+resource "aws_vpc" "lab" {
+  cidr_block = "10.10.0.0/16"
+  tags       = { Name = "vpc-lab-stage" }
+}
+
+resource "aws_subnet" "servers" {
+  vpc_id     = aws_vpc.lab.id
+  cidr_block = "10.10.20.0/24"
+  tags       = { Name = "subnet-servers" }
+}
+
+# Meme description que sur OpenStack, le gabarit devient un type d'instance AWS
+variable "serveurs" {
+  type = map(object({ ip = string, type = string }))
+  default = {
+    "srv-print-01"     = { ip = "10.10.20.11", type = "t3.small"  }
+    "srv-visio-01"     = { ip = "10.10.20.12", type = "t3.medium" }
+    "srv-pointeuse-01" = { ip = "10.10.20.13", type = "t3.small"  }
+  }
+}
+
+resource "aws_instance" "metier" {
+  for_each               = var.serveurs
+  ami                    = var.ami_ubuntu_2204
+  instance_type          = each.value.type
+  subnet_id              = aws_subnet.servers.id
+  private_ip             = each.value.ip
+  vpc_security_group_ids = [aws_security_group.serveurs.id]
+  user_data              = file("cloud-init/${each.key}.yaml")
+  tags                   = { Name = each.key, Projet = "stage-infra" }
+}
+
+output "adresses_serveurs" {
+  value = { for k, v in aws_instance.metier : k => v.private_ip }
+}
+\end{lstlisting}
+
+%==============================================================================
+\section{Commandes de vérification courantes}
+%==============================================================================
+\begin{lstlisting}[style=code]
+# Etat des services metiers
+systemctl status cups
+systemctl status prosody jicofo jitsi-videobridge2
+systemctl status postgresql
+
+# Ports en ecoute
+ss -tulpn | grep -E '631|443|10000|5432'
+
+# Synchronisation de l'heure
+timedatectl status
+chronyc sources
+
+# Cycle Terraform
+terraform validate
+terraform plan -out=plan.tfplan
+terraform apply plan.tfplan
+\end{lstlisting}
+
+\end{document}

@@ -1,0 +1,42 @@
+###############################################################################
+#  Copier ce fichier en terraform.tfvars puis adapter.
+#  terraform.tfvars n'est pas versionne : il contient des chemins et une cle
+#  propres a la machine.
+###############################################################################
+
+# --- Obligatoire -------------------------------------------------------------
+# Contenu de votre cle publique, par exemple : cat ~/.ssh/id_ed25519.pub
+cle_ssh_publique = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... adminlab@poste"
+
+# --- Hote de virtualisation --------------------------------------------------
+# Hote local      : "qemu:///system"
+# Serveur distant : "qemu+ssh://iheb@192.168.1.50/system"
+libvirt_uri   = "qemu:///system"
+pool_stockage = "default"
+
+# --- Identite du laboratoire -------------------------------------------------
+prefixe     = "lab"
+domaine_dns = "lab.airbus.local"
+
+# --- Images ------------------------------------------------------------------
+# Ubuntu : URL par defaut, ou chemin local sur un hote sans Internet.
+# image_ubuntu = "/var/lib/libvirt/images/jammy-server-cloudimg-amd64.img"
+
+# Pare-feux : laisser vide tant que les images constructeur ne sont pas
+# recuperees. Les serveurs se deploient quand meme.
+image_fortios = ""
+image_panos   = ""
+# image_fortios = "/var/lib/libvirt/images/fortios-7.4.qcow2"
+# image_panos   = "/var/lib/libvirt/images/panos-11.1.qcow2"
+
+# --- Comportement ------------------------------------------------------------
+admin_utilisateur = "adminlab"
+fuseau_horaire    = "Europe/Paris"
+
+# Sortie Internet le temps d'installer les paquets.
+# A repasser a false une fois les services en place.
+acces_internet_construction = true
+
+# Sur un poste de travail, laisser a false pour ne pas demarrer 26 Go de
+# machines a chaque ouverture de session.
+demarrage_automatique = false

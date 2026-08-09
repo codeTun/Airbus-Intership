@@ -1,0 +1,103 @@
+#cloud-config
+# -----------------------------------------------------------------------------
+# ${nom} : ${description}
+# Genere par Terraform. Ne pas modifier a la main sur la machine.
+# -----------------------------------------------------------------------------
+
+hostname: ${nom}
+fqdn: ${nom}.${domaine_dns}
+prefer_fqdn_over_hostname: true
+
+# --- Compte nominatif, acces par cle uniquement (INF-06) ---------------------
+users:
+  - name: ${admin_utilisateur}
+    gecos: Administrateur du laboratoire
+    groups: [sudo, adm]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - ${cle_ssh_publique}
+
+disable_root: true
+ssh_pwauth: false
+
+# --- Heure (INF-07) ----------------------------------------------------------
+timezone: ${fuseau_horaire}
+ntp:
+  enabled: true
+  ntp_client: chrony
+  servers:
+%{ for s in serveurs_ntp ~}
+    - ${s}
+%{ endfor ~}
+
+# --- Paquets -----------------------------------------------------------------
+package_update: true
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - chrony
+  - ufw
+  - unattended-upgrades
+  - curl
+  - ca-certificates
+%{ for p in paquets ~}
+  - ${p}
+%{ endfor ~}
+
+# --- Fichiers ----------------------------------------------------------------
+write_files:
+  # Filet de securite memoire : le fichier d'echange ne sert pas en
+  # fonctionnement normal, il evite qu'un pic ponctuel n'oblige le noyau
+  # a arreter brutalement un processus.
+  - path: /etc/sysctl.d/99-labo.conf
+    content: |
+      vm.swappiness = 10
+    permissions: "0644"
+
+  # Mises a jour de securite automatiques (INF-06).
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    permissions: "0644"
+
+  # Repere de deploiement, utile pour la recette TI-01.
+  - path: /etc/labo-airbus.yaml
+    content: |
+      machine: ${nom}
+      role: ${description}
+      adresse: ${ip}
+      deploiement: terraform
+    permissions: "0644"
+
+# --- Fichier d'echange de 2 Go ----------------------------------------------
+swap:
+  filename: /swapfile
+  size: 2147483648
+  maxsize: 2147483648
+
+# --- Mise en service ---------------------------------------------------------
+runcmd:
+  - [systemctl, enable, --now, qemu-guest-agent]
+  - [systemctl, enable, --now, chrony]
+  - [sysctl, --system]
+
+  # Pare-feu local : tout est refuse en entree sauf ce qui est declare.
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, "22/tcp"]
+%{ for port in ports ~}
+  - [ufw, allow, "${port}"]
+%{ endfor ~}
+  - [ufw, --force, enable]
+
+  # Commandes propres au role.
+%{ for c in commandes ~}
+  - ${jsonencode(c)}
+%{ endfor ~}
+
+  - [touch, /var/lib/cloud/instance/deploiement-termine]
+
+final_message: "${nom} pret apres $UPTIME secondes"

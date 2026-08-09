@@ -1,0 +1,116 @@
+variable "nom" {
+  description = "Nom de la machine, qui sert aussi de nom d'hote."
+  type        = string
+}
+
+variable "description" {
+  description = "Role de la machine, repris dans la description libvirt."
+  type        = string
+}
+
+variable "vcpu" {
+  description = "Nombre de processeurs virtuels."
+  type        = number
+}
+
+variable "memoire_mo" {
+  description = "Memoire vive en mebioctets."
+  type        = number
+}
+
+variable "disque_go" {
+  description = "Taille du disque en gibioctets, allouee a la demande."
+  type        = number
+}
+
+variable "pool_stockage" {
+  description = "Pool de stockage libvirt."
+  type        = string
+}
+
+variable "volume_base_id" {
+  description = "Identifiant du volume Ubuntu de base, partage par tous les serveurs."
+  type        = string
+}
+
+variable "reseau_id" {
+  description = "Identifiant du reseau libvirt auquel la machine est raccordee."
+  type        = string
+}
+
+variable "mac" {
+  description = "Adresse MAC fixe, qui permet a cloud-init de reconnaitre l'interface."
+  type        = string
+}
+
+variable "ip" {
+  description = "Adresse IP fixe de la machine."
+  type        = string
+}
+
+variable "masque" {
+  description = "Longueur du prefixe reseau."
+  type        = number
+  default     = 24
+}
+
+variable "passerelle" {
+  description = "Passerelle par defaut du VLAN."
+  type        = string
+}
+
+variable "dns" {
+  description = "Serveurs DNS transmis a la machine."
+  type        = list(string)
+}
+
+variable "domaine_dns" {
+  description = "Domaine de recherche DNS."
+  type        = string
+}
+
+# ------------------------------------------------------------- durcissement
+variable "admin_utilisateur" {
+  description = "Compte nominatif cree sur la machine."
+  type        = string
+}
+
+variable "cle_ssh_publique" {
+  description = "Cle SSH publique autorisee."
+  type        = string
+}
+
+variable "fuseau_horaire" {
+  description = "Fuseau horaire."
+  type        = string
+}
+
+variable "serveurs_ntp" {
+  description = "Sources de temps."
+  type        = list(string)
+}
+
+variable "ports" {
+  description = "Ports a ouvrir dans le pare-feu local, en plus de SSH."
+  type        = list(number)
+  default     = []
+}
+
+# ------------------------------------------------------------- role
+variable "paquets" {
+  description = "Paquets propres au role de la machine."
+  type        = list(string)
+  default     = []
+}
+
+variable "commandes" {
+  description = "Commandes propres au role, executees apres l'installation des paquets."
+  type        = list(string)
+  default     = []
+}
+
+variable "demarrage_automatique" {
+  description = "Demarre la machine avec l'hote."
+  type        = bool
+  default     = false
+}

@@ -1,0 +1,17 @@
+# Etat Terraform : contient des informations sensibles, jamais dans Git.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.bak
+
+# Valeurs propres a la machine.
+terraform.tfvars
+*.auto.tfvars
+
+# Fichiers de travail.
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf

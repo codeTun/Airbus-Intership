@@ -1,0 +1,24 @@
+# Etat Terraform : contient des informations sensibles.
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+
+# Valeurs et secrets propres a la machine.
+terraform.tfvars
+*.auto.tfvars
+ansible/inventaire/hosts.yml
+ansible/*.retry
+vault-pass.txt
+
+# Artefacts de compilation LaTeX.
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Systeme.
+.DS_Store

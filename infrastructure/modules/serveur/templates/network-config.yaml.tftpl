@@ -1,0 +1,23 @@
+# Adressage fixe, conforme au tableau d'adressage du cahier des charges.
+# L'interface est reconnue par son adresse MAC plutot que par son nom, qui
+# varie selon le type de machine emule.
+version: 2
+ethernets:
+  principale:
+    match:
+      macaddress: "${mac}"
+    set-name: eth0
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - ${ip}/${masque}
+    routes:
+      - to: default
+        via: ${passerelle}
+    nameservers:
+      search:
+        - ${domaine_dns}
+      addresses:
+%{ for s in dns ~}
+        - ${s}
+%{ endfor ~}
