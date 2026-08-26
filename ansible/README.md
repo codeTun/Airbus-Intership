@@ -40,10 +40,11 @@ adresses ne peuvent donc pas diverger entre les deux outils.
 
 | Rôle | Machine | Ce qu'il fait |
 |---|---|---|
-| `commun` | toutes | Durcissement rejouable, heure, journaux vers la supervision |
-| `impression` | `srv-print-01` | CUPS, files d'attente, quotas, accès limité au VLAN des postes |
+| `commun` | machines Linux | Durcissement rejouable, heure, journaux vers la supervision |
+| `commun_windows` | machines Windows | Même intention côté Windows : heure, pare-feu, correctifs, traçabilité |
+| `impression_windows` | `srv-print-01` | Service d'impression Windows, IIS et .NET, prérequis de Xerox Workplace Suite |
 | `visioconference` | `srv-visio-01` | Jitsi Meet installé sans interaction, ports 443 et 10000 |
-| `pointeuses` | `srv-pointeuse-01` | PostgreSQL, schéma de collecte, sauvegarde quotidienne, contrôle de l'heure |
+| `pointeuses_windows` | `srv-point-01` | SQL Server Express installé en silencieux, prérequis de MorphoManager |
 | `supervision` | `sup-centreon-01` | Centreon, réception des journaux, **déclaration des machines et des sondes** |
 | `parefeu_fortinet` | `fw-forti-01` | Interfaces, règles, traduction d'adresses, journaux |
 | `parefeu_paloalto` | `fw-palo-01` | Une zone et une sous-interface par VLAN, matrice de flux, profils |

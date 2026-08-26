@@ -56,14 +56,15 @@ infrastructure/
 ├── providers.tf              fournisseur libvirt et versions
 ├── variables.tf              paramètres du déploiement
 ├── inventaire.tf             plan VLAN, adressage et machines
-├── templates/                gabarit de l'inventaire Ansible
-├── main.tf                   assemblage des modules
+├── main.tf                   assemblage des modules, écriture de l'inventaire Ansible
 ├── outputs.tf                adresses, accès et vérification du dimensionnement
 ├── terraform.tfvars          valeurs locales, non versionné
 └── modules/
     ├── reseau/               un réseau virtuel par VLAN
-    ├── serveur/              machine Ubuntu avec cloud-init
+    ├── serveur/              machine Ubuntu, amorcée par cloud-init
     │   └── templates/        user-data et network-config
+    ├── serveur_windows/      machine Windows, amorcée par cloudbase-init
+    │   └── templates/        script PowerShell d'amorçage
     └── parefeu/              machine à image constructeur
 ```
 
@@ -77,12 +78,16 @@ infrastructure/
 |---|---|---|---|---|---|---|
 | `fw-forti-01` | Pare-feu périmétrique | trunk | 10.10.10.254 | 1 | 2 Go | 40 Go |
 | `fw-palo-01` | Pare-feu interne | trunk | 10.10.10.253 | 2 | 8 Go | 60 Go |
-| `srv-print-01` | Impression, CUPS | 20 | 10.10.20.11 | 1 | 2 Go | 25 Go |
+| `srv-print-01` | Impression, **Windows Server** | 20 | 10.10.20.11 | 2 | 4 Go | 60 Go |
 | `srv-visio-01` | Visioconférence, Jitsi | 20 | 10.10.20.12 | 2 | 4 Go | 25 Go |
-| `srv-pointeuse-01` | Pointeuses, PostgreSQL | 20 | 10.10.20.13 | 1 | 2 Go | 30 Go |
-| `sup-centreon-01` | Supervision | 10 | 10.10.10.30 | 4 | 8 Go | 60 Go |
+| `srv-point-01` | Pointeuses, **Windows Server** | 20 | 10.10.20.13 | 2 | 4 Go | 50 Go |
+| `sup-centreon-01` | Supervision | 10 | 10.10.10.30 | 2 | 4 Go | 40 Go |
 
-La sortie `dimensionnement` compare automatiquement les totaux à ceux annoncés dans le cahier des charges, soit 11 vCPU, 26 Go et 240 Go.
+La sortie `dimensionnement` compare automatiquement les totaux au dimensionnement retenu, soit 11 vCPU, 26 Go et 275 Go, et signale si l'ensemble dépasse ce qu'un hôte de 32 Go peut accueillir.
+
+Les deux serveurs d'impression et de pointeuses sont sous **Windows Server** : les logiciels retenus par le service, Xerox Workplace Suite et MorphoManager, exigent .NET Framework et SQL Server, qui n'existent pas ailleurs. Ils ne sont déployés que si la variable `image_windows` désigne un gabarit préparé.
+
+`srv-point-01` porte un nom raccourci : NetBIOS plafonne le nom d'hôte Windows à 15 caractères.
 
 Les sept VLAN du plan sont créés, y compris le VLAN natif 999 sans adressage.
 
