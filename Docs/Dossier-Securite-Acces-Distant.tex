@@ -1,0 +1,462 @@
+%==============================================================================
+%  Dossier de justification de securite : acces distant au laboratoire
+%  Compilation : latexmk -pdf Dossier-Securite-Acces-Distant.tex
+%==============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+
+\usepackage[a4paper,top=2.1cm,bottom=1.9cm,left=2.0cm,right=2.0cm,headheight=14pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{lastpage}
+\usepackage{setspace}
+\setstretch{1.01}
+
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{ragged2e}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{etoolbox}
+\usepackage{needspace}
+\usepackage{listings}
+
+\definecolor{primary}{HTML}{00205B}
+\definecolor{accent}{HTML}{0F7FA5}
+\definecolor{soft}{HTML}{E8EEF5}
+\definecolor{warn}{HTML}{B3541E}
+\definecolor{gris}{HTML}{5A5A5A}
+\definecolor{codebg}{HTML}{F7F9FC}
+
+\usepackage[hidelinks]{hyperref}
+\hypersetup{colorlinks=true, linkcolor=primary, urlcolor=accent,
+  pdftitle={Securite du laboratoire virtualise - poste local Airbus},
+  pdfauthor={Stage Airbus - Infrastructure et Securite Reseau}}
+
+\lstdefinestyle{sh}{
+  basicstyle=\ttfamily\scriptsize,
+  backgroundcolor=\color{codebg},
+  frame=leftline, framerule=1.4pt, rulecolor=\color{accent},
+  xleftmargin=8pt, framexleftmargin=6pt,
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, upquote=true,
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {ç}{{\c c}}1 {û}{{\^u}}1 {ô}{{\^o}}1,
+  aboveskip=5pt, belowskip=5pt}
+\lstset{style=sh}
+
+\titleformat{\section}{\normalfont\large\sffamily\bfseries\color{primary}}{\thesection.}{0.6em}{}
+\titlespacing*{\section}{0pt}{12pt}{5pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\footnotesize\textcolor{primary}{\textbf{Sécurité du laboratoire virtualisé}}}
+\fancyhead[R]{\footnotesize\textcolor{gris}{\rightmark}}
+\fancyfoot[L]{\footnotesize\textcolor{gris}{Airbus, diffusion interne restreinte}}
+\fancyfoot[R]{\footnotesize\textcolor{gris}{Page \thepage\ / \pageref{LastPage}}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection.~#1}}
+
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\Centering\arraybackslash}p{#1}}
+
+\captionsetup{font=small,labelfont={bf,color=primary},skip=4pt,labelsep=period}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+\renewcommand{\arraystretch}{1.08}
+\AtBeginEnvironment{tabularx}{\small}
+\AtBeginDocument{\setlist[itemize,1]{label=\textbullet}}
+
+\pretocmd{\section}{\needspace{8\baselineskip}}{}{}
+
+\newtcolorbox{notebox}[1][Note]{
+  enhanced, breakable, colback=soft, colframe=primary,
+  boxrule=0.7pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily\small, title={#1}, coltitle=white}
+
+\newtcolorbox{alertbox}[1][Point de vigilance]{
+  enhanced, breakable, colback=warn!6, colframe=warn,
+  boxrule=0.7pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily\small, title={#1}, coltitle=white}
+
+\newcommand{\ttb}[1]{\texttt{\small #1}}
+\newcommand{\anssi}[1]{\textcolor{primary}{\textbf{#1}}}
+
+\begin{document}
+
+\begin{center}
+{\sffamily\Large\bfseries\color{primary} AIRBUS}\\[2pt]
+{\sffamily\footnotesize\color{gris} Direction des Systèmes d'Information, Infrastructure et Sécurité Réseau}
+
+\vspace{9pt}
+\noindent\textcolor{primary}{\rule{\textwidth}{2.5pt}}\\[9pt]
+{\sffamily\LARGE\bfseries\color{primary} Sécurité du laboratoire virtualisé}\\[7pt]
+{\sffamily\normalsize\itshape\color{gris} Origine des logiciels, sécurité du code et exposition du poste}\\[7pt]
+\noindent\textcolor{accent}{\rule{\textwidth}{1pt}}
+\end{center}
+
+\vspace{2pt}
+\begin{center}\small
+\begin{tabularx}{0.94\textwidth}{@{}L{2.6cm}L{6.4cm}L{2.0cm}Y@{}}
+\textbf{Demandeur} & Stagiaire, Infrastructure et Sécurité Réseau & \textbf{Date} & \today \\
+\textbf{Destinataire} & Responsable de la sécurité des SI & \textbf{Validité} & Durée du stage \\
+\end{tabularx}
+\end{center}
+
+\vspace{2pt}
+
+\begin{notebox}[Périmètre, en trois phrases]
+Le laboratoire tient sur un poste unique, raccordé au port réseau dédié fourni
+par le service, et n'est utilisé que \textbf{depuis les locaux d'Airbus}. Aucun
+accès distant n'est demandé, aucune exposition sur Internet, aucun tunnel, aucune
+dérogation. Ce document traite les trois points soulevés : l'origine vérifiée des
+systèmes et des paquets, la sécurité du code produit, et la démonstration que le
+laboratoire ne crée pas de risque pour le réseau de l'entreprise.
+\end{notebox}
+
+%==============================================================================
+\section{Le poste et son raccordement}
+%==============================================================================
+
+Le poste exécute deux systèmes en double amorçage : le Windows d'entreprise,
+inchangé, et un Ubuntu Server 24.04 LTS sur une partition dédiée. Seul ce dernier
+porte le laboratoire. Il n'a pas d'interface graphique, ce qui réduit d'autant la
+surface exposée, et héberge un hyperviseur KVM sur lequel tournent six machines
+virtuelles reliées par sept réseaux virtuels internes en \ttb{10.10.0.0/16}.
+
+Le service a fourni un \textbf{port réseau dédié} et un accès Internet pour ce
+projet. Cette séparation est en soi une mesure de sécurité : le laboratoire ne
+partage pas le segment des postes de travail.
+
+L'accès au système se fait par SSH depuis un poste voisin, à l'intérieur des
+locaux. Ce choix n'ouvre aucun flux nouveau vers l'extérieur : il évite seulement
+de travailler sur une console physique, ce qui serait improductif et conduirait à
+laisser une session ouverte devant l'écran.
+
+\begin{table}[H]
+\centering
+\caption{Versions retenues, vérifiables à tout moment}
+\begin{tabularx}{\textwidth}{@{}L{4.6cm}L{4.4cm}Y@{}}
+\toprule
+\textbf{Composant} & \textbf{Version} & \textbf{Contrôle} \\
+\midrule
+Système hôte & Ubuntu Server 24.04 LTS & \ttb{lsb\_release -a} \\
+Service SSH & OpenSSH 9.6p1 & \ttb{ssh -V} \\
+Hyperviseur & libvirt 10.0.0, QEMU/KVM & \ttb{virsh version} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%==============================================================================
+\section{Origine et intégrité des systèmes et des paquets}
+%==============================================================================
+
+C'est le premier point soulevé. La règle applicable est \anssi{R59} du guide
+ANSSI-BP-028 v2.0, de niveau minimal : seuls les dépôts officiels de la
+distribution ou d'un éditeur doivent être utilisés.
+
+\textbf{Aucun composant du projet ne provient d'une source tierce}, d'un
+agrégateur de téléchargement, d'un partage pair à pair ou d'une version modifiée.
+Aucune licence n'est contournée : les logiciels sont soit libres, soit utilisés
+dans le cadre d'une évaluation officielle de l'éditeur, soit acquis par
+l'entreprise.
+
+\begin{table}[H]
+\centering
+\caption{Origine et vérification de chaque composant}
+\begin{tabularx}{\textwidth}{@{}L{3.4cm}L{4.0cm}Y@{}}
+\toprule
+\textbf{Composant} & \textbf{Source officielle} & \textbf{Vérification appliquée} \\
+\midrule
+ISO Ubuntu 24.04 & \ttb{releases.ubuntu.com} & Signature GPG du fichier de
+sommes, clé \ttb{843938DF...EFE21092}, puis SHA-256 \\
+Image cloud Ubuntu 22.04 & \ttb{cloud-images.ubuntu.com} & Idem, avec une
+\textbf{clé distincte} \ttb{D2EB4462...7DB87C81} \\
+Paquets système & Dépôts Ubuntu officiels & Signature APT de l'archive, clé
+\ttb{F6ECB376...991BC93C} \\
+Terraform & Dépôt APT HashiCorp & Dépôt signé, clé \ttb{798AEC65...A621E701}
+référencée par \ttb{signed-by} \\
+Collections Ansible & Ansible Galaxy & \ttb{ansible-galaxy collection verify},
+versions épinglées et archivées dans le dépôt \\
+ISO Windows Server 2022 & Microsoft Evaluation Center & Évaluation officielle de
+180 jours, empreinte locale consignée \\
+Images constructeur & Portails éditeur authentifiés & Sommes publiées par
+l'éditeur \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Vérifier la somme seule ne prouverait rien si le fichier de sommes venait de la
+même source que l'image. C'est la signature GPG de ce fichier, contrôlée contre
+une empreinte connue par ailleurs, qui fonde la confiance.
+
+\begin{lstlisting}
+gpg --keyid-format long --verify SHA256SUMS.gpg SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
+\end{lstlisting}
+
+\begin{alertbox}[Quatre maillons faibles, déclarés plutôt que masqués]
+\textbf{Microsoft ne publie aucune somme de contrôle} pour les ISO de son centre
+d'évaluation. \textbf{Ansible Galaxy ne fournit aucune signature GPG}, seulement
+une chaîne d'empreintes interne à l'archive. \textbf{Fortinet publie une empreinte
+MD5}, qui ne satisfait pas le référentiel ANSSI exigeant au minimum 256 bits.
+Enfin, les paquets Ansible d'Ubuntu 24.04 relèvent du composant \emph{universe} et
+ne bénéficient donc pas de la maintenance de sécurité de Canonical.
+
+Dans les quatre cas, la mesure compensatoire est identique : téléchargement en
+HTTPS depuis le domaine de l'éditeur, calcul d'une empreinte SHA-256 de référence
+consignée au dossier de recette, et versions épinglées dans le dépôt, ce qui
+permet de détecter toute substitution ultérieure.
+\end{alertbox}
+
+L'accès Internet fourni sert à ces téléchargements et aux correctifs de sécurité.
+Les machines virtuelles, elles, ne sortent que \textbf{pendant l'installation de
+leurs paquets}. Le paramètre correspondant est prévu pour être refermé ensuite, et
+deux VLAN sur sept seulement disposaient de cette sortie temporaire.
+
+\begin{lstlisting}
+# infrastructure/terraform.tfvars
+acces_internet_construction = false   # repasse a false une fois les paquets installes
+\end{lstlisting}
+
+%==============================================================================
+\section{Sécurité du code produit}
+%==============================================================================
+
+L'infrastructure entière est décrite en code, avec Terraform pour les machines et
+Ansible pour leur configuration. Cela présente un avantage de sécurité direct :
+tout est relisible, versionné, et reproductible à l'identique. Cela crée aussi un
+risque propre, celui de laisser fuiter un secret dans un dépôt.
+
+\subsection*{Aucun secret en clair}
+
+Les mots de passe et clés d'API ne figurent jamais dans le code. Ils sont
+remplacés par des renvois vers un coffre chiffré par \ttb{ansible-vault}. Le
+contrôle est reproductible : la recherche de motifs de secrets sur l'ensemble des
+fichiers versionnés ne remonte que des renvois de ce type.
+
+\begin{lstlisting}
+# ansible/inventaire/group_vars/all.yml : aucune valeur, uniquement des renvois
+password: "{{ coffre_paloalto_mot_de_passe }}"
+ansible_fortios_api_key: "{{ coffre_fortinet_cle_api | default('') }}"
+\end{lstlisting}
+
+\subsection*{Les fichiers sensibles ne peuvent pas être versionnés}
+
+L'état Terraform contient des informations sensibles, et les fichiers de
+paramètres contiennent des chemins et des clés propres à la machine. Tous sont
+exclus du versionnement, ce qui se vérifie fichier par fichier.
+
+\begin{lstlisting}
+git check-ignore -v infrastructure/terraform.tfstate   # etat Terraform
+git check-ignore -v infrastructure/terraform.tfvars    # parametres locaux
+git check-ignore -v ansible/inventaire/hosts.yml       # inventaire genere
+git check-ignore -v vault-pass.txt                     # mot de passe du coffre
+\end{lstlisting}
+
+Un contrôle automatique complète cette exclusion. Un \emph{crochet} de
+pré-commit refuse tout envoi contenant un coffre non chiffré ou une clé privée,
+de sorte qu'une inattention ne puisse pas se transformer en fuite.
+
+\begin{lstlisting}
+git config core.hooksPath .githooks     # activation, une fois par poste
+# Essai : commit d'un coffre en clair
+REFUS : ansible/inventaire/group_vars/coffre.yml n'est pas chiffre.
+        Lancer : ansible-vault encrypt ansible/inventaire/group_vars/coffre.yml
+\end{lstlisting}
+
+\subsection*{Les machines sont fermées dès leur premier démarrage}
+
+Le durcissement n'attend pas une intervention manuelle. Il est posé par le
+gabarit d'amorçage, avant même que la machine ne soit joignable : compte sans mot
+de passe utilisable, compte \ttb{root} désactivé, authentification par mot de
+passe refusée, pare-feu local en refus entrant n'ouvrant que le port SSH.
+
+\begin{lstlisting}
+lock_passwd: true      # aucun mot de passe utilisable sur le compte
+disable_root: true     # compte root desactive
+ssh_pwauth: false      # authentification par mot de passe refusee
+\end{lstlisting}
+
+\subsection*{Les versions sont figées}
+
+Une dépendance qui change seule est une porte d'entrée. Le fournisseur Terraform
+est épinglé, les collections Ansible le sont également et sont archivées dans le
+dépôt, ce qui rend le déploiement reproductible et insensible à une modification
+amont.
+
+\subsection*{Le code est contrôlé avant toute exécution}
+
+Trois outils sont passés systématiquement, et leur résultat est reproductible par
+un tiers.
+
+\begin{table}[H]
+\centering
+\caption{Contrôles appliqués au code du projet}
+\begin{tabularx}{\textwidth}{@{}L{4.6cm}L{5.2cm}Y@{}}
+\toprule
+\textbf{Contrôle} & \textbf{Commande} & \textbf{Résultat} \\
+\midrule
+Cohérence Terraform & \ttb{terraform validate} & Succès \\
+Syntaxe des fichiers & \ttb{yamllint .} & Aucune remarque \\
+Qualité Ansible & \ttb{ansible-lint} & 0 échec, profil production \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces contrôles ne sont pas cosmétiques. Le profil \emph{production} d'ansible-lint
+a par exemple intercepté deux appels de modules inexistants, qui auraient échoué
+en cours de déploiement sur les pare-feux.
+
+%==============================================================================
+\section{Exposition : ce que le laboratoire ne peut pas atteindre}
+%==============================================================================
+
+C'est le point qui limite le plus la portée d'un incident, et il se démontre.
+
+Les sept réseaux virtuels sont créés par libvirt en mode \ttb{nat}. Dans ce mode,
+la seule règle entrante posée est une acceptation \textbf{conditionnée à l'état de
+la connexion}, immédiatement suivie d'un rejet attrape-tout. Autrement dit, seules
+les réponses à des connexions initiées depuis une machine virtuelle traversent :
+\textbf{aucune connexion ne peut être initiée depuis le réseau d'Airbus vers le
+laboratoire}. En sortie, seuls les paquets dont l'adresse source appartient au
+sous-réseau déclaré sont acceptés, ce qui interdit toute usurpation d'adresse.
+
+S'ajoute une seconde barrière, indépendante du filtrage : aucun équipement du
+réseau d'entreprise ne dispose d'itinéraire vers ces préfixes.
+
+\begin{lstlisting}
+sudo iptables -L LIBVIRT_FWI -n -v    # regles entrantes posees par libvirt
+sudo ufw status numbered              # port 22 restreint au segment du laboratoire
+\end{lstlisting}
+
+Par honnêteté méthodologique : ce n'est pas la traduction d'adresse qui protège,
+contrairement à ce que l'on lit souvent, c'est le filtrage à état. Le mode
+\ttb{open} de libvirt, qui n'installe aucune règle, est proscrit dans ce projet,
+de même que sa fonction de redirection de port.
+
+Le service SSH n'est joignable que depuis le segment du laboratoire, en
+authentification par clé exclusivement, et en droits positifs conformément à
+\anssi{R22} de la note ANSSI DAT-NT-007.
+
+\begin{lstlisting}
+PermitRootLogin no
+PasswordAuthentication no
+AuthenticationMethods publickey
+AllowGroups labo-admins
+MaxAuthTries 3
+LogLevel VERBOSE
+\end{lstlisting}
+
+Le niveau \ttb{VERBOSE} n'est pas un excès de zèle : au niveau par défaut, les
+échecs d'authentification par clé ne sont pas journalisés. Il apporte en outre
+l'empreinte de la clé employée à chaque connexion acceptée, ce qui fonde
+l'imputabilité exigée par \anssi{R33} du guide ANSSI-BP-028.
+
+%==============================================================================
+\section{Risques, et ce que le dispositif ne couvre pas}
+\label{sec:risques}
+%==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Événements redoutés et risque résiduel}
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.9cm}C{0.7cm}C{0.7cm}Y C{1.4cm}@{}}
+\toprule
+\textbf{Événement redouté} & \textbf{G} & \textbf{V} & \textbf{Mesures} & \textbf{Résiduel} \\
+\midrule
+Composant altéré introduit par la chaîne logicielle & G4 & V2 &
+Sources officielles, signatures vérifiées, empreintes consignées, versions épinglées & Moyen \\
+\addlinespace
+Fuite d'un secret par le dépôt de code & G3 & V2 &
+Secrets en coffre chiffré, fichiers sensibles exclus, refus automatique au commit & Faible \\
+\addlinespace
+Rebond du laboratoire vers le réseau d'entreprise & G4 & V1 &
+Filtrage à état sans connexion entrante possible, absence de route, contrôle d'adresse source, port dédié & Faible \\
+\addlinespace
+Accès non autorisé au service SSH & G2 & V1 &
+Accès local uniquement, clé exclusivement, droits positifs, journalisation détaillée & Faible \\
+\addlinespace
+Atteinte au Windows d'entreprise depuis Ubuntu & G4 & V2 &
+Dépend d'une décision qui ne m'appartient pas, voir ci-dessous & \textbf{Élevé sans BitLocker} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le seul événement réellement grave n'est pas la perte du laboratoire, qui se
+reconstruit par une commande puisque toute son infrastructure est décrite en
+code. C'est l'atteinte au système d'information de l'entreprise, et l'ensemble du
+dispositif est conçu autour de cette hiérarchie.
+
+\subsection*{Trois limites que j'assume}
+
+\textbf{Le double amorçage est le point faible.} Aucun référentiel de l'ANSSI ne
+le valide comme mécanisme de cloisonnement, le modèle de référence étant un socle
+hyperviseur avec une machine virtuelle par environnement. La partition système EFI
+est partagée et non chiffrée, et surtout, \textbf{sans BitLocker actif, un
+administrateur d'Ubuntu lit et modifie l'intégralité de la partition Windows}.
+C'est le point le plus important de ce dossier, et sa maîtrise ne m'appartient
+pas : je demande que l'état de BitLocker soit vérifié avant la mise en service.
+Secure Boot reste activé, sa désactivation est exclue.
+
+\textbf{Ubuntu sera un angle mort pour le centre de supervision}, n'étant pas
+couvert par la solution de détection du parc. Je n'ai pas de compensation
+pleinement satisfaisante à proposer, seulement l'export des journaux vers un
+collecteur désigné, une rétention portée à six mois, et l'acceptation de toute
+contrainte supplémentaire.
+
+\textbf{La partition ne sera pas chiffrée}, un chiffrement LUKS imposant une
+saisie à chaque démarrage. Elle ne contient aucune donnée d'entreprise, uniquement
+du code d'infrastructure, et les secrets du projet y sont chiffrés au repos. Si ce
+point est jugé rédhibitoire, je chiffre la partition.
+
+%==============================================================================
+\section{Engagements}
+%==============================================================================
+
+\begin{enumerate}[leftmargin=1.3em,itemsep=2pt,topsep=3pt]
+\item N'utiliser que les sources officielles décrites, et consigner l'empreinte de
+chaque composant installé. N'installer aucun logiciel modifié ou de licence
+contournée.
+\item N'ouvrir aucun port depuis Internet vers ce poste, à aucun moment, et
+n'installer aucun tunnel de contournement.
+\item N'accéder au laboratoire que depuis les locaux d'Airbus, sur le port réseau
+qui m'a été attribué.
+\item Refermer la sortie Internet des machines virtuelles une fois leurs paquets
+installés.
+\item Ne jamais écrire de secret en clair dans le dépôt, et conserver actif le
+contrôle automatique qui le vérifie à chaque commit.
+\item Ne stocker aucune donnée d'entreprise sur la partition Ubuntu.
+\item Signaler sans délai toute connexion non reconnue dans les journaux, tout
+comportement anormal, et toute erreur de ma part.
+\item Appliquer toute mesure complémentaire demandée par le RSSI, et restituer le
+poste dans son état d'origine en fin de stage.
+\end{enumerate}
+
+\vspace{6pt}
+\noindent\small\textcolor{gris}{\textbf{Référentiel utilisé.}
+ANSSI \textbf{DAT-NT-007} v1.3 du 17/08/2015, \emph{Usage sécurisé d'(Open)SSH} ;
+\textbf{ANSSI-BP-028} v2.0 du 03/10/2022, \emph{Configuration d'un système
+GNU/Linux} ; \textbf{ANSSI-PG-083} v3.00 du 20/03/2026, \emph{Mécanismes
+cryptographiques} ; \textbf{ANSSI-PA-048} v1.5 de septembre 2024, \emph{EBIOS Risk
+Manager}. Documentation éditeur : \ttb{sshd\_config(5)} d'OpenSSH 9.6p1,
+documentation libvirt sur le filtrage des réseaux virtuels.}
+
+\vspace{8pt}
+\noindent\textcolor{primary}{\rule{\textwidth}{1pt}}
+\vspace{3pt}
+\begin{center}\small\itshape\color{gris}
+Ce dossier engage son auteur. Toute évolution du périmètre décrit ici fera l'objet d'une nouvelle demande.
+\end{center}
+
+\end{document}

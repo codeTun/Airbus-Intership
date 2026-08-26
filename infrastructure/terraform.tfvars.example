@@ -22,6 +22,17 @@ domaine_dns = "lab.airbus.local"
 # Ubuntu : URL par defaut, ou chemin local sur un hote sans Internet.
 # image_ubuntu = "/var/lib/libvirt/images/jammy-server-cloudimg-amd64.img"
 
+# Windows : gabarit syspreppe, prepare une fois a la main depuis l'ISO
+# d'evaluation. Procedure dans le README. Laisser vide tant qu'il n'existe
+# pas : les serveurs d'impression et de pointeuses sont alors ignores, le
+# reste du laboratoire se deploie normalement.
+image_windows = ""
+# image_windows = "/var/lib/libvirt/images/windows-2022-gabarit.qcow2"
+
+# Windows refuse un compte local sans mot de passe. L'acces se fait malgre
+# tout par cle SSH, le mot de passe ne sert qu'a la console de secours.
+admin_mot_de_passe_windows = ""
+
 # Pare-feux : laisser vide tant que les images constructeur ne sont pas
 # recuperees. Les serveurs se deploient quand meme.
 image_fortios = ""

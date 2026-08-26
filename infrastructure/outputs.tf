@@ -8,12 +8,32 @@ output "plan_vlan" {
 
 output "serveurs" {
   description = "Serveurs deployes, avec leur adresse et leur commande de connexion."
-  value = {
-    for nom, s in module.serveur : nom => {
-      adresse = s.ip
-      mac     = s.mac
-      acces   = s.acces_ssh
+  value = merge(
+    {
+      for nom, s in module.serveur : nom => {
+        systeme = "Ubuntu 22.04"
+        adresse = s.ip
+        mac     = s.mac
+        acces   = s.acces_ssh
+      }
+    },
+    {
+      for nom, s in module.serveur_windows : nom => {
+        systeme = "Windows Server"
+        adresse = s.ip
+        mac     = s.mac
+        acces   = s.acces_ssh
+      }
     }
+  )
+}
+
+output "machines_windows" {
+  description = "Etat des machines Windows. Non deploye signifie que le gabarit syspreppe n'a pas ete fourni."
+  value = trimspace(var.image_windows) != "" ? {
+    for nom, s in module.serveur_windows : nom => format("deploye, administration sur %s", s.ip)
+    } : {
+    for nom, s in local.serveurs : nom => "non deploye : gabarit Windows absent" if s.os == "windows"
   }
 }
 
@@ -29,13 +49,16 @@ output "parefeux" {
 }
 
 output "dimensionnement" {
-  description = "Totaux compares au tableau 8 du cahier des charges."
+  description = "Totaux du laboratoire. Revise apres le passage des serveurs d'impression et de pointeuses sous Windows."
   value = {
     vcpu_total     = local.total_vcpu
     memoire_totale = format("%d Go", local.total_mo / 1024)
     disque_total   = format("%d Go declares, alloues a la demande", local.total_go)
-    attendu        = "11 vCPU, 26 Go, 240 Go"
-    conforme       = local.total_vcpu == 11 && local.total_mo == 26624 && local.total_go == 240
+    attendu        = "11 vCPU, 26 Go, 275 Go"
+    conforme       = local.total_vcpu == 11 && local.total_mo == 26624 && local.total_go == 275
+
+    # L'hote garde environ 2 Go pour lui : on se donne 30 Go de plafond.
+    tient_sur_hote_32go = local.total_mo <= 30720
   }
 }
 
@@ -44,8 +67,9 @@ output "etapes_suivantes" {
   value = [
     "1. Verifier que les machines repondent : make etat",
     "2. Se connecter a un serveur : ${try(values(module.serveur)[0].acces_ssh, "ssh adminlab@10.10.10.30")}",
-    "3. Terminer l'installation de Centreon et de Jitsi (etapes decrites dans le README)",
-    "4. Configurer les deux pare-feux, puis exporter leur configuration dans le depot Git",
-    "5. Repasser acces_internet_construction a false une fois les paquets installes",
+    "3. Preparer le gabarit Windows si ce n'est pas fait, puis renseigner image_windows",
+    "4. Terminer l'installation de Centreon et de Jitsi (etapes decrites dans le README)",
+    "5. Configurer les deux pare-feux, puis exporter leur configuration dans le depot Git",
+    "6. Repasser acces_internet_construction a false une fois les paquets installes",
   ]
 }

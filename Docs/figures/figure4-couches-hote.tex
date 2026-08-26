@@ -1,0 +1,150 @@
+\documentclass[border=14pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[sfdefault]{noto}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\definecolor{marine}{HTML}{1F3864}
+\definecolor{bleuclair}{HTML}{2E75B6}
+\definecolor{vert}{HTML}{3C9A5F}
+\definecolor{orange}{HTML}{E8862A}
+\definecolor{rouge}{HTML}{C0392B}
+\definecolor{violet}{HTML}{7B4FA8}
+\definecolor{gristexte}{HTML}{4A4A4A}
+\definecolor{grisfond}{HTML}{F5F7FA}
+\definecolor{bordure}{HTML}{C9D3E0}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  bande/.style={draw=bordure, rounded corners=6pt, line width=1pt, fill=white,
+                minimum width=12.7cm, minimum height=1.75cm, anchor=south west},
+  brique/.style={draw=bordure, rounded corners=4pt, line width=0.7pt, fill=grisfond,
+                 minimum height=0.95cm, align=center, font=\sffamily\scriptsize,
+                 anchor=west, inner sep=3pt, text width=2.2cm},
+  outil/.style={rounded corners=6pt, line width=1.1pt, anchor=south west,
+                minimum width=4.0cm},
+  fl/.style={-{Latex[length=3mm,width=2.2mm]}, line width=1.2pt},
+]
+
+% ================================ TITRE ====================================
+\node[anchor=west, font=\sffamily\bfseries\Large, text=marine] (titre) at (0,13.05)
+     {DU MATÉRIEL À L'APPLICATIF : LES SIX COUCHES DU LABORATOIRE};
+\node[anchor=north west, font=\sffamily\small, text=gristexte] at ($(titre.south west)+(0,-0.05)$)
+     {PC Intel 32 Go, Ubuntu Server et KVM, six machines virtuelles};
+
+% =============================== COUCHE 1 ==================================
+\node[bande] (b1) at (0,0) {};
+\fill[gristexte] (0.48,0.875) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,0.875) {1};
+\node[anchor=west, font=\sffamily\bfseries\small, text=gristexte] at (1.05,1.18) {MATÉRIEL};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,0.72) {Le poste fourni par l'entreprise};
+\node[brique] at (5.3,0.875) {Processeur Intel\\\textbf{VT-x et VT-d}};
+\node[brique] at (7.7,0.875) {Mémoire\\\textbf{32 Go}};
+\node[brique] at (10.1,0.875) {Disque SSD\\\textbf{350 Go}};
+
+% =============================== COUCHE 2 ==================================
+\node[bande, draw=marine, line width=1.4pt] (b2) at (0,1.97) {};
+\fill[marine] (0.48,2.845) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,2.845) {2};
+\node[anchor=west, font=\sffamily\bfseries\small, text=marine] at (1.05,3.15) {SYSTÈME HÔTE = HYPERVISEUR};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,2.69) {Ubuntu Server 24.04 LTS};
+\node[brique, fill=marine!14] at (5.3,2.845) {\textbf{KVM}\\modules du noyau};
+\node[brique] at (7.7,2.845) {\textbf{QEMU}\\périphériques};
+\node[brique] at (10.1,2.845) {\textbf{libvirtd}\\API de pilotage};
+
+% =============================== COUCHE 3 ==================================
+\node[bande] (b3) at (0,3.94) {};
+\fill[vert] (0.48,4.815) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,4.815) {3};
+\node[anchor=west, font=\sffamily\bfseries\small, text=vert] at (1.05,5.12) {RESSOURCES VIRTUELLES};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,4.66) {Créées avant toute machine};
+\node[brique, fill=vert!14] at (5.3,4.815) {\textbf{7 réseaux}\\un par VLAN};
+\node[brique] at (7.7,4.815) {Pool\\de stockage};
+\node[brique] at (10.1,4.815) {Disques qcow2\\et cloud-init};
+
+% =============================== COUCHE 4 ==================================
+\node[bande] (b4) at (0,5.91) {};
+\fill[orange] (0.48,6.785) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,6.785) {4};
+\node[anchor=west, font=\sffamily\bfseries\small, text=orange] at (1.05,7.09) {MACHINES VIRTUELLES};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,6.63) {11 vCPU, 26 Go, 240 Go};
+\node[brique, fill=rouge!12] at (5.3,6.785) {\textbf{2 pare-feux}\\Forti et Palo};
+\node[brique, fill=orange!14] at (7.7,6.785) {\textbf{3 serveurs}\\métiers};
+\node[brique, fill=bleuclair!12] at (10.1,6.785) {\textbf{1 supervision}\\Centreon};
+
+% =============================== COUCHE 5 ==================================
+\node[bande] (b5) at (0,7.88) {};
+\fill[bleuclair] (0.48,8.755) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,8.755) {5};
+\node[anchor=west, font=\sffamily\bfseries\small, text=bleuclair] at (1.05,9.06) {SYSTÈMES INVITÉS};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,8.60) {Amorcés puis maintenus};
+\node[brique] at (5.3,8.755) {FortiOS\\et PAN-OS};
+\node[brique, fill=bleuclair!14] at (7.7,8.755) {\textbf{Ubuntu}\\22.04 LTS};
+\node[brique] at (10.1,8.755) {Durcissement\\SSH, ufw, chrony};
+
+% =============================== COUCHE 6 ==================================
+\node[bande] (b6) at (0,9.85) {};
+\fill[violet] (0.48,10.725) circle (0.33);
+\node[font=\sffamily\bfseries\normalsize, text=white] at (0.48,10.725) {6};
+\node[anchor=west, font=\sffamily\bfseries\small, text=violet] at (1.05,11.03) {APPLICATIF};
+\node[anchor=west, font=\sffamily\scriptsize, text=gristexte] at (1.05,10.57) {Les services rendus par le laboratoire};
+\node[brique, fill=violet!12] at (5.3,10.725) {\textbf{CUPS}\\impression};
+\node[brique, fill=violet!12] at (7.7,10.725) {\textbf{Jitsi Meet}\\visioconférence};
+\node[brique, fill=violet!12] at (10.1,10.725) {\textbf{PostgreSQL}\\pointeuses};
+
+% ==================== COLONNE DROITE : L'AUTOMATISATION ====================
+\node[anchor=south west, font=\sffamily\bfseries\small, text=marine] at (13.4,11.95)
+     {L'AUTOMATISATION};
+
+% --- Terraform : couches 3 et 4
+\node[outil, draw=vert, fill=vert!7, minimum height=3.72cm] (tf) at (13.4,3.94) {};
+\node[anchor=north, font=\sffamily\bfseries\small, text=vert] at ($(tf.north)+(0,-0.28)$) {TERRAFORM};
+\node[anchor=north, font=\sffamily\scriptsize, text=gristexte, align=center, text width=3.5cm]
+     at ($(tf.north)+(0,-0.82)$)
+     {Parle à \textbf{libvirtd}\\par sa socket locale.\\[5pt]
+      Crée les réseaux,\\les disques et\\les machines vides.\\[5pt]
+      \emph{Il n'entre jamais\\dans une machine.}};
+
+% --- cloud-init : charniere
+\node[outil, draw=orange, fill=orange!7, minimum height=1.15cm] (ci) at (13.4,7.88) {};
+\node[anchor=north, font=\sffamily\bfseries\small, text=orange] at ($(ci.north)+(0,-0.20)$) {CLOUD-INIT};
+\node[anchor=north, font=\sffamily\scriptsize, text=gristexte, align=center, text width=3.5cm]
+     at ($(ci.north)+(0,-0.62)$) {Au premier démarrage,\\une seule fois.};
+
+% --- Ansible : couches 5 et 6
+\node[outil, draw=violet, fill=violet!7, minimum height=2.45cm] (an) at (13.4,9.15) {};
+\node[anchor=north, font=\sffamily\bfseries\small, text=violet] at ($(an.north)+(0,-0.24)$) {ANSIBLE};
+\node[anchor=north, font=\sffamily\scriptsize, text=gristexte, align=center, text width=3.5cm]
+     at ($(an.north)+(0,-0.76)$)
+     {Se connecte en \textbf{SSH}\\et par les \textbf{API}.\\[4pt]
+      Installe, configure\\et corrige la dérive.};
+
+% ------------------------------- FLECHES ----------------------------------
+\draw[fl, vert]   (13.4,4.815) -- (12.85,4.815);
+\draw[fl, vert]   (13.4,6.785) -- (12.85,6.785);
+\draw[fl, orange] (13.4,8.40)  -- (12.85,8.40);
+\draw[fl, violet] (13.4,9.30)  -- (12.85,9.30);
+\draw[fl, violet] (13.4,10.725)-- (12.85,10.725);
+
+% --------------------- REPERE DE LECTURE A GAUCHE -------------------------
+\draw[{Latex[length=3.4mm,width=2.6mm]}-, line width=1.3pt, marine]
+      (-0.62,0.30) -- (-0.62,11.30);
+\node[rotate=90, anchor=south, font=\sffamily\bfseries\scriptsize, text=marine]
+      at (-0.85,5.80) {SENS DE CONSTRUCTION};
+
+% ========================= NOTE BASSE : LE PIEGE ===========================
+\node[draw=marine, rounded corners=6pt, line width=1.1pt, fill=marine!6,
+      text width=17.0cm, align=left, anchor=north west, inner sep=9pt,
+      font=\sffamily\scriptsize, text=gristexte] at (0,-0.55)
+     {\textbf{\color{marine}Pourquoi la couche 2 ne peut pas disparaître.}\;
+      KVM est bien un hyperviseur \textbf{de type 1} : les machines s'exécutent directement sur
+      le processeur, sans couche d'émulation, contrairement à VirtualBox ou VMware Fusion.
+      Mais KVM \emph{est} un module du noyau Linux. Il n'existe aucune installation autonome
+      comparable à celle d'ESXi : c'est \textbf{Ubuntu Server qui devient l'hyperviseur} une fois
+      les modules \texttt{kvm.ko} et \texttt{kvm\_intel.ko} chargés.};
+
+\end{tikzpicture}
+\end{document}

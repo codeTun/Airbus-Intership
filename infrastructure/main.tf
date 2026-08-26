@@ -21,9 +21,20 @@ resource "libvirt_volume" "ubuntu_base" {
   format = "qcow2"
 }
 
+# Gabarit Windows syspreppe, prepare une fois a la main. Absent tant que la
+# variable n'est pas renseignee : les machines Windows sont alors ignorees.
+resource "libvirt_volume" "windows_base" {
+  count = trimspace(var.image_windows) != "" ? 1 : 0
+
+  name   = "${var.prefixe}-windows-2022-base.qcow2"
+  pool   = var.pool_stockage
+  source = var.image_windows
+  format = "qcow2"
+}
+
 module "serveur" {
   source   = "./modules/serveur"
-  for_each = local.serveurs
+  for_each = local.serveurs_ubuntu
 
   nom         = each.key
   description = each.value.description
@@ -48,6 +59,34 @@ module "serveur" {
   cle_ssh_publique  = var.cle_ssh_publique
   fuseau_horaire    = var.fuseau_horaire
   serveurs_ntp      = var.serveurs_ntp
+
+  demarrage_automatique = var.demarrage_automatique
+}
+
+module "serveur_windows" {
+  source   = "./modules/serveur_windows"
+  for_each = local.serveurs_windows
+
+  nom         = each.key
+  description = each.value.description
+  vcpu        = each.value.vcpu
+  memoire_mo  = each.value.memoire_mo
+  disque_go   = each.value.disque_go
+
+  pool_stockage  = var.pool_stockage
+  volume_base_id = libvirt_volume.windows_base[0].id
+
+  reseau_id  = module.reseau.ids[each.value.vlan]
+  mac        = local.mac_serveurs[each.key]
+  ip         = each.value.ip
+  passerelle = local.vlans[each.value.vlan].passerelle
+
+  dns = [local.vlans["mgmt"].passerelle]
+
+  admin_utilisateur      = var.admin_utilisateur
+  admin_mot_de_passe     = var.admin_mot_de_passe_windows
+  cle_ssh_publique       = var.cle_ssh_publique
+  fuseau_horaire_windows = var.fuseau_horaire_windows
 
   demarrage_automatique = var.demarrage_automatique
 }
@@ -82,22 +121,19 @@ resource "local_file" "inventaire_ansible" {
     yamlencode({
       all = {
         vars = {
-          ansible_user               = var.admin_utilisateur
-          ansible_python_interpreter = "/usr/bin/python3"
-          domaine_dns                = var.domaine_dns
-          fuseau_horaire             = var.fuseau_horaire
-          serveurs_ntp               = var.serveurs_ntp
-          supervision_ip             = local.ip_supervision
-          vlan_users                 = local.vlans["users"].reseau
-          vlan_equip                 = local.vlans["equip"].reseau
+          ansible_user   = var.admin_utilisateur
+          domaine_dns    = var.domaine_dns
+          fuseau_horaire = var.fuseau_horaire
+          serveurs_ntp   = var.serveurs_ntp
+          supervision_ip = local.ip_supervision
+          vlan_users     = local.vlans["users"].reseau
+          vlan_equip     = local.vlans["equip"].reseau
         }
+        # Groupes de role et groupes de systeme sont declares cote a cote :
+        # une machine appartient aux deux.
         children = merge(
-          {
-            serveurs = {
-              vars     = { ansible_become = true }
-              children = local.groupes_serveurs
-            }
-          },
+          { serveurs = { children = local.groupes_serveurs } },
+          local.groupes_os,
           length(local.groupes_parefeux) > 0 ? {
             parefeux = { children = local.groupes_parefeux }
           } : {}
@@ -106,5 +142,5 @@ resource "local_file" "inventaire_ansible" {
     }),
   ])
 
-  depends_on = [module.serveur, module.parefeu]
+  depends_on = [module.serveur, module.serveur_windows, module.parefeu]
 }

@@ -1,0 +1,59 @@
+---
+- name: Services d'impression et prerequis Xerox installes
+  ansible.windows.win_feature:
+    name: "{{ impression_windows_fonctionnalites }}"
+    state: present
+    include_management_tools: true
+  register: impression_windows_features
+
+- name: Redemarrage applique si une fonctionnalite l'exige
+  ansible.windows.win_reboot:
+    reboot_timeout: 600
+  when: impression_windows_features.reboot_required
+
+- name: Service de spouleur demarre et permanent
+  ansible.windows.win_service:
+    name: Spooler
+    start_mode: auto
+    state: started
+
+- name: Ports d'impression ouverts
+  community.windows.win_firewall_rule:
+    name: "labo-impression-{{ item.port }}"
+    localport: "{{ item.port }}"
+    protocol: "{{ item.protocole }}"
+    direction: in
+    action: allow
+    enabled: true
+    profiles: [domain, private, public]
+    state: present
+  loop: "{{ impression_windows_ports }}"
+  loop_control:
+    label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
+
+- name: Files d'attente declarees
+  ansible.windows.win_powershell:
+    script: |
+      $file = Get-Printer -Name "{{ item.nom }}" -ErrorAction SilentlyContinue
+      if (-not $file) {
+          Add-Printer -Name "{{ item.nom }}" `
+                      -DriverName "{{ item.pilote }}" `
+                      -PortName "{{ item.port }}" `
+                      -Shared -ShareName "{{ item.nom }}"
+          $Ansible.Changed = $true
+      } else {
+          $Ansible.Changed = $false
+      }
+  loop: "{{ impression_windows_files }}"
+  loop_control:
+    label: "{{ item.nom }}"
+
+# Xerox Workplace Suite est sous licence : sans installateur, la plateforme
+# reste prete et le service d'impression natif fonctionne deja.
+- name: Absence de l'installateur Xerox signalee
+  ansible.builtin.debug:
+    msg: >-
+      Plateforme prete : service d'impression natif, IIS et .NET en place.
+      Xerox Workplace Suite n'est pas installe. Renseigner la variable
+      impression_windows_installateur_xerox une fois la licence obtenue.
+  when: impression_windows_installateur_xerox | length == 0

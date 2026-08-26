@@ -1,0 +1,37 @@
+#!/bin/sh
+# Refuse tout commit contenant un coffre Ansible non chiffre ou une cle privee.
+# Activation : git config core.hooksPath .githooks
+
+statut=0
+
+for fichier in $(git diff --cached --name-only --diff-filter=ACM); do
+
+    # Les collections sont du code tiers, versionne tel quel. Leur integrite est
+    # verifiee par "ansible-galaxy collection verify", pas ici : elles
+    # contiennent des cles de test livrees par leurs auteurs.
+    case "$fichier" in
+        ansible/collections/*) continue ;;
+    esac
+
+    # Un coffre doit toujours arriver chiffre.
+    case "$fichier" in
+        */coffre.yml|coffre.yml)
+            case "$(git show ":$fichier" 2>/dev/null | head -1)" in
+                '$ANSIBLE_VAULT'*) ;;
+                *)
+                    echo "REFUS : $fichier n'est pas chiffre."
+                    echo "        Lancer : ansible-vault encrypt $fichier"
+                    statut=1
+                    ;;
+            esac
+            ;;
+    esac
+
+    # Aucune cle privee ne doit entrer dans le depot.
+    if git show ":$fichier" 2>/dev/null | head -1 | grep -q "BEGIN .*PRIVATE KEY"; then
+        echo "REFUS : $fichier contient une cle privee."
+        statut=1
+    fi
+done
+
+exit $statut

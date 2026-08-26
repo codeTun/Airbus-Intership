@@ -1,0 +1,90 @@
+---
+- name: Mot de passe SQL fourni par le coffre
+  ansible.builtin.assert:
+    that:
+      - coffre_pointeuses_mot_de_passe is defined
+      - coffre_pointeuses_mot_de_passe | length >= 8
+    fail_msg: >-
+      Renseignez coffre_pointeuses_mot_de_passe dans le coffre Ansible.
+      SQL Server refuse un compte sa sans mot de passe solide.
+
+- name: Prerequis .NET installes
+  ansible.windows.win_feature:
+    name: "{{ pointeuses_windows_fonctionnalites }}"
+    state: present
+    include_management_tools: true
+  register: pointeuses_windows_features
+
+- name: Redemarrage applique si une fonctionnalite l'exige
+  ansible.windows.win_reboot:
+    reboot_timeout: 600
+  when: pointeuses_windows_features.reboot_required
+
+# --------------------------------------------------------- SQL Server Express
+- name: Repertoire de travail present
+  ansible.windows.win_file:
+    path: "{{ pointeuses_windows_sql_repertoire }}"
+    state: directory
+
+- name: Archive SQL Server Express recuperee
+  ansible.windows.win_get_url:
+    url: "{{ pointeuses_windows_sql_url }}"
+    dest: "{{ pointeuses_windows_sql_repertoire }}\\SQLEXPR_x64_ENU.exe"
+
+- name: Archive extraite
+  ansible.windows.win_command: >-
+    {{ pointeuses_windows_sql_repertoire }}\SQLEXPR_x64_ENU.exe
+    /Q /X:{{ pointeuses_windows_sql_repertoire }}\extrait
+  args:
+    creates: "{{ pointeuses_windows_sql_repertoire }}\\extrait\\setup.exe"
+
+- name: Moteur SQL installe
+  ansible.windows.win_package:
+    path: "{{ pointeuses_windows_sql_repertoire }}\\extrait\\setup.exe"
+    arguments: >-
+      /Q /IACCEPTSQLSERVERLICENSETERMS /ACTION=Install /FEATURES=SQLENGINE
+      /INSTANCENAME={{ pointeuses_windows_sql_instance }}
+      /SECURITYMODE=SQL /SAPWD="{{ coffre_pointeuses_mot_de_passe }}"
+      /SQLSVCACCOUNT="NT AUTHORITY\SYSTEM"
+      /SQLSYSADMINACCOUNTS="BUILTIN\Administrators"
+      /TCPENABLED=1 /UPDATEENABLED=0
+    creates_service: "MSSQL${{ pointeuses_windows_sql_instance }}"
+    state: present
+  no_log: true
+
+- name: Moteur SQL demarre et permanent
+  ansible.windows.win_service:
+    name: "MSSQL${{ pointeuses_windows_sql_instance }}"
+    start_mode: auto
+    state: started
+
+- name: Service de resolution d'instance demarre
+  ansible.windows.win_service:
+    name: SQLBrowser
+    start_mode: auto
+    state: started
+
+- name: Ports de la base et des terminaux ouverts
+  community.windows.win_firewall_rule:
+    name: "labo-pointeuses-{{ item.port }}"
+    localport: "{{ item.port }}"
+    protocol: "{{ item.protocole }}"
+    direction: in
+    action: allow
+    enabled: true
+    profiles: [domain, private, public]
+    state: present
+  loop: "{{ pointeuses_windows_ports }}"
+  loop_control:
+    label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
+
+# MorphoManager est sous abonnement Idemia depuis decembre 2024 : sans
+# installateur, la plateforme reste prete et la base est operationnelle.
+- name: Absence de l'installateur MorphoManager signalee
+  ansible.builtin.debug:
+    msg: >-
+      Plateforme prete : SQL Server Express {{ pointeuses_windows_sql_version }}
+      installe et joignable. MorphoManager n'est pas installe. Renseigner la
+      variable pointeuses_windows_installateur_morpho une fois l'abonnement
+      obtenu.
+  when: pointeuses_windows_installateur_morpho | length == 0

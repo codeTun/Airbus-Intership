@@ -1,29 +1,23 @@
-# -----------------------------------------------------------------------------
-# Inventaire Ansible du laboratoire
+---
+# Exemple de ce que Terraform ecrit dans hosts.yml apres un apply.
+# Le fichier reel n'est pas versionne : il est regenere a chaque deploiement.
 #
-# EXEMPLE, a titre indicatif. Le vrai fichier hosts.yml est genere par
-# Terraform a chaque apply, a partir de infrastructure/inventaire.tf.
-# Il permet de lancer « make verifier » avant meme d'avoir cree les machines.
-# -----------------------------------------------------------------------------
+# Chaque machine appartient a deux groupes : celui de son role, qui decide des
+# roles Ansible appliques, et celui de son systeme, qui decide de la facon de
+# s'y connecter.
 all:
   vars:
     ansible_user: adminlab
-    ansible_python_interpreter: /usr/bin/python3
     domaine_dns: lab.airbus.local
     fuseau_horaire: Europe/Paris
     serveurs_ntp:
       - 0.fr.pool.ntp.org
       - 1.fr.pool.ntp.org
     supervision_ip: 10.10.10.30
-    vlan_users: 10.10.50.0/24
     vlan_equip: 10.10.30.0/24
-
+    vlan_users: 10.10.50.0/24
   children:
-
-    # ---------------------------------------------------------------- serveurs
     serveurs:
-      vars:
-        ansible_become: true
       children:
         impression:
           hosts:
@@ -31,7 +25,7 @@ all:
               ansible_host: 10.10.20.11
         pointeuses:
           hosts:
-            srv-pointeuse-01:
+            srv-point-01:
               ansible_host: 10.10.20.13
         supervision:
           hosts:
@@ -41,15 +35,28 @@ all:
           hosts:
             srv-visio-01:
               ansible_host: 10.10.20.12
-
-    # --------------------------------------------------------------- pare-feux
+    linux:
+      hosts:
+        srv-visio-01:
+          ansible_host: 10.10.20.12
+        sup-centreon-01:
+          ansible_host: 10.10.10.30
+      vars:
+        ansible_become: true
+        ansible_python_interpreter: /usr/bin/python3
+    windows:
+      hosts:
+        srv-point-01:
+          ansible_host: 10.10.20.13
+        srv-print-01:
+          ansible_host: 10.10.20.11
+      vars:
+        ansible_become: false
+        ansible_shell_type: powershell
+    # Absent tant qu'aucune image constructeur n'est fournie.
     parefeux:
       children:
         fortinet:
           hosts:
             fw-forti-01:
               ansible_host: 10.10.10.254
-        paloalto:
-          hosts:
-            fw-palo-01:
-              ansible_host: 10.10.10.253

@@ -1,0 +1,38 @@
+---
+# Serveur d'impression Windows. Le role installe le service d'impression natif,
+# qui rend deja le service attendu, et les prerequis de Xerox Workplace Suite :
+# IIS et .NET Framework. Le produit sous licence s'installera par-dessus.
+
+impression_windows_fonctionnalites:
+  # Service d'impression natif et partage des files.
+  - Print-Services
+  - Print-Server
+  # Impression IPP, exposee par IIS sur /printers.
+  - Print-Internet
+  # Prerequis Xerox : IIS et ASP.NET.
+  - Web-Server
+  - Web-Mgmt-Console
+  - Web-Asp-Net45
+  - NET-Framework-45-Core
+  - NET-Framework-45-ASPNET
+
+impression_windows_ports:
+  - nom: IPP et console web
+    port: 80
+    protocole: tcp
+  - nom: IPP chiffre
+    port: 443
+    protocole: tcp
+  - nom: Partage de files SMB
+    port: 445
+    protocole: tcp
+  - nom: Impression brute
+    port: 9100
+    protocole: tcp
+
+# Files d'attente creees a la demande. Un pilote doit exister sur la machine :
+# laisser vide tant que le modele d'imprimante n'est pas arrete.
+impression_windows_files: []
+
+# Renseigner le jour ou la licence Xerox est obtenue. Voir la note du role.
+impression_windows_installateur_xerox: ""

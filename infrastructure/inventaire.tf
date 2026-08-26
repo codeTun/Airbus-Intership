@@ -68,12 +68,18 @@ locals {
   vlans_avec_sortie = ["mgmt", "servers"]
 
   # Le champ "groupe" indique a Ansible quel role appliquer.
+  # Le champ "os" choisit le gabarit et le mode de connexion : "ubuntu" passe
+  # par cloud-init et SSH, "windows" par cloudbase-init et SSH en PowerShell.
   serveurs = {
+    # Dimensionne pour un hote de 32 Go : Windows Server, IIS et SQL Express
+    # tournent a l'aise avec 4 Go. Xerox Workplace Suite recommande 4 vCPU,
+    # 8 Go et 160 Go de disque : a remettre le jour ou la licence est obtenue.
     "srv-print-01" = {
-      description = "Serveur d'impression"
-      vcpu        = 1
-      memoire_mo  = 2048
-      disque_go   = 25
+      description = "Serveur d'impression Follow-You"
+      os          = "windows"
+      vcpu        = 2
+      memoire_mo  = 4096
+      disque_go   = 60
       vlan        = "servers"
       ip          = "10.10.20.11"
       groupe      = "impression"
@@ -81,6 +87,7 @@ locals {
 
     "srv-visio-01" = {
       description = "Serveur de visioconference"
+      os          = "ubuntu"
       vcpu        = 2
       memoire_mo  = 4096
       disque_go   = 25
@@ -89,21 +96,29 @@ locals {
       groupe      = "visioconference"
     }
 
-    "srv-pointeuse-01" = {
-      description = "Collecte et gestion des pointeuses"
-      vcpu        = 1
-      memoire_mo  = 2048
-      disque_go   = 30
+    # Nom raccourci : NetBIOS plafonne le nom d'hote Windows a 15 caracteres,
+    # et "srv-pointeuse-01" en fait 16.
+    # MorphoManager demande un dual core et 4 Go : ce dimensionnement les
+    # respecte deja, seul le disque sera a agrandir avec la base biometrique.
+    "srv-point-01" = {
+      description = "Gestion des pointeuses biometriques"
+      os          = "windows"
+      vcpu        = 2
+      memoire_mo  = 4096
+      disque_go   = 50
       vlan        = "servers"
       ip          = "10.10.20.13"
       groupe      = "pointeuses"
     }
 
+    # Centreon publie 4 vCPU et 8 Go pour une production. Le laboratoire ne
+    # supervise que six machines : la moitie suffit largement.
     "sup-centreon-01" = {
       description = "Supervision Centreon"
-      vcpu        = 4
-      memoire_mo  = 8192
-      disque_go   = 60
+      os          = "ubuntu"
+      vcpu        = 2
+      memoire_mo  = 4096
+      disque_go   = 40
       vlan        = "mgmt"
       ip          = "10.10.10.30"
       groupe      = "supervision"
@@ -138,6 +153,16 @@ locals {
     }
   }
 
+  # Les deux familles ne se deploient pas de la meme facon : gabarit different,
+  # amorcage different, connexion Ansible differente.
+  serveurs_ubuntu = { for nom, s in local.serveurs : nom => s if s.os == "ubuntu" }
+
+  # Tant que le gabarit Windows n'est pas prepare, ces machines sont ignorees
+  # et le reste du laboratoire se deploie normalement.
+  serveurs_windows = trimspace(var.image_windows) != "" ? {
+    for nom, s in local.serveurs : nom => s if s.os == "windows"
+  } : {}
+
   # Adresse MAC deterministe, construite depuis le VLAN et le dernier octet de
   # l'IP : lisible, et stable d'un apply a l'autre.
   mac_serveurs = {
@@ -161,6 +186,32 @@ locals {
       }
     }
   }
+
+  # Groupes par systeme. Ils ne portent aucun role : seulement la facon de se
+  # connecter. Chaque machine appartient donc a deux groupes, celui de son role
+  # et celui de son systeme.
+  groupes_os = merge(
+    length(local.serveurs_ubuntu) > 0 ? {
+      linux = {
+        hosts = { for nom, s in local.serveurs_ubuntu : nom => { ansible_host = s.ip } }
+        vars = {
+          ansible_python_interpreter = "/usr/bin/python3"
+          ansible_become             = true
+        }
+      }
+    } : {},
+    length(local.serveurs_windows) > 0 ? {
+      windows = {
+        hosts = { for nom, s in local.serveurs_windows : nom => { ansible_host = s.ip } }
+        vars = {
+          # OpenSSH est present nativement depuis Windows Server 2019. Sans
+          # shell_type, Ansible enverrait du bash et echouerait en silence.
+          ansible_shell_type = "powershell"
+          ansible_become     = false
+        }
+      }
+    } : {}
+  )
 
   # Un pare-feu n'entre dans l'inventaire que si son image a ete fournie.
   groupes_parefeux = {

@@ -6,17 +6,27 @@
 #   ansible-playbook site.yml --tags parefeu        une seule preoccupation
 #   ansible-playbook site.yml --check --diff        simulation, sans rien changer
 
-- name: Preparation commune a toutes les machines
-  hosts: serveurs
+# Les deux familles ne se durcissent pas avec les memes outils, mais avec la
+# meme intention. Les groupes linux et windows sont ecrits par Terraform.
+- name: Preparation commune des machines Linux
+  hosts: linux
   gather_facts: true
   roles:
     - commun
 
+- name: Preparation commune des machines Windows
+  hosts: windows
+  gather_facts: true
+  roles:
+    - commun_windows
+
+# Xerox Workplace Suite impose Windows : .NET Framework et IIS n'existent pas
+# ailleurs. Le role pose la plateforme, le produit sous licence viendra ensuite.
 - name: Serveur d'impression
   hosts: impression
   gather_facts: true
   roles:
-    - impression
+    - impression_windows
 
 - name: Serveur de visioconference
   hosts: visioconference
@@ -24,11 +34,12 @@
   roles:
     - visioconference
 
+# MorphoManager impose Windows et SQL Server, meme logique.
 - name: Serveur de gestion des pointeuses
   hosts: pointeuses
   gather_facts: true
   roles:
-    - pointeuses
+    - pointeuses_windows
 
 # La supervision passe en dernier : elle declare les autres machines, qui
 # doivent donc deja etre configurees.

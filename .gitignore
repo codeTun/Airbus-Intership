@@ -11,6 +11,18 @@ ansible/inventaire/hosts.yml
 ansible/*.retry
 vault-pass.txt
 
+# Images constructeur et gabarits de machines. Volumineux, et leur licence
+# n'autorise pas la redistribution.
+*.qcow2
+*.vhd
+*.vhdx
+*.vmdk
+*.iso
+*.zip
+*.img
+FFW_VM64_*
+PA-VM-*
+
 # Artefacts de compilation LaTeX.
 *.aux
 *.fdb_latexmk
@@ -24,3 +36,5 @@ vault-pass.txt
 .DS_Store
 
 /Docs/.claude
+
+

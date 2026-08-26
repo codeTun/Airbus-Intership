@@ -1,0 +1,8 @@
+{# Genere par Ansible, role commun_windows. Ne pas modifier a la main. #}
+machine: {{ inventory_hostname }}
+adresse: {{ ansible_host }}
+groupe: {{ group_names | difference(['all', 'serveurs', 'windows']) | join(', ') }}
+systeme: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+amorcage: cloudbase-init
+configuration: ansible
+derniere_configuration: {{ ansible_date_time.iso8601 }}

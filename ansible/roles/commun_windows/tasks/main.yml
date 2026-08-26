@@ -1,0 +1,117 @@
+---
+- name: Machine Windows confirmee
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Windows"
+    fail_msg: >-
+      Ce role ne s'applique qu'a Windows. La machine {{ inventory_hostname }}
+      declare {{ ansible_facts.os_family }} : verifiez son champ "os" dans
+      infrastructure/inventaire.tf.
+
+- name: Fuseau horaire applique
+  ansible.windows.win_timezone:
+    timezone: "{{ commun_windows_fuseau }}"
+
+# ------------------------------------------------------------------- temps
+- name: Sources de temps declarees
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters
+    name: NtpServer
+    data: "{{ serveurs_ntp | map('regex_replace', '$', ',0x9') | join(' ') }}"
+    type: string
+  notify: Resynchroniser l'horloge
+
+- name: Client NTP actif plutot que domaine
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters
+    name: Type
+    data: NTP
+    type: string
+  notify: Resynchroniser l'horloge
+
+- name: Service de temps demarre
+  ansible.windows.win_service:
+    name: w32time
+    start_mode: auto
+    state: started
+
+# ---------------------------------------------------------------- pare-feu
+- name: Pare-feu actif sur les trois profils, entrant refuse
+  ansible.windows.win_firewall:
+    profiles: [Domain, Private, Public]
+    state: enabled
+    inbound_action: block
+    outbound_action: allow
+
+- name: Ports d'administration ouverts
+  community.windows.win_firewall_rule:
+    name: "labo-{{ item.nom | lower }}"
+    localport: "{{ item.port }}"
+    protocol: "{{ item.protocole }}"
+    direction: in
+    action: allow
+    enabled: true
+    profiles: [domain, private, public]
+    state: present
+  loop: "{{ commun_windows_ports_ouverts }}"
+  loop_control:
+    label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
+
+# --------------------------------------------------------------- durcissement
+- name: Protocole SMBv1 retire
+  ansible.windows.win_feature:
+    name: FS-SMB1
+    state: absent
+  when: commun_windows_desactiver_smb1
+
+- name: Correctifs telecharges mais jamais installes sans intervention
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+    name: "{{ item.nom }}"
+    data: "{{ item.valeur }}"
+    type: dword
+  loop:
+    # 3 : telecharger puis signaler. 4 installerait et redemarrerait seul.
+    - {nom: AUOptions, valeur: 3}
+    - {nom: NoAutoRebootWithLoggedOnUsers, valeur: 1}
+  loop_control:
+    label: "{{ item.nom }}"
+  when: not commun_windows_maj_automatiques
+
+- name: Correctifs en attente appliques
+  ansible.windows.win_updates:
+    category_names: [SecurityUpdates, CriticalUpdates]
+    reboot: false
+  when: commun_windows_installer_correctifs
+
+# ---------------------------------------------------------------- acces SSH
+- name: Service OpenSSH demarre et permanent
+  ansible.windows.win_service:
+    name: sshd
+    start_mode: auto
+    state: started
+
+- name: PowerShell impose comme shell des connexions SSH
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\OpenSSH
+    name: DefaultShell
+    data: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+    type: string
+
+- name: Authentification par mot de passe refusee
+  community.windows.win_lineinfile:
+    path: C:\ProgramData\ssh\sshd_config
+    regex: '^#?PasswordAuthentication'
+    line: PasswordAuthentication no
+  notify: Redemarrer sshd
+
+# ------------------------------------------------------------ carte d'identite
+- name: Dossier du laboratoire present
+  ansible.windows.win_file:
+    path: "{{ commun_windows_dossier_labo }}"
+    state: directory
+
+- name: Carte d'identite de la machine
+  ansible.windows.win_template:
+    src: identite.yaml.j2
+    dest: "{{ commun_windows_dossier_labo }}\\identite.yaml"

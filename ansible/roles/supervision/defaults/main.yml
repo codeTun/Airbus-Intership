@@ -23,19 +23,20 @@ supervision_seuils:
 
 # Sondes propres a chaque groupe, reprises du cahier des charges.
 supervision_controles:
+  # Machines Windows : des controles de port, valables quel que soit le
+  # systeme, plutot que des sondes systemd.
   impression:
-    - {nom: Service CUPS, commande: check_systemd_service, argument: cups}
-    - {nom: Port IPP, commande: check_tcp, argument: "631"}
-    - {nom: Travaux en attente, commande: check_cups_queue, argument: "10"}
+    - {nom: Partage de files SMB, commande: check_tcp, argument: "445"}
+    - {nom: Impression brute, commande: check_tcp, argument: "9100"}
+    - {nom: Console IPP, commande: check_tcp, argument: "80"}
   visioconference:
     - {nom: Prosody, commande: check_systemd_service, argument: prosody}
     - {nom: Jicofo, commande: check_systemd_service, argument: jicofo}
     - {nom: Videobridge, commande: check_systemd_service, argument: jitsi-videobridge2}
     - {nom: Port web, commande: check_tcp, argument: "443"}
   pointeuses:
-    - {nom: Base PostgreSQL, commande: check_systemd_service, argument: postgresql}
-    - {nom: Derniere collecte, commande: check_derniere_collecte, argument: "900"}
-    - {nom: Derive NTP, commande: check_ntp_time, argument: "2"}
+    - {nom: Moteur SQL, commande: check_tcp, argument: "1433"}
+    - {nom: Terminaux biometriques, commande: check_tcp, argument: "11010"}
   supervision:
     - {nom: Moteur Centreon, commande: check_systemd_service, argument: centengine}
     - {nom: Base Centreon, commande: check_systemd_service, argument: mariadb}

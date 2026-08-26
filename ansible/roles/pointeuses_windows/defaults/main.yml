@@ -1,0 +1,32 @@
+---
+# Serveur de gestion des pointeuses. MorphoManager exige Windows et SQL Server.
+# Le role installe SQL Server Express, qui est gratuit, et prepare la base.
+# MorphoManager lui-meme est sous abonnement depuis decembre 2024.
+
+# NET-Framework-Core, l'ancien 3.5, n'est pas installe ici : il reclame les
+# sources de l'ISO d'installation et echouerait. A ajouter avec l'option
+# "source" si MorphoManager s'avere l'exiger.
+pointeuses_windows_fonctionnalites:
+  - NET-Framework-45-Core
+
+pointeuses_windows_sql_instance: SQLEXPRESS
+pointeuses_windows_sql_version: "2022"
+
+# Installateur complet, pas le lanceur en ligne : il accepte les parametres
+# d'installation silencieuse.
+pointeuses_windows_sql_url: >-
+  https://download.microsoft.com/download/3/8/d/38de7036-2433-4207-8eae-06e247e17b25/SQLEXPR_x64_ENU.exe
+
+pointeuses_windows_sql_repertoire: C:\Sources\sqlexpress
+
+pointeuses_windows_ports:
+  - nom: Moteur SQL
+    port: 1433
+    protocole: tcp
+  # Port d'ecoute des terminaux MorphoAccess.
+  - nom: Terminaux biometriques
+    port: 11010
+    protocole: tcp
+
+# Renseigner le jour ou l'abonnement Idemia est obtenu. Voir la note du role.
+pointeuses_windows_installateur_morpho: ""

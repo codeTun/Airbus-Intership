@@ -36,6 +36,25 @@ variable "image_ubuntu" {
   default     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 }
 
+variable "image_windows" {
+  description = "Chemin local du gabarit Windows Server syspreppe, prepare une fois a la main. Laisser vide pour ne pas deployer les machines Windows."
+  type        = string
+  default     = ""
+}
+
+variable "admin_mot_de_passe_windows" {
+  description = "Mot de passe initial du compte d'administration Windows. Obligatoire cote Windows, l'acces reste par cle SSH."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "fuseau_horaire_windows" {
+  description = "Fuseau au format Windows, distinct du format IANA. Europe/Paris s'ecrit Romance Standard Time."
+  type        = string
+  default     = "Romance Standard Time"
+}
+
 variable "image_fortios" {
   description = "Chemin local du disque FortiOS (qcow2) fourni par Fortinet. Laisser vide pour ne pas deployer ce pare-feu."
   type        = string
