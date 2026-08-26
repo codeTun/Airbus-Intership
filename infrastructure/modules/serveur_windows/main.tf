@@ -1,9 +1,5 @@
-# Machine Windows Server amorcee par cloudbase-init, l'equivalent de cloud-init
-# cote Windows. Il lit le meme disque NoCloud et execute le script PowerShell
-# place dans user-data.
-#
-# Le gabarit doit avoir ete prepare une fois a la main : installation depuis
-# l'ISO, pilotes virtio, cloudbase-init, puis sysprep. Voir le README.
+# Machine Windows amorcee par cloudbase-init, qui lit le meme disque NoCloud
+# que cloud-init. Le gabarit se prepare une fois a la main, voir le README.
 
 terraform {
   required_providers {
@@ -72,8 +68,8 @@ resource "libvirt_domain" "vm" {
     wait_for_lease = false
   }
 
-  # Windows n'expose pas de console serie exploitable : la console graphique
-  # est le seul acces de secours si le reseau n'est pas monte.
+  # Seul acces de secours si le reseau ne monte pas : Windows n'expose pas de
+  # console serie exploitable.
   graphics {
     type        = "vnc"
     listen_type = "address"

@@ -1,5 +1,4 @@
-# Assemblage des modules. Rien n'est ecrit en dur ici : tout vient de
-# inventaire.tf ou de variables.tf.
+# Assemblage des modules. Toutes les valeurs viennent d'inventaire.tf.
 
 module "reseau" {
   source = "./modules/reseau"
@@ -12,8 +11,8 @@ module "reseau" {
   demarrage_automatique = true
 }
 
-# Telechargee une fois et partagee : les disques des serveurs n'en gardent que
-# les differences.
+# Volume partage : les disques des serveurs n'en gardent que les differences,
+# d'ou l'ecart entre taille declaree et place occupee.
 resource "libvirt_volume" "ubuntu_base" {
   name   = "${var.prefixe}-ubuntu-2204-base.qcow2"
   pool   = var.pool_stockage
@@ -21,8 +20,7 @@ resource "libvirt_volume" "ubuntu_base" {
   format = "qcow2"
 }
 
-# Gabarit Windows syspreppe, prepare une fois a la main. Absent tant que la
-# variable n'est pas renseignee : les machines Windows sont alors ignorees.
+# Gabarit Windows syspreppe, prepare une fois a la main. Voir le README.
 resource "libvirt_volume" "windows_base" {
   count = trimspace(var.image_windows) != "" ? 1 : 0
 
@@ -50,8 +48,7 @@ module "serveur" {
   ip         = each.value.ip
   passerelle = local.vlans[each.value.vlan].passerelle
 
-  # Le resolveur est la passerelle du VLAN d'administration, ou libvirt expose
-  # le DNS du laboratoire.
+  # libvirt expose le DNS du laboratoire sur la passerelle du VLAN mgmt.
   dns         = [local.vlans["mgmt"].passerelle]
   domaine_dns = var.domaine_dns
 
@@ -109,8 +106,8 @@ module "parefeu" {
   demarrage_automatique = var.demarrage_automatique
 }
 
-# Inventaire Ansible, ecrit apres la creation des machines pour que les deux
-# outils partent des memes adresses.
+# Ecrit apres la creation des machines : Terraform et Ansible partent ainsi
+# des memes adresses, sans inventaire a tenir a jour a la main.
 resource "local_file" "inventaire_ansible" {
   filename        = "${path.module}/../ansible/inventaire/hosts.yml"
   file_permission = "0644"
@@ -129,8 +126,6 @@ resource "local_file" "inventaire_ansible" {
           vlan_users     = local.vlans["users"].reseau
           vlan_equip     = local.vlans["equip"].reseau
         }
-        # Groupes de role et groupes de systeme sont declares cote a cote :
-        # une machine appartient aux deux.
         children = merge(
           { serveurs = { children = local.groupes_serveurs } },
           local.groupes_os,

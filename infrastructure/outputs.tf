@@ -1,5 +1,4 @@
-# Ce que l'on veut voir apres un apply, et ce qui sert de preuve pour la
-# recette (cas TI-01 et TI-05).
+# Sorties de recette : ce qui sert de preuve pour les cas TI-01 et TI-05.
 
 output "plan_vlan" {
   description = "Plan VLAN tel que reellement cree sur l'hote."
@@ -49,7 +48,7 @@ output "parefeux" {
 }
 
 output "dimensionnement" {
-  description = "Totaux du laboratoire. Revise apres le passage des serveurs d'impression et de pointeuses sous Windows."
+  description = "Totaux du laboratoire, compares au dimensionnement retenu."
   value = {
     vcpu_total     = local.total_vcpu
     memoire_totale = format("%d Go", local.total_mo / 1024)

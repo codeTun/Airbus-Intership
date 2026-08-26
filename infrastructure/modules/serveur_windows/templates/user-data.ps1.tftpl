@@ -1,20 +1,17 @@
 #ps1_sysnative
-# Amorcage execute une seule fois par cloudbase-init, au premier demarrage.
-# Il pose l'identite, le reseau et l'acces SSH, rien de plus. Tout ce qui doit
-# rester vrai dans le temps appartient a Ansible.
+# Amorcage joue une seule fois par cloudbase-init, au premier demarrage.
+# Il pose l'identite, le reseau et l'acces SSH. Le reste appartient a Ansible.
 
 $ErrorActionPreference = "Stop"
 $journal = "C:\Windows\Temp\amorcage-labo.log"
 Start-Transcript -Path $journal -Append
 
-# --------------------------------------------------------------- identite
 Set-TimeZone -Id "${fuseau_horaire_windows}"
 
 if ($env:COMPUTERNAME -ne "${nom}") {
     Rename-Computer -NewName "${nom}" -Force
 }
 
-# ----------------------------------------------------------------- reseau
 # L'interface est reconnue par son adresse MAC, fixee par Terraform.
 $macCible = "${mac}".Replace(":", "-").ToUpper()
 $carte = Get-NetAdapter | Where-Object { $_.MacAddress -eq $macCible }
@@ -35,9 +32,8 @@ New-NetIPAddress -InterfaceIndex $carte.ifIndex `
 Set-DnsClientServerAddress -InterfaceIndex $carte.ifIndex `
                            -ServerAddresses @(${dns_powershell})
 
-# ------------------------------------------------------- compte nominatif
-# Windows refuse un compte local sans mot de passe. L'acces reste malgre tout
-# par cle : l'authentification par mot de passe est coupee plus bas.
+# Windows refuse un compte local sans mot de passe. Celui-ci ne sert que de
+# secours par la console : l'authentification par mot de passe est coupee plus bas.
 $motDePasse = ConvertTo-SecureString "${admin_mot_de_passe}" -AsPlainText -Force
 
 if (-not (Get-LocalUser -Name "${admin_utilisateur}" -ErrorAction SilentlyContinue)) {
@@ -47,14 +43,11 @@ if (-not (Get-LocalUser -Name "${admin_utilisateur}" -ErrorAction SilentlyContin
                   -AccountNeverExpires
 }
 
-# Le groupe est designe par son SID : son nom est traduit selon la langue
-# d'installation de Windows.
+# Groupe designe par son SID : son nom est traduit selon la langue de Windows.
 $administrateurs = (Get-LocalGroup -SID "S-1-5-32-544").Name
 Add-LocalGroupMember -Group $administrateurs -Member "${admin_utilisateur}" -ErrorAction SilentlyContinue
 
-# -------------------------------------------------------------- acces SSH
-# Present nativement depuis Windows Server 2019. Il est preferable de
-# l'integrer au gabarit : sinon cette installation demande Internet.
+# A integrer au gabarit de preference : sinon cette etape demande Internet.
 if ((Get-WindowsCapability -Online -Name "OpenSSH.Server*").State -ne "Installed") {
     Add-WindowsCapability -Online -Name "OpenSSH.Server~~~~0.0.1.0"
 }
@@ -62,7 +55,7 @@ if ((Get-WindowsCapability -Online -Name "OpenSSH.Server*").State -ne "Installed
 Set-Service -Name sshd -StartupType Automatic
 Start-Service -Name sshd
 
-# Sans cela, Ansible enverrait ses commandes au shell cmd.
+# Sans cette cle de registre, Ansible enverrait ses commandes au shell cmd.
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" `
                  -Name DefaultShell `
                  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" `
@@ -73,7 +66,6 @@ $clesAdmin = "C:\ProgramData\ssh\administrators_authorized_keys"
 Set-Content -Path $clesAdmin -Value "${cle_ssh_publique}" -Encoding ascii
 icacls $clesAdmin /inheritance:r /grant "SYSTEM:F" /grant "$administrateurs:F" | Out-Null
 
-# Mot de passe refuse, cle seule, comme sur les serveurs Ubuntu.
 $config = "C:\ProgramData\ssh\sshd_config"
 (Get-Content $config) `
     -replace '^#?PasswordAuthentication.*', 'PasswordAuthentication no' `
@@ -82,9 +74,8 @@ $config = "C:\ProgramData\ssh\sshd_config"
 
 Restart-Service -Name sshd
 
-# ------------------------------------------------------------- pare-feu local
-# Le pare-feu Windows bloque deja l'entrant par defaut. On ouvre le seul port
-# necessaire a Ansible, les services metiers seront ouverts par leurs roles.
+# Le pare-feu Windows refuse deja l'entrant. Seul SSH est ouvert ici, les
+# services metiers le seront par leurs roles Ansible.
 if (-not (Get-NetFirewallRule -Name "labo-ssh" -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -Name "labo-ssh" `
                         -DisplayName "SSH (administration du laboratoire)" `
@@ -92,7 +83,6 @@ if (-not (Get-NetFirewallRule -Name "labo-ssh" -ErrorAction SilentlyContinue)) {
                         -Action Allow -Profile Any | Out-Null
 }
 
-# ------------------------------------------------------- carte d'identite
 $dossier = "C:\ProgramData\labo-airbus"
 New-Item -Path $dossier -ItemType Directory -Force | Out-Null
 

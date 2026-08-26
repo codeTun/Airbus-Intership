@@ -1,10 +1,9 @@
-# Source de verite unique : plan VLAN, adressage et machines, repris des
-# tableaux 6, 7 et 8 du cahier des charges. Les modules ne font que consommer
-# ces valeurs, toute modification se fait ici.
+# Source de verite du laboratoire : plan VLAN, adressage, machines.
+# Les modules consomment ces valeurs, toute modification se fait ici.
 
 locals {
 
-  # reseau = null : VLAN sans adressage, isole. C'est le VLAN natif des trunks.
+  # reseau = null : VLAN declare sans adressage. C'est le natif des trunks.
   vlans = {
     mgmt = {
       id         = 10
@@ -64,16 +63,13 @@ locals {
     }
   }
 
-  # Seuls ces VLAN sortent vers Internet, et seulement pendant l'installation.
+  # Sortie Internet temporaire, le temps d'installer les paquets.
   vlans_avec_sortie = ["mgmt", "servers"]
 
-  # Le champ "groupe" indique a Ansible quel role appliquer.
-  # Le champ "os" choisit le gabarit et le mode de connexion : "ubuntu" passe
-  # par cloud-init et SSH, "windows" par cloudbase-init et SSH en PowerShell.
+  # os : "ubuntu" passe par cloud-init, "windows" par cloudbase-init.
   serveurs = {
-    # Dimensionne pour un hote de 32 Go : Windows Server, IIS et SQL Express
-    # tournent a l'aise avec 4 Go. Xerox Workplace Suite recommande 4 vCPU,
-    # 8 Go et 160 Go de disque : a remettre le jour ou la licence est obtenue.
+    # Xerox Workplace Suite recommande 4 vCPU et 8 Go. Reduit a 4 Go tant que
+    # la licence n'est pas obtenue et que seule la plateforme est installee.
     "srv-print-01" = {
       description = "Serveur d'impression Follow-You"
       os          = "windows"
@@ -96,10 +92,8 @@ locals {
       groupe      = "visioconference"
     }
 
-    # Nom raccourci : NetBIOS plafonne le nom d'hote Windows a 15 caracteres,
-    # et "srv-pointeuse-01" en fait 16.
-    # MorphoManager demande un dual core et 4 Go : ce dimensionnement les
-    # respecte deja, seul le disque sera a agrandir avec la base biometrique.
+    # Nom raccourci : NetBIOS plafonne a 15 caracteres, "srv-pointeuse-01" en
+    # fait 16 et Windows tronquerait en silence.
     "srv-point-01" = {
       description = "Gestion des pointeuses biometriques"
       os          = "windows"
@@ -111,8 +105,8 @@ locals {
       groupe      = "pointeuses"
     }
 
-    # Centreon publie 4 vCPU et 8 Go pour une production. Le laboratoire ne
-    # supervise que six machines : la moitie suffit largement.
+    # Centreon publie 4 vCPU et 8 Go pour une production. Six machines
+    # supervisees en demandent moitie moins.
     "sup-centreon-01" = {
       description = "Supervision Centreon"
       os          = "ubuntu"
@@ -125,8 +119,7 @@ locals {
     }
   }
 
-  # Images constructeur, sans cloud-init. Un pare-feu n'est cree que si son
-  # image est fournie.
+  # Images constructeur, sans cloud-init.
   parefeux = {
     "fw-forti-01" = {
       description = "Pare-feu peripherique"
@@ -153,18 +146,14 @@ locals {
     }
   }
 
-  # Les deux familles ne se deploient pas de la meme facon : gabarit different,
-  # amorcage different, connexion Ansible differente.
   serveurs_ubuntu = { for nom, s in local.serveurs : nom => s if s.os == "ubuntu" }
 
-  # Tant que le gabarit Windows n'est pas prepare, ces machines sont ignorees
-  # et le reste du laboratoire se deploie normalement.
+  # Sans gabarit Windows, ces machines sont ignorees et le reste se deploie.
   serveurs_windows = trimspace(var.image_windows) != "" ? {
     for nom, s in local.serveurs : nom => s if s.os == "windows"
   } : {}
 
-  # Adresse MAC deterministe, construite depuis le VLAN et le dernier octet de
-  # l'IP : lisible, et stable d'un apply a l'autre.
+  # MAC deterministe : VLAN et dernier octet de l'IP. Stable d'un apply a l'autre.
   mac_serveurs = {
     for nom, s in local.serveurs :
     nom => format("52:54:00:00:%02x:%02x",
@@ -173,10 +162,8 @@ locals {
     )
   }
 
-  # Adresse du serveur de supervision, ou les autres machines envoient leurs journaux.
   ip_supervision = one([for nom, s in local.serveurs : s.ip if s.groupe == "supervision"])
 
-  # Groupes de l'inventaire Ansible.
   groupes_serveurs = {
     for groupe in distinct([for s in local.serveurs : s.groupe]) :
     groupe => {
@@ -187,9 +174,8 @@ locals {
     }
   }
 
-  # Groupes par systeme. Ils ne portent aucun role : seulement la facon de se
-  # connecter. Chaque machine appartient donc a deux groupes, celui de son role
-  # et celui de son systeme.
+  # Groupes de systeme : ils portent le mode de connexion, pas les roles.
+  # Chaque machine appartient a son groupe de role et a celui-ci.
   groupes_os = merge(
     length(local.serveurs_ubuntu) > 0 ? {
       linux = {
@@ -204,8 +190,7 @@ locals {
       windows = {
         hosts = { for nom, s in local.serveurs_windows : nom => { ansible_host = s.ip } }
         vars = {
-          # OpenSSH est present nativement depuis Windows Server 2019. Sans
-          # shell_type, Ansible enverrait du bash et echouerait en silence.
+          # Sans shell_type, Ansible enverrait du bash et echouerait en silence.
           ansible_shell_type = "powershell"
           ansible_become     = false
         }
@@ -213,7 +198,7 @@ locals {
     } : {}
   )
 
-  # Un pare-feu n'entre dans l'inventaire que si son image a ete fournie.
+  # Un pare-feu n'entre dans l'inventaire que si son image est fournie.
   groupes_parefeux = {
     for groupe in distinct([for f in local.parefeux : f.groupe if trimspace(f.image) != ""]) :
     groupe => {
@@ -224,7 +209,6 @@ locals {
     }
   }
 
-  # Totaux, compares au cahier des charges dans les sorties.
   total_vcpu = sum([for s in local.serveurs : s.vcpu]) + sum([for f in local.parefeux : f.vcpu])
   total_mo   = sum([for s in local.serveurs : s.memoire_mo]) + sum([for f in local.parefeux : f.memoire_mo])
   total_go   = sum([for s in local.serveurs : s.disque_go]) + sum([for f in local.parefeux : f.disque_go])

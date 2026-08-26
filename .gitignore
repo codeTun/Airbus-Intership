@@ -11,6 +11,10 @@ ansible/inventaire/hosts.yml
 ansible/*.retry
 vault-pass.txt
 
+# Caches locaux des outils, regeneres a chaque execution.
+.ansible/
+.cache/
+
 # Images constructeur et gabarits de machines. Volumineux, et leur licence
 # n'autorise pas la redistribution.
 *.qcow2
