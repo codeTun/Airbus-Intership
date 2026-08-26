@@ -48,8 +48,6 @@
   loop_control:
     label: "{{ item.nom }}"
 
-# Xerox Workplace Suite est sous licence : sans installateur, la plateforme
-# reste prete et le service d'impression natif fonctionne deja.
 - name: Absence de l'installateur Xerox signalee
   ansible.builtin.debug:
     msg: >-

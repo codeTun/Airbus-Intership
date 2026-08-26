@@ -12,7 +12,6 @@
   ansible.windows.win_timezone:
     timezone: "{{ commun_windows_fuseau }}"
 
-# ------------------------------------------------------------------- temps
 - name: Sources de temps declarees
   ansible.windows.win_regedit:
     path: HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters
@@ -35,7 +34,6 @@
     start_mode: auto
     state: started
 
-# ---------------------------------------------------------------- pare-feu
 - name: Pare-feu actif sur les trois profils, entrant refuse
   ansible.windows.win_firewall:
     profiles: [Domain, Private, Public]
@@ -57,7 +55,6 @@
   loop_control:
     label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
 
-# --------------------------------------------------------------- durcissement
 - name: Protocole SMBv1 retire
   ansible.windows.win_feature:
     name: FS-SMB1
@@ -71,7 +68,7 @@
     data: "{{ item.valeur }}"
     type: dword
   loop:
-    # 3 : telecharger puis signaler. 4 installerait et redemarrerait seul.
+    # AUOptions 3 telecharge puis signale. La valeur 4 redemarrerait seule.
     - {nom: AUOptions, valeur: 3}
     - {nom: NoAutoRebootWithLoggedOnUsers, valeur: 1}
   loop_control:
@@ -84,7 +81,6 @@
     reboot: false
   when: commun_windows_installer_correctifs
 
-# ---------------------------------------------------------------- acces SSH
 - name: Service OpenSSH demarre et permanent
   ansible.windows.win_service:
     name: sshd
@@ -105,7 +101,6 @@
     line: PasswordAuthentication no
   notify: Redemarrer sshd
 
-# ------------------------------------------------------------ carte d'identite
 - name: Dossier du laboratoire present
   ansible.windows.win_file:
     path: "{{ commun_windows_dossier_labo }}"

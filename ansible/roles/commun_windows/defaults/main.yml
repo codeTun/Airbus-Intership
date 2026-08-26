@@ -1,26 +1,24 @@
 ---
-# Equivalent Windows du role commun. Meme intention : ce qui doit rester vrai
-# sur toutes les machines, quel que soit leur service.
+# Equivalent Windows du role commun : ce qui doit rester vrai sur toutes les
+# machines, quel que soit leur service.
 
-# Fuseau au format Windows, distinct du format IANA utilise cote Linux.
+# Format Windows, distinct du format IANA utilise cote Linux.
 commun_windows_fuseau: Romance Standard Time
 
-# Seul port ouvert par defaut. Un role metier peut en ajouter, jamais en
-# retirer.
+# Un role metier peut ajouter un port, jamais en retirer.
 commun_windows_ports_ouverts:
   - nom: SSH
     port: 22
     protocole: tcp
 
-# SMBv1 est obsolete et vulnerable. Aucun service du laboratoire ne l'utilise.
 commun_windows_desactiver_smb1: true
 
-# Les correctifs sont telecharges puis signales, jamais installes ni redemarres
-# sans intervention : la machine doit rester joignable a distance.
+# Les correctifs sont telecharges puis signales : la machine ne doit pas
+# redemarrer sans intervention, sous peine de devenir injoignable.
 commun_windows_maj_automatiques: false
 
-# Poser a true pour appliquer les correctifs en attente pendant l'execution.
-# Long, et susceptible de provoquer un redemarrage.
+# A poser a true pour appliquer les correctifs en attente. Long, et susceptible
+# de provoquer un redemarrage.
 commun_windows_installer_correctifs: false
 
 commun_windows_dossier_labo: C:\ProgramData\labo-airbus

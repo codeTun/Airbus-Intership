@@ -20,7 +20,6 @@
     reboot_timeout: 600
   when: pointeuses_windows_features.reboot_required
 
-# --------------------------------------------------------- SQL Server Express
 - name: Repertoire de travail present
   ansible.windows.win_file:
     path: "{{ pointeuses_windows_sql_repertoire }}"
@@ -30,6 +29,16 @@
   ansible.windows.win_get_url:
     url: "{{ pointeuses_windows_sql_url }}"
     dest: "{{ pointeuses_windows_sql_repertoire }}\\SQLEXPR_x64_ENU.exe"
+    checksum: "{{ pointeuses_windows_sql_sha256 | default(omit, true) }}"
+    checksum_algorithm: sha256
+
+- name: Absence de controle d'integrite signalee
+  ansible.builtin.debug:
+    msg: >-
+      SQL Server Express a ete installe sans verification d'empreinte.
+      Relever le SHA-256 du fichier telecharge et renseigner
+      pointeuses_windows_sql_sha256.
+  when: pointeuses_windows_sql_sha256 | length == 0
 
 - name: Archive extraite
   ansible.windows.win_command: >-
@@ -78,8 +87,6 @@
   loop_control:
     label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
 
-# MorphoManager est sous abonnement Idemia depuis decembre 2024 : sans
-# installateur, la plateforme reste prete et la base est operationnelle.
 - name: Absence de l'installateur MorphoManager signalee
   ansible.builtin.debug:
     msg: >-
