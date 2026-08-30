@@ -81,12 +81,14 @@ locals {
       groupe      = "impression"
     }
 
+    # Jitsi Meet en conteneurs. L'editeur annonce 4 vCPU et 8 Go pour une
+    # vingtaine de participants, et environ 1 vCPU par tranche de 10 flux video.
     "srv-visio-01" = {
       description = "Serveur de visioconference"
       os          = "ubuntu"
-      vcpu        = 2
-      memoire_mo  = 4096
-      disque_go   = 25
+      vcpu        = 4
+      memoire_mo  = 8192
+      disque_go   = 40
       vlan        = "servers"
       ip          = "10.10.20.12"
       groupe      = "visioconference"

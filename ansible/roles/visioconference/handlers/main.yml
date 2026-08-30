@@ -1,9 +1,6 @@
 ---
 - name: Redemarrer jitsi
-  ansible.builtin.service:
-    name: "{{ item }}"
-    state: restarted
-  loop:
-    - prosody
-    - jicofo
-    - jitsi-videobridge2
+  ansible.builtin.command:
+    cmd: docker compose up -d --force-recreate
+    chdir: "{{ visioconference_racine }}"
+  changed_when: true

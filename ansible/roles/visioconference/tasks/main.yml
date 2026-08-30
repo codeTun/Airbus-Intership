@@ -1,78 +1,134 @@
 ---
-# Jitsi Meet installe sans interaction : les deux questions du paquet, nom de
-# domaine et certificat, recoivent leur reponse a l'avance par debconf.
+- name: Version de docker-jitsi-meet epinglee
+  ansible.builtin.assert:
+    that:
+      - visioconference_version | length > 0
+    fail_msg: >-
+      Renseignez visioconference_version avec une publication de
+      https://github.com/jitsi/docker-jitsi-meet/releases. Une version non
+      epinglee rendrait le deploiement non reproductible.
+  tags: [visio]
 
-- name: Prerequis presents
-  ansible.builtin.apt:
-    name: "{{ visioconference_paquets_prerequis }}"
-    state: present
-    update_cache: true
-    cache_valid_time: 3600
-  tags: [visio, paquets]
+- name: Secrets fournis par le coffre
+  ansible.builtin.assert:
+    that:
+      - coffre_visio_jicofo_auth | default('') | length >= 12
+      - coffre_visio_jvb_auth | default('') | length >= 12
+      - coffre_visio_animateur_mot_de_passe | default('') | length >= 12
+    fail_msg: Completez les trois secrets visio dans le coffre Ansible.
+  tags: [visio]
 
-- name: Cle du depot Jitsi
+# Ubuntu 22.04 ne cree pas ce repertoire, contrairement aux versions suivantes.
+- name: Repertoire des cles de depots present
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [visio, depot]
+
+- name: Cle du depot Docker
   ansible.builtin.get_url:
-    url: https://download.jitsi.org/jitsi-key.gpg.key
-    dest: /tmp/jitsi-key.gpg.key
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
     mode: "0644"
   tags: [visio, depot]
 
-- name: Cle du depot convertie
-  ansible.builtin.command:
-    cmd: gpg --batch --yes --dearmor -o /usr/share/keyrings/jitsi-keyring.gpg /tmp/jitsi-key.gpg.key
-    creates: /usr/share/keyrings/jitsi-keyring.gpg
-  tags: [visio, depot]
-
-- name: Depot Jitsi declare
+- name: Depot Docker declare
   ansible.builtin.deb822_repository:
-    name: jitsi-stable
+    name: docker
     types: [deb]
-    uris: https://download.jitsi.org
-    suites: [stable/]
-    signed_by: /usr/share/keyrings/jitsi-keyring.gpg
+    uris: https://download.docker.com/linux/ubuntu
+    suites: ["{{ ansible_facts.distribution_release }}"]
+    components: [stable]
+    signed_by: /etc/apt/keyrings/docker.asc
+    architectures: [amd64]
     state: present
     enabled: true
   tags: [visio, depot]
 
-- name: Nom de domaine transmis a l'avance
-  ansible.builtin.debconf:
-    name: jitsi-meet
-    question: jitsi-meet/cert-choice
-    vtype: select
-    value: >-
-      {{ 'Generate a new self-signed certificate (You will later get a chance to obtain a Let''s encrypt certificate)'
-         if visioconference_certificat == 'auto-signe'
-         else 'I want to use my own certificate' }}
-  tags: [visio, installation]
-
-- name: Nom d'hote du videobridge transmis a l'avance
-  ansible.builtin.debconf:
-    name: jitsi-videobridge
-    question: jitsi-videobridge/jvb-hostname
-    vtype: string
-    value: "{{ visioconference_domaine }}"
-  tags: [visio, installation]
-
-- name: Jitsi Meet installe
+- name: Docker installe
   ansible.builtin.apt:
-    name: jitsi-meet
+    name: "{{ visioconference_paquets_docker }}"
     state: present
     update_cache: true
-  environment:
-    DEBIAN_FRONTEND: noninteractive
-  notify: Redemarrer jitsi
-  tags: [visio, installation]
+  tags: [visio, paquets]
 
-- name: Les trois composants tournent
+- name: Service Docker demarre
   ansible.builtin.service:
-    name: "{{ item }}"
+    name: docker
     state: started
     enabled: true
-  loop:
-    - prosody
-    - jicofo
-    - jitsi-videobridge2
   tags: [visio, service]
+
+- name: Arborescence du deploiement
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ visioconference_racine }}"
+    - "{{ visioconference_config }}"
+  tags: [visio, deploiement]
+
+- name: Publication docker-jitsi-meet recuperee
+  ansible.builtin.unarchive:
+    src: "https://github.com/jitsi/docker-jitsi-meet/archive/refs/tags/{{ visioconference_version }}.tar.gz"
+    dest: "{{ visioconference_racine }}"
+    remote_src: true
+    extra_opts: [--strip-components=1]
+    creates: "{{ visioconference_racine }}/docker-compose.yml"
+  tags: [visio, deploiement]
+
+# Contient les secrets du coffre : lisible par root seul.
+- name: Parametres du deploiement
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ visioconference_racine }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Redemarrer jitsi
+  tags: [visio, deploiement]
+
+- name: Pile Jitsi demarree
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ visioconference_racine }}"
+  register: visioconference_compose
+  changed_when: "'Started' in visioconference_compose.stderr or 'Created' in visioconference_compose.stderr"
+  tags: [visio, deploiement]
+
+- name: Interface web joignable
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ visioconference_port_web }}"
+    timeout: 180
+  tags: [visio, verification]
+
+# Sans ce compte, personne ne peut ouvrir de salle une fois le Secure Domain
+# actif. Le domaine attendu est meet.jitsi, pas auth.meet.jitsi.
+- name: Compte animateur declare
+  ansible.builtin.command:
+    cmd: >-
+      docker compose exec -T prosody /usr/bin/prosodyctl
+      --config /config/prosody.cfg.lua
+      register {{ visioconference_compte_animateur }} meet.jitsi
+      {{ coffre_visio_animateur_mot_de_passe }}
+    chdir: "{{ visioconference_racine }}"
+  register: visioconference_compte
+  changed_when: visioconference_compte.rc == 0
+  failed_when:
+    - visioconference_compte.rc != 0
+    - "'already exists' not in visioconference_compte.stderr"
+  no_log: true
+  when: visioconference_authentification
+  tags: [visio, securite]
 
 - name: Acces web ouvert aux postes de travail
   community.general.ufw:
@@ -80,10 +136,11 @@
     port: "{{ visioconference_port_web }}"
     proto: tcp
     src: "{{ item }}"
-    comment: Acces web et signalisation
+    comment: Interface web et signalisation
   loop: "{{ visioconference_reseaux_autorises }}"
   tags: [visio, parefeu]
 
+# Le port le plus souvent oublie. Sans lui, la salle s'ouvre mais reste muette.
 - name: Flux media ouverts
   community.general.ufw:
     rule: allow
@@ -91,18 +148,3 @@
     proto: udp
     comment: Flux audio et video du videobridge
   tags: [visio, parefeu]
-
-- name: Repli TCP ouvert quand l'UDP est bloque
-  community.general.ufw:
-    rule: allow
-    port: "{{ visioconference_port_repli }}"
-    proto: tcp
-    comment: Repli du videobridge
-  tags: [visio, parefeu]
-
-- name: Le service web repond
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: "{{ visioconference_port_web }}"
-    timeout: 60
-  tags: [visio, verification]

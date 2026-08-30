@@ -10,3 +10,10 @@ coffre_supervision_mot_de_passe: a-remplacer
 coffre_paloalto_utilisateur: admin
 coffre_paloalto_mot_de_passe: a-remplacer
 coffre_fortinet_cle_api: a-remplacer
+
+# Jitsi Meet. Les deux premiers authentifient les conteneurs entre eux, le
+# dernier ouvre les salles. Generer des chaines distinctes :
+#     openssl rand -hex 24
+coffre_visio_jicofo_auth: a-remplacer
+coffre_visio_jvb_auth: a-remplacer
+coffre_visio_animateur_mot_de_passe: a-remplacer

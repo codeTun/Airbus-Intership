@@ -1,24 +1,33 @@
 ---
-# Jitsi Meet auto-heberge : Prosody pour la signalisation, Jicofo pour les
-# conferences, Videobridge pour les flux.
+# Jitsi Meet en conteneurs : Web, Prosody, Jicofo et Videobridge.
+# Docker et non Podman : docker-jitsi-meet ne fonctionne pas proprement sous
+# Podman, qui ignore la section networks du fichier compose.
 
 visioconference_domaine: "visio.{{ domaine_dns }}"
 
-visioconference_paquets_prerequis:
-  - gnupg2
-  - apt-transport-https
-  - curl
-  - lua5.2
+# Version a epingler, relevee sur les publications du projet :
+# https://github.com/jitsi/docker-jitsi-meet/releases
+visioconference_version: ""
 
-# Auto-signe convient au laboratoire. En production, passer a Let's Encrypt.
-visioconference_certificat: auto-signe   # auto-signe | fourni
+visioconference_racine: /opt/jitsi
+visioconference_config: /opt/jitsi/config
 
 visioconference_port_web: 443
-visioconference_port_media: 10000        # UDP, flux audio et video
-visioconference_port_repli: 4443         # TCP, quand l'UDP est bloque
+# UDP. Le videobridge n'expose plus de repli TCP depuis plusieurs versions :
+# si ce port est ferme, les appels echouent au lieu de se degrader.
+visioconference_port_media: 10000
+
+# Secure Domain. Sans lui, quiconque connait l'adresse d'une salle l'ouvre.
+visioconference_authentification: true
+visioconference_invites: false
+visioconference_compte_animateur: animateur
 
 visioconference_reseaux_autorises:
   - "{{ vlan_users }}"
 
-visioconference_salles_protegees: true
-visioconference_enregistrement: false
+visioconference_paquets_docker:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin

@@ -53,11 +53,13 @@ output "dimensionnement" {
     vcpu_total     = local.total_vcpu
     memoire_totale = format("%d Go", local.total_mo / 1024)
     disque_total   = format("%d Go declares, alloues a la demande", local.total_go)
-    attendu        = "11 vCPU, 26 Go, 275 Go"
-    conforme       = local.total_vcpu == 11 && local.total_mo == 26624 && local.total_go == 275
+    attendu        = "13 vCPU, 30 Go, 290 Go"
+    conforme       = local.total_vcpu == 13 && local.total_mo == 30720 && local.total_go == 290
 
-    # L'hote garde environ 2 Go pour lui : on se donne 30 Go de plafond.
-    tient_sur_hote_32go = local.total_mo <= 30720
+    # L'hote garde environ 2 Go pour lui. Avec les deux pare-feux et Jitsi
+    # dimensionne pour de vrai, le laboratoire sature un hote de 32 Go : il
+    # faudra demarrer les machines par vagues.
+    marge_sur_hote_32go = format("%d Go", (32 * 1024 - 2048 - local.total_mo) / 1024)
   }
 }
 
