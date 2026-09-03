@@ -55,6 +55,14 @@ variable "fuseau_horaire_windows" {
   default     = "Romance Standard Time"
 }
 
+# Centreon ne publie de depot que pour Debian, Alma, RHEL et Oracle Linux.
+# La machine de supervision fait donc exception au socle Ubuntu du laboratoire.
+variable "image_debian" {
+  description = "Chemin local de l'image cloud Debian 12 (qcow2), utilisee par la seule machine de supervision. Vide : elle reste sur la base Ubuntu et le role supervision refusera de s'installer."
+  type        = string
+  default     = ""
+}
+
 variable "image_fortios" {
   description = "Chemin local du disque FortiOS (qcow2) fourni par Fortinet. Laisser vide pour ne pas deployer ce pare-feu."
   type        = string

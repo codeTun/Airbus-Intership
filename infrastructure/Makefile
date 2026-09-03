@@ -6,7 +6,7 @@ PLAN  := plan.tfplan
 
 .DEFAULT_GOAL := aide
 
-.PHONY: aide init fmt valider verifier plan appliquer detruire etat sortie propre
+.PHONY: aide init fmt valider verifier plan appliquer detruire etat sortie recette propre
 
 aide: ## Affiche cette aide
 	@echo "Laboratoire virtualise, partie 1"
@@ -44,6 +44,9 @@ sortie: ## Reaffiche les sorties du dernier apply
 etat: ## Etat des machines et des reseaux vus par libvirt
 	@echo "--- machines ---"    && virsh list --all    2>/dev/null || echo "virsh absent sur cette machine"
 	@echo "--- reseaux  ---"    && virsh net-list --all 2>/dev/null || true
+
+recette: ## Confronte le laboratoire reel a ce que declare le code
+	@./recette.sh
 
 propre: ## Efface les fichiers de travail locaux
 	rm -rf .terraform $(PLAN) crash.log

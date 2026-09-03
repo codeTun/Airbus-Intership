@@ -10,7 +10,13 @@ output "serveurs" {
   value = merge(
     {
       for nom, s in module.serveur : nom => {
-        systeme = "Ubuntu 22.04"
+        # Le repli sur Ubuntu quand image_debian n'est pas fournie doit se lire
+        # ici aussi, sinon la sortie annoncerait un systeme qui n'est pas installe.
+        systeme = (
+          local.serveurs_linux[nom].os == "debian" && trimspace(var.image_debian) != ""
+          ? "Debian 12"
+          : "Ubuntu 22.04"
+        )
         adresse = s.ip
         mac     = s.mac
         acces   = s.acces_ssh
@@ -48,18 +54,32 @@ output "parefeux" {
 }
 
 output "dimensionnement" {
-  description = "Totaux du laboratoire, compares au dimensionnement retenu."
+  description = "Totaux du laboratoire, rapportes aux capacites de l'hote."
   value = {
     vcpu_total     = local.total_vcpu
     memoire_totale = format("%d Go", local.total_mo / 1024)
     disque_total   = format("%d Go declares, alloues a la demande", local.total_go)
-    attendu        = "13 vCPU, 30 Go, 290 Go"
-    conforme       = local.total_vcpu == 13 && local.total_mo == 30720 && local.total_go == 290
 
-    # L'hote garde environ 2 Go pour lui. Avec les deux pare-feux et Jitsi
-    # dimensionne pour de vrai, le laboratoire sature un hote de 32 Go : il
-    # faudra demarrer les machines par vagues.
-    marge_sur_hote_32go = format("%d Go", (32 * 1024 - 2048 - local.total_mo) / 1024)
+    # Hote du laboratoire : i7-14700, 28 fils d'execution, 31 Gio utilisables.
+    # Un constat plutot qu'un seuil fige, qui deviendrait faux au premier
+    # changement de dimensionnement sans que personne ne le remarque.
+
+    # Le temps processeur se partage : une machine au repos ne consomme rien,
+    # et le surengagement est la norme.
+    processeur = format(
+      "%d vCPU declares sur 28 fils, %s",
+      local.total_vcpu,
+      local.total_vcpu > 28 ? "surengagement assume" : "sans surengagement"
+    )
+
+    # La memoire ne se partage pas. KVM l'alloue a la demande, mais si toutes
+    # les machines saturaient la leur en meme temps, l'hote serait a court :
+    # il faudrait alors les demarrer par vagues.
+    memoire = format(
+      "%d Go declares sur 31 Gio, marge theorique %d Go",
+      local.total_mo / 1024,
+      (31 * 1024 - local.total_mo) / 1024
+    )
   }
 }
 

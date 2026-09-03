@@ -27,6 +27,13 @@ resource "libvirt_cloudinit_disk" "init" {
   name = "${var.nom}-cloudinit.iso"
   pool = var.pool_stockage
 
+  # Obligatoire cote Windows : cloudbase-init lit instance-id des le demarrage
+  # et s'interrompt sur un meta-data vide, la ou cloud-init s'en accommode.
+  meta_data = yamlencode({
+    "instance-id"    = var.nom
+    "local-hostname" = var.nom
+  })
+
   user_data = templatefile("${path.module}/templates/user-data.ps1.tftpl", {
     nom                    = var.nom
     mac                    = var.mac

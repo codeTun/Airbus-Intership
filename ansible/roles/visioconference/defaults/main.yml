@@ -7,7 +7,7 @@ visioconference_domaine: "visio.{{ domaine_dns }}"
 
 # Version a epingler, relevee sur les publications du projet :
 # https://github.com/jitsi/docker-jitsi-meet/releases
-visioconference_version: ""
+visioconference_version: "stable-11146-2"
 
 visioconference_racine: /opt/jitsi
 visioconference_config: /opt/jitsi/config

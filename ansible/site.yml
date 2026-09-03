@@ -52,6 +52,9 @@
   hosts: fortinet
   gather_facts: false
   connection: local
+  # Le playbook tourne sur le poste d'administration : aucune elevation locale
+  # n'est requise pour dialoguer avec l'API du pare-feu.
+  become: false
   roles:
     - parefeu_fortinet
 
@@ -59,5 +62,6 @@
   hosts: paloalto
   gather_facts: false
   connection: local
+  become: false
   roles:
     - parefeu_paloalto

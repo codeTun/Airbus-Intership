@@ -25,12 +25,15 @@
     path: "{{ pointeuses_windows_sql_repertoire }}"
     state: directory
 
+# force vaut vrai par defaut : sans ce reglage, les 266 Mio de l'installateur
+# seraient retelecharges a chaque execution, la tache annoncant changed: false.
 - name: Archive SQL Server Express recuperee
   ansible.windows.win_get_url:
     url: "{{ pointeuses_windows_sql_url }}"
     dest: "{{ pointeuses_windows_sql_repertoire }}\\SQLEXPR_x64_ENU.exe"
     checksum: "{{ pointeuses_windows_sql_sha256 | default(omit, true) }}"
     checksum_algorithm: sha256
+    force: false
 
 - name: Absence de controle d'integrite signalee
   ansible.builtin.debug:

@@ -30,9 +30,19 @@ resource "libvirt_volume" "windows_base" {
   format = "qcow2"
 }
 
+# Image cloud Debian, pour la seule machine de supervision.
+resource "libvirt_volume" "debian_base" {
+  count = trimspace(var.image_debian) != "" ? 1 : 0
+
+  name   = "${var.prefixe}-debian-12-base.qcow2"
+  pool   = var.pool_stockage
+  source = var.image_debian
+  format = "qcow2"
+}
+
 module "serveur" {
   source   = "./modules/serveur"
-  for_each = local.serveurs_ubuntu
+  for_each = local.serveurs_linux
 
   nom         = each.key
   description = each.value.description
@@ -40,8 +50,14 @@ module "serveur" {
   memoire_mo  = each.value.memoire_mo
   disque_go   = each.value.disque_go
 
-  pool_stockage  = var.pool_stockage
-  volume_base_id = libvirt_volume.ubuntu_base.id
+  pool_stockage = var.pool_stockage
+  # Repli volontaire sur Ubuntu si l'image Debian n'est pas fournie : la
+  # machine reste deployee, et c'est le role Ansible qui explique le blocage.
+  volume_base_id = (
+    each.value.os == "debian" && length(libvirt_volume.debian_base) > 0
+    ? libvirt_volume.debian_base[0].id
+    : libvirt_volume.ubuntu_base.id
+  )
 
   reseau_id  = module.reseau.ids[each.value.vlan]
   mac        = local.mac_serveurs[each.key]

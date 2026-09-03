@@ -66,14 +66,15 @@ locals {
   # Sortie Internet temporaire, le temps d'installer les paquets.
   vlans_avec_sortie = ["mgmt", "servers"]
 
-  # os : "ubuntu" passe par cloud-init, "windows" par cloudbase-init.
+  # os : "ubuntu" et "debian" passent par cloud-init, "windows" par
+  # cloudbase-init. "debian" n'existe que pour la supervision.
   serveurs = {
     # Xerox Workplace Suite recommande 4 vCPU et 8 Go. Reduit a 4 Go tant que
     # la licence n'est pas obtenue et que seule la plateforme est installee.
     "srv-print-01" = {
       description = "Serveur d'impression Follow-You"
       os          = "windows"
-      vcpu        = 2
+      vcpu        = 4
       memoire_mo  = 4096
       disque_go   = 60
       vlan        = "servers"
@@ -86,7 +87,7 @@ locals {
     "srv-visio-01" = {
       description = "Serveur de visioconference"
       os          = "ubuntu"
-      vcpu        = 4
+      vcpu        = 6
       memoire_mo  = 8192
       disque_go   = 40
       vlan        = "servers"
@@ -99,7 +100,7 @@ locals {
     "srv-point-01" = {
       description = "Gestion des pointeuses biometriques"
       os          = "windows"
-      vcpu        = 2
+      vcpu        = 4
       memoire_mo  = 4096
       disque_go   = 50
       vlan        = "servers"
@@ -108,11 +109,12 @@ locals {
     }
 
     # Centreon publie 4 vCPU et 8 Go pour une production. Six machines
-    # supervisees en demandent moitie moins.
+    # supervisees en demandent moitie moins. Seule machine sous Debian :
+    # Centreon ne publie aucun depot pour Ubuntu.
     "sup-centreon-01" = {
       description = "Supervision Centreon"
-      os          = "ubuntu"
-      vcpu        = 2
+      os          = "debian"
+      vcpu        = 4
       memoire_mo  = 4096
       disque_go   = 40
       vlan        = "mgmt"
@@ -125,7 +127,7 @@ locals {
   parefeux = {
     "fw-forti-01" = {
       description = "Pare-feu peripherique"
-      vcpu        = 1
+      vcpu        = 2
       memoire_mo  = 2048
       disque_go   = 40
       image       = var.image_fortios
@@ -137,7 +139,7 @@ locals {
 
     "fw-palo-01" = {
       description = "Pare-feu interne, routage inter-VLAN"
-      vcpu        = 2
+      vcpu        = 4
       memoire_mo  = 8192
       disque_go   = 60
       image       = var.image_panos
@@ -149,6 +151,11 @@ locals {
   }
 
   serveurs_ubuntu = { for nom, s in local.serveurs : nom => s if s.os == "ubuntu" }
+  serveurs_debian = { for nom, s in local.serveurs : nom => s if s.os == "debian" }
+
+  # Meme module, meme cloud-init : seule l'image de base differe. Sans
+  # image_debian renseignee, ces machines retombent sur la base Ubuntu.
+  serveurs_linux = merge(local.serveurs_ubuntu, local.serveurs_debian)
 
   # Sans gabarit Windows, ces machines sont ignorees et le reste se deploie.
   serveurs_windows = trimspace(var.image_windows) != "" ? {
@@ -166,11 +173,15 @@ locals {
 
   ip_supervision = one([for nom, s in local.serveurs : s.ip if s.groupe == "supervision"])
 
+  # Seules les machines reellement creees entrent dans l'inventaire. Sans ce
+  # filtre, Ansible tenterait de joindre les machines Windows non deployees.
+  serveurs_deployes = merge(local.serveurs_linux, local.serveurs_windows)
+
   groupes_serveurs = {
-    for groupe in distinct([for s in local.serveurs : s.groupe]) :
+    for groupe in distinct([for s in local.serveurs_deployes : s.groupe]) :
     groupe => {
       hosts = {
-        for nom, s in local.serveurs : nom => { ansible_host = s.ip }
+        for nom, s in local.serveurs_deployes : nom => { ansible_host = s.ip }
         if s.groupe == groupe
       }
     }
@@ -179,9 +190,9 @@ locals {
   # Groupes de systeme : ils portent le mode de connexion, pas les roles.
   # Chaque machine appartient a son groupe de role et a celui-ci.
   groupes_os = merge(
-    length(local.serveurs_ubuntu) > 0 ? {
+    length(local.serveurs_linux) > 0 ? {
       linux = {
-        hosts = { for nom, s in local.serveurs_ubuntu : nom => { ansible_host = s.ip } }
+        hosts = { for nom, s in local.serveurs_linux : nom => { ansible_host = s.ip } }
         vars = {
           ansible_python_interpreter = "/usr/bin/python3"
           ansible_become             = true
@@ -193,8 +204,16 @@ locals {
         hosts = { for nom, s in local.serveurs_windows : nom => { ansible_host = s.ip } }
         vars = {
           # Sans shell_type, Ansible enverrait du bash et echouerait en silence.
+          # C'est aussi lui qui fait preferer les modules .ps1 et qui active le
+          # pipelining force du plugin ssh, lequel evite un pseudo-terminal dont
+          # les fins de ligne corrompraient le JSON rendu par PowerShell.
           ansible_shell_type = "powershell"
-          ansible_become     = false
+          # Valeur par defaut en 2.16, declaree pour rester juste si un jour
+          # ansible.cfg ou l'environnement imposait un autre transport.
+          ansible_connection = "ssh"
+          # Si become devait un jour passer a true ici, il faudrait imperativement
+          # ansible_become_method = "runas" : le sudo global ne s'applique pas.
+          ansible_become = false
         }
       }
     } : {}
