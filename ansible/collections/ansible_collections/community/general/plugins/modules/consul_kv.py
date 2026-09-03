@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2015, Steve Gargan <steve.gargan@gmail.com>
 # Copyright (c) 2018 Genome Research Ltd.
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: consul_kv
@@ -16,21 +19,19 @@ description:
   - If the O(key) represents a prefix then note that when a value is removed, the existing value if any is returned as part
     of the results.
   - See http://www.consul.io/docs/agent/http.html#kv for more details.
+requirements:
+  - py-consul
+  - requests
 author:
   - Steve Gargan (@sgargan)
   - Colin Nolan (@colin-nolan)
 extends_documentation_fragment:
-  - community.general._consul
-  - community.general._consul.actiongroup_consul
-  - community.general._consul.token
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
   diff_mode:
     support: none
-  action_group:
-    version_added: 13.2.0
 options:
   state:
     description:
@@ -66,6 +67,10 @@ options:
     description:
       - The session that should be used to acquire or release a lock associated with a key/value pair.
     type: str
+  token:
+    description:
+      - The token key identifying an ACL rule set that controls access to the key value pair.
+    type: str
   cas:
     description:
       - Used when acquiring a lock with a session. If the O(cas) is V(0), then Consul only puts the key if it does not already
@@ -75,6 +80,26 @@ options:
     description:
       - Opaque positive integer value that can be passed when setting a value.
     type: str
+  host:
+    description:
+      - Host of the Consul agent.
+    type: str
+    default: localhost
+  port:
+    description:
+      - The port on which the Consul agent is running.
+    type: int
+    default: 8500
+  scheme:
+    description:
+      - The protocol scheme on which the Consul agent is running.
+    type: str
+    default: http
+  validate_certs:
+    description:
+      - Whether to verify the tls certificate of the Consul agent.
+    type: bool
+    default: true
   datacenter:
     description:
       - The name of the datacenter to query. If unspecified, the query defaults to the datacenter of the Consul agent on O(host).
@@ -114,203 +139,194 @@ EXAMPLES = r"""
     state: acquire
 """
 
-import base64
-from http import HTTPStatus
-from urllib.parse import quote
-
-from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.text.converters import to_text
 
-from ansible_collections.community.general.plugins.module_utils._consul import (
-    AUTH_ARGUMENTS_SPEC,
-    RequestError,
-    _ConsulModule,
-)
+try:
+    import consul
+    from requests.exceptions import ConnectionError
+    python_consul_installed = True
+except ImportError:
+    python_consul_installed = False
+
+from ansible.module_utils.basic import AnsibleModule
+
+# Note: although the py-consul implementation implies that using a key with a value of `None` with `put` has a special
+# meaning (https://github.com/criteo/py-consul/blob/master/consul/api/kv.py), if not set in the subsequently API call,
+# the value just defaults to an empty string (https://www.consul.io/api/kv.html#create-update-key)
+NOT_SET = None
 
 
-def _decode_value(entry):
-    if entry.get("Value") is not None:
-        entry["Value"] = base64.b64decode(entry["Value"])
-
-
-def _quote_key(key):
-    # KV keys may contain characters that are not valid in a URL path
-    # (spaces, non-ASCII, ...). Slashes are key separators and must stay raw.
-    return quote(key, safe="/")
-
-
-def _kv_get(consul_module, key, recurse=False, dc=None):
-    params = {"dc": dc}
-    if recurse:
-        params["recurse"] = "true"
-    try:
-        body, headers = consul_module.request("GET", ("kv", _quote_key(key)), params=params)
-    except RequestError as e:
-        if e.status == HTTPStatus.NOT_FOUND:
-            index = e.response_headers.get("X-Consul-Index") if e.response_headers else None
-            return index, None
-        raise
-    index = headers.get("X-Consul-Index") if headers is not None else None
-    if not body:
-        return index, None
-    for entry in body:
-        _decode_value(entry)
-    if recurse:
-        return index, body
-    return index, body[0]
-
-
-def _kv_put(consul_module, key, value, cas=None, acquire=None, release=None, flags=None, dc=None):
-    params = {"cas": cas, "acquire": acquire, "release": release, "flags": flags, "dc": dc}
-    if value is not None:
-        value = value.encode("utf-8")
-    return consul_module.put(("kv", _quote_key(key)), data=value, params=params) is True
-
-
-def _kv_delete(consul_module, key, recurse=False, dc=None):
-    params = {"dc": dc}
-    if recurse:
-        params["recurse"] = "true"
-    return consul_module.delete(("kv", _quote_key(key)), params=params) is True
-
-
-def _has_value_changed(consul_module, key, target_value):
-    index, existing = _kv_get(consul_module, key)
+def _has_value_changed(consul_client, key, target_value):
+    """
+    Uses the given Consul client to determine if the value associated to the given key is different to the given target
+    value.
+    :param consul_client: Consul connected client
+    :param key: key in Consul
+    :param target_value: value to be associated to the key
+    :return: tuple where the first element is the value of the "X-Consul-Index" header and the second is `True` if the
+    value has changed (i.e. the stored value is not the target value)
+    """
+    index, existing = consul_client.kv.get(key)
     if not existing:
         return index, True
     try:
-        changed = to_text(existing["Value"], errors="surrogate_or_strict") != target_value
+        changed = to_text(existing['Value'], errors='surrogate_or_strict') != target_value
         return index, changed
     except UnicodeError:
         # Existing value was not decodable but all values we set are valid utf-8
         return index, True
 
 
-def execute(module, consul_module):
-    state = module.params["state"]
+def execute(module):
+    state = module.params.get('state')
 
-    if state == "acquire" or state == "release":
-        lock(module, consul_module, state)
-    elif state == "present":
-        if module.params["value"] is None:
-            get_value(module, consul_module)
+    if state == 'acquire' or state == 'release':
+        lock(module, state)
+    elif state == 'present':
+        if module.params.get('value') is NOT_SET:
+            get_value(module)
         else:
-            set_value(module, consul_module)
-    elif state == "absent":
-        remove_value(module, consul_module)
+            set_value(module)
+    elif state == 'absent':
+        remove_value(module)
     else:
-        module.exit_json(msg=f"Unsupported state: {state}")
+        module.exit_json(msg="Unsupported state: %s" % (state, ))
 
 
-def lock(module, consul_module, state):
-    session = module.params["session"]
-    key = module.params["key"]
-    value = module.params["value"]
-    dc = module.params["datacenter"]
+def lock(module, state):
+
+    consul_api = get_consul_api(module)
+
+    session = module.params.get('session')
+    key = module.params.get('key')
+    value = module.params.get('value')
 
     if not session:
-        module.fail_json(msg=f"{state} of lock for {key} requested but no session supplied")
+        module.fail(
+            msg='%s of lock for %s requested but no session supplied' %
+            (state, key))
 
-    index, changed = _has_value_changed(consul_module, key, value)
+    index, changed = _has_value_changed(consul_api, key, value)
 
     if changed and not module.check_mode:
-        kwargs = {
-            "cas": module.params["cas"],
-            "flags": module.params["flags"],
-            "dc": dc,
-        }
-        if state == "acquire":
-            kwargs["acquire"] = session
+        if state == 'acquire':
+            changed = consul_api.kv.put(key, value,
+                                        cas=module.params.get('cas'),
+                                        acquire=session,
+                                        flags=module.params.get('flags'))
         else:
-            kwargs["release"] = session
-        changed = _kv_put(consul_module, key, value, **kwargs)
+            changed = consul_api.kv.put(key, value,
+                                        cas=module.params.get('cas'),
+                                        release=session,
+                                        flags=module.params.get('flags'))
 
-    module.exit_json(changed=changed, index=index, key=key)
-
-
-def get_value(module, consul_module):
-    key = module.params["key"]
-    index, existing = _kv_get(
-        consul_module,
-        key,
-        recurse=module.params["recurse"],
-        dc=module.params["datacenter"],
-    )
-    module.exit_json(changed=False, index=index, data=existing)
+    module.exit_json(changed=changed,
+                     index=index,
+                     key=key)
 
 
-def set_value(module, consul_module):
-    key = module.params["key"]
-    value = module.params["value"]
-    dc = module.params["datacenter"]
+def get_value(module):
+    consul_api = get_consul_api(module)
+    key = module.params.get('key')
 
-    if value is None:
-        raise AssertionError(f'Cannot set value of "{key}" to None')
+    index, existing_value = consul_api.kv.get(key, recurse=module.params.get('recurse'))
 
-    index, changed = _has_value_changed(consul_module, key, value)
+    module.exit_json(changed=False, index=index, data=existing_value)
+
+
+def set_value(module):
+    consul_api = get_consul_api(module)
+
+    key = module.params.get('key')
+    value = module.params.get('value')
+
+    if value is NOT_SET:
+        raise AssertionError('Cannot set value of "%s" to `NOT_SET`' % key)
+
+    index, changed = _has_value_changed(consul_api, key, value)
 
     if changed and not module.check_mode:
-        changed = _kv_put(
-            consul_module,
-            key,
-            value,
-            cas=module.params["cas"],
-            flags=module.params["flags"],
-            dc=dc,
-        )
+        changed = consul_api.kv.put(key, value,
+                                    cas=module.params.get('cas'),
+                                    flags=module.params.get('flags'))
 
     stored = None
-    if module.params["retrieve"]:
-        index, stored = _kv_get(consul_module, key, dc=dc)
+    if module.params.get('retrieve'):
+        index, stored = consul_api.kv.get(key)
 
-    module.exit_json(changed=changed, index=index, key=key, data=stored)
+    module.exit_json(changed=changed,
+                     index=index,
+                     key=key,
+                     data=stored)
 
 
-def remove_value(module, consul_module):
-    """Remove the value associated with the given key. If the recurse parameter
-    is set then any key prefixed with the given key will be removed."""
-    key = module.params["key"]
-    dc = module.params["datacenter"]
-    recurse = module.params["recurse"]
+def remove_value(module):
+    ''' remove the value associated with the given key. if the recurse parameter
+     is set then any key prefixed with the given key will be removed. '''
+    consul_api = get_consul_api(module)
 
-    index, existing = _kv_get(consul_module, key, recurse=recurse, dc=dc)
+    key = module.params.get('key')
+
+    index, existing = consul_api.kv.get(
+        key, recurse=module.params.get('recurse'))
 
     changed = existing is not None
     if changed and not module.check_mode:
-        _kv_delete(consul_module, key, recurse=recurse, dc=dc)
+        consul_api.kv.delete(key, module.params.get('recurse'))
 
-    module.exit_json(changed=changed, index=index, key=key, data=existing)
+    module.exit_json(changed=changed,
+                     index=index,
+                     key=key,
+                     data=existing)
+
+
+def get_consul_api(module):
+    return consul.Consul(host=module.params.get('host'),
+                         port=module.params.get('port'),
+                         scheme=module.params.get('scheme'),
+                         verify=module.params.get('validate_certs'),
+                         token=module.params.get('token'),
+                         dc=module.params.get('datacenter'))
+
+
+def test_dependencies(module):
+    if not python_consul_installed:
+        module.fail_json(msg="python-consul required for this module. "
+                             "see https://python-consul.readthedocs.io/en/latest/#installation")
 
 
 def main():
+
     module = AnsibleModule(
         argument_spec=dict(
-            cas=dict(type="str"),
-            datacenter=dict(type="str"),
-            flags=dict(type="str"),
-            key=dict(type="str", required=True, no_log=False),
-            recurse=dict(type="bool"),
-            retrieve=dict(type="bool", default=True),
-            state=dict(type="str", default="present", choices=["absent", "acquire", "present", "release"]),
-            value=dict(type="str"),
-            session=dict(type="str"),
-            **AUTH_ARGUMENTS_SPEC,
+            cas=dict(type='str'),
+            datacenter=dict(type='str'),
+            flags=dict(type='str'),
+            key=dict(type='str', required=True, no_log=False),
+            host=dict(type='str', default='localhost'),
+            scheme=dict(type='str', default='http'),
+            validate_certs=dict(type='bool', default=True),
+            port=dict(type='int', default=8500),
+            recurse=dict(type='bool'),
+            retrieve=dict(type='bool', default=True),
+            state=dict(type='str', default='present', choices=['absent', 'acquire', 'present', 'release']),
+            token=dict(type='str', no_log=True),
+            value=dict(type='str', default=NOT_SET),
+            session=dict(type='str'),
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
-    consul_module = _ConsulModule(module)
+
+    test_dependencies(module)
 
     try:
-        execute(module, consul_module)
-    except RequestError as e:
-        body = e.response_data
-        if isinstance(body, bytes):
-            body = body.decode("utf-8", errors="replace")
-        body = (body or "").strip()
-        module.fail_json(msg=body or f"HTTP {e.status}")
+        execute(module)
+    except ConnectionError as e:
+        module.fail_json(msg='Could not connect to consul agent at %s:%s, error was %s' % (
+            module.params.get('host'), module.params.get('port'), e))
     except Exception as e:
         module.fail_json(msg=str(e))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

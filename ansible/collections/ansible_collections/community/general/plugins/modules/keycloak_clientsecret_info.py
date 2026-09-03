@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2022, Fynn Chen <ethan.cfchen@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: keycloak_clientsecret_info
@@ -49,10 +52,10 @@ options:
 
 
 extends_documentation_fragment:
-  - community.general._keycloak
-  - community.general._keycloak.actiongroup_keycloak
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.keycloak
+  - community.general.keycloak.actiongroup_keycloak
+  - community.general.attributes
+  - community.general.attributes.info_module
 
 author:
   - Fynn Chen (@fynncfchen)
@@ -104,6 +107,11 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
+msg:
+  description: Textual description of whether we succeeded or failed.
+  returned: always
+  type: str
+
 clientsecret_info:
   description: Representation of the client secret.
   returned: on success
@@ -121,15 +129,10 @@ clientsecret_info:
       sample: cUGnX1EIeTtPPAkcyGMv0ncyqDPu68P1
 """
 
-from ansible_collections.community.general.plugins.module_utils._keycloak import (
-    KeycloakAPI,
-    KeycloakError,
-    get_token,
-)
-from ansible_collections.community.general.plugins.module_utils._keycloak_clientsecret import (
-    keycloak_clientsecret_module,
-    keycloak_clientsecret_module_resolve_params,
-)
+from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+    KeycloakAPI, KeycloakError, get_token)
+from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak_clientsecret import (
+    keycloak_clientsecret_module, keycloak_clientsecret_module_resolve_params)
 
 
 def main():
@@ -153,10 +156,13 @@ def main():
 
     clientsecret = kc.get_clientsecret(id=id, realm=realm)
 
-    result = {"clientsecret_info": clientsecret, "msg": f"Get client secret successful for ID {id}"}
+    result = {
+        'clientsecret_info': clientsecret,
+        'msg': 'Get client secret successful for ID {id}'.format(id=id)
+    }
 
     module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

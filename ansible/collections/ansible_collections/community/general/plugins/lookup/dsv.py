@@ -1,7 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Adam Migus <adam@migus.org>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: dsv
@@ -85,8 +88,6 @@ EXAMPLES = r"""
 
 from ansible.errors import AnsibleError, AnsibleOptionsError
 
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
-
 sdk_is_missing = False
 
 try:
@@ -97,8 +98,9 @@ try:
 except ImportError:
     sdk_is_missing = True
 
-from ansible.plugins.lookup import LookupBase
 from ansible.utils.display import Display
+from ansible.plugins.lookup import LookupBase
+
 
 display = Display()
 
@@ -109,15 +111,14 @@ class LookupModule(LookupBase):
         try:
             vault = SecretsVault(**vault_parameters)
             return vault
-        except TypeError as e:
-            raise AnsibleError("python-dsv-sdk==0.0.1 must be installed to use this plugin") from e
+        except TypeError:
+            raise AnsibleError("python-dsv-sdk==0.0.1 must be installed to use this plugin")
 
     def run(self, terms, variables, **kwargs):
         if sdk_is_missing:
             raise AnsibleError("python-dsv-sdk==0.0.1 must be installed to use this plugin")
 
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
         vault = LookupModule.Client(
             {
@@ -141,5 +142,7 @@ class LookupModule(LookupBase):
                 display.vvv(f"DevOps Secrets Vault GET /secrets/{path}")
                 result.append(vault.get_secret_json(path))
             except SecretsVaultError as error:
-                raise AnsibleError(f"DevOps Secrets Vault lookup failure: {error.message}") from error
+                raise AnsibleError(
+                    f"DevOps Secrets Vault lookup failure: {error.message}"
+                )
         return result

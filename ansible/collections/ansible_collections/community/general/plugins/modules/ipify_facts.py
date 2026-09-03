@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2015, René Moser <mail@renemoser.net>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: ipify_facts
@@ -14,9 +17,9 @@ description:
 author:
   - René Moser (@resmo)
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.facts
-  - community.general._attributes.facts_module
+  - community.general.attributes
+  - community.general.attributes.facts
+  - community.general.attributes.facts_module
 options:
   api_url:
     description:
@@ -51,41 +54,37 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-ansible_facts:
-  description: The returned facts.
+ipify_public_ip:
+  description: Public IP of the internet gateway.
   returned: success
-  type: dict
-  contains:
-    ipify_public_ip:
-      description: Public IP of the internet gateway.
-      returned: success
-      type: str
-      sample: 1.2.3.4
+  type: str
+  sample: 1.2.3.4
 """
 
 import json
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.urls import fetch_url
+from ansible.module_utils.common.text.converters import to_text
 
 
-class IpifyFacts:
+class IpifyFacts(object):
+
     def __init__(self):
-        self.api_url = module.params.get("api_url")
-        self.timeout = module.params.get("timeout")
+        self.api_url = module.params.get('api_url')
+        self.timeout = module.params.get('timeout')
 
     def run(self):
-        result = {"ipify_public_ip": None}
-        (response, info) = fetch_url(module=module, url=f"{self.api_url}?format=json", force=True, timeout=self.timeout)
+        result = {
+            'ipify_public_ip': None
+        }
+        (response, info) = fetch_url(module=module, url=self.api_url + "?format=json", force=True, timeout=self.timeout)
 
         if not response:
-            module.fail_json(
-                msg=f"No valid or no response from url {self.api_url} within {self.timeout} seconds (timeout)"
-            )
+            module.fail_json(msg="No valid or no response from url %s within %s seconds (timeout)" % (self.api_url, self.timeout))
 
         data = json.loads(to_text(response.read()))
-        result["ipify_public_ip"] = data.get("ip")
+        result['ipify_public_ip'] = data.get('ip')
         return result
 
 
@@ -93,9 +92,9 @@ def main():
     global module
     module = AnsibleModule(
         argument_spec=dict(
-            api_url=dict(type="str", default="https://api.ipify.org/"),
-            timeout=dict(type="int", default=10),
-            validate_certs=dict(type="bool", default=True),
+            api_url=dict(type='str', default='https://api.ipify.org/'),
+            timeout=dict(type='int', default=10),
+            validate_certs=dict(type='bool', default=True),
         ),
         supports_check_mode=True,
     )
@@ -105,5 +104,5 @@ def main():
     module.exit_json(**ipify_facts_result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

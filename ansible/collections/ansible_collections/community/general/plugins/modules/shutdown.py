@@ -1,9 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: shutdown
@@ -17,8 +20,8 @@ description:
   - Shut downs a machine.
 version_added: "1.1.0"
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.flow
+  - community.general.attributes
+  - community.general.attributes.flow
 attributes:
   check_mode:
     support: full

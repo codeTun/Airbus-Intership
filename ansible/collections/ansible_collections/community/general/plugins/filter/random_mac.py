@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2020 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -47,29 +48,31 @@ from ansible.errors import AnsibleFilterError
 
 
 def random_mac(value, seed=None):
-    """takes string prefix, and return it completed with random bytes
-    to get a complete 6 bytes MAC address"""
+    ''' takes string prefix, and return it completed with random bytes
+        to get a complete 6 bytes MAC address '''
 
     if not isinstance(value, str):
-        raise AnsibleFilterError(f"Invalid value type ({type(value)}) for random_mac ({value})")
+        raise AnsibleFilterError('Invalid value type (%s) for random_mac (%s)' %
+                                 (type(value), value))
 
     value = value.lower()
-    mac_items = value.split(":")
+    mac_items = value.split(':')
 
     if len(mac_items) > 5:
-        raise AnsibleFilterError(f"Invalid value ({value}) for random_mac: 5 colon(:) separated items max")
+        raise AnsibleFilterError('Invalid value (%s) for random_mac: 5 colon(:) separated'
+                                 ' items max' % value)
 
     err = ""
     for mac in mac_items:
         if not mac:
             err += ",empty item"
             continue
-        if not re.match("[a-f0-9]{2}", mac):
-            err += f",{mac} not hexa byte"
-    err = err.strip(",")
+        if not re.match('[a-f0-9]{2}', mac):
+            err += ",%s not hexa byte" % mac
+    err = err.strip(',')
 
     if err:
-        raise AnsibleFilterError(f"Invalid value ({value}) for random_mac: {err}")
+        raise AnsibleFilterError('Invalid value (%s) for random_mac: %s' % (value, err))
 
     if seed is None:
         r = SystemRandom()
@@ -79,14 +82,13 @@ def random_mac(value, seed=None):
     v = r.randint(68719476736, 1099511627775)
     # Select first n chars to complement input prefix
     remain = 2 * (6 - len(mac_items))
-    rnd = f"{v:x}"[:remain]
-    return value + re.sub(r"(..)", r":\1", rnd)
+    rnd = ('%x' % v)[:remain]
+    return value + re.sub(r'(..)', r':\1', rnd)
 
 
 class FilterModule:
-    """Ansible jinja2 filters"""
-
+    ''' Ansible jinja2 filters '''
     def filters(self):
         return {
-            "random_mac": random_mac,
+            'random_mac': random_mac,
         }

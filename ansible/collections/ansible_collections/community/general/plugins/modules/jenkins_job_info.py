@@ -1,11 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) Ansible Project
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: jenkins_job_info
@@ -15,8 +17,8 @@ description:
 requirements:
   - "python-jenkins >= 0.4.12"
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 options:
   name:
     type: str
@@ -137,20 +139,20 @@ jobs:
     ]
 """
 
-import fnmatch
 import ssl
+import fnmatch
 import traceback
 
 JENKINS_IMP_ERR = None
 try:
     import jenkins
-
     HAS_JENKINS = True
 except ImportError:
     JENKINS_IMP_ERR = traceback.format_exc()
     HAS_JENKINS = False
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible.module_utils.common.text.converters import to_native
 
 
 def get_jenkins_connection(module):
@@ -159,9 +161,12 @@ def get_jenkins_connection(module):
     password = module.params.get("password")
     token = module.params.get("token")
 
-    validate_certs = module.params.get("validate_certs")
-    if not validate_certs:
+    validate_certs = module.params.get('validate_certs')
+    if not validate_certs and hasattr(ssl, 'SSLContext'):
         ssl._create_default_https_context = ssl._create_unverified_context
+    if validate_certs and not hasattr(ssl, 'SSLContext'):
+        module.fail_json(msg="Module does not support changing verification mode with python < 2.7.9."
+                             " Either update Python or use validate_certs=false.")
 
     if username and (password or token):
         return jenkins.Jenkins(url, username, password or token)
@@ -174,33 +179,9 @@ def get_jenkins_connection(module):
 def test_dependencies(module):
     if not HAS_JENKINS:
         module.fail_json(
-            msg=missing_required_lib(
-                "python-jenkins", url="https://python-jenkins.readthedocs.io/en/latest/install.html"
-            ),
-            exception=JENKINS_IMP_ERR,
-        )
-
-
-def filter_jobs_by_color(jobs, color):
-    """Return jobs matching the given Jenkins status color.
-
-    Folder jobs may not have a top-level color; nested jobs are checked
-    recursively and the folder is kept when any child matches.
-    """
-    filtered = []
-    for job in jobs:
-        if job.get("color") == color:
-            filtered.append(job)
-            continue
-        nested = job.get("jobs")
-        if not nested:
-            continue
-        nested_filtered = filter_jobs_by_color(nested, color)
-        if nested_filtered:
-            folder = job.copy()
-            folder["jobs"] = nested_filtered
-            filtered.append(folder)
-    return filtered
+            msg=missing_required_lib("python-jenkins",
+                                     url="https://python-jenkins.readthedocs.io/en/latest/install.html"),
+            exception=JENKINS_IMP_ERR)
 
 
 def get_jobs(module):
@@ -212,19 +193,19 @@ def get_jobs(module):
         except jenkins.NotFoundException:
             pass
         else:
-            job = {
+            jobs.append({
                 "name": job_info["name"],
                 "fullname": job_info["fullName"],
                 "url": job_info["url"],
-            }
-            if "color" in job_info:
-                job["color"] = job_info["color"]
-            jobs.append(job)
+                "color": job_info["color"]
+            })
 
     else:
         all_jobs = jenkins_conn.get_all_jobs()
         if module.params.get("glob"):
-            jobs.extend(j for j in all_jobs if fnmatch.fnmatch(j["fullname"], module.params.get("glob")))
+            jobs.extend(
+                j for j in all_jobs
+                if fnmatch.fnmatch(j["fullname"], module.params.get("glob")))
         else:
             jobs = all_jobs
         # python-jenkins includes the internal Jenkins class used for each job
@@ -235,8 +216,8 @@ def get_jobs(module):
             if "_class" in job:
                 del job["_class"]
 
-    if module.params["color"]:
-        jobs = filter_jobs_by_color(jobs, module.params["color"])
+    if module.params.get("color"):
+        jobs = [j for j in jobs if j["color"] == module.params.get("color")]
 
     return jobs
 
@@ -244,18 +225,18 @@ def get_jobs(module):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type="str"),
-            glob=dict(type="str"),
-            color=dict(type="str"),
-            password=dict(type="str", no_log=True),
-            token=dict(type="str", no_log=True),
-            url=dict(type="str", default="http://localhost:8080"),
-            user=dict(type="str"),
-            validate_certs=dict(type="bool", default=True),
+            name=dict(type='str'),
+            glob=dict(type='str'),
+            color=dict(type='str'),
+            password=dict(type='str', no_log=True),
+            token=dict(type='str', no_log=True),
+            url=dict(type='str', default="http://localhost:8080"),
+            user=dict(type='str'),
+            validate_certs=dict(type='bool', default=True),
         ),
         mutually_exclusive=[
-            ["password", "token"],
-            ["name", "glob"],
+            ['password', 'token'],
+            ['name', 'glob'],
         ],
         supports_check_mode=True,
     )
@@ -266,10 +247,12 @@ def main():
     try:
         jobs = get_jobs(module)
     except jenkins.JenkinsException as err:
-        module.fail_json(msg=f"Unable to connect to Jenkins server, {err}", exception=traceback.format_exc())
+        module.fail_json(
+            msg='Unable to connect to Jenkins server, %s' % to_native(err),
+            exception=traceback.format_exc())
 
     module.exit_json(changed=False, jobs=jobs)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

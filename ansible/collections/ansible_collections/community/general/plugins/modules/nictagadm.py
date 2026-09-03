@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2018, Bruce Smith <Bruce.Smith.IT@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: nictagadm
@@ -14,7 +16,7 @@ description:
 author:
   - Bruce Smith (@SmithX10)
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -106,51 +108,52 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.network import is_mac
 
 
-class NicTag:
+class NicTag(object):
+
     def __init__(self, module):
         self.module = module
 
-        self.name = module.params["name"]
-        self.mac = module.params["mac"]
-        self.etherstub = module.params["etherstub"]
-        self.mtu = module.params["mtu"]
-        self.force = module.params["force"]
-        self.state = module.params["state"]
+        self.name = module.params['name']
+        self.mac = module.params['mac']
+        self.etherstub = module.params['etherstub']
+        self.mtu = module.params['mtu']
+        self.force = module.params['force']
+        self.state = module.params['state']
 
-        self.nictagadm_bin = self.module.get_bin_path("nictagadm", True)
+        self.nictagadm_bin = self.module.get_bin_path('nictagadm', True)
 
     def is_valid_mac(self):
         return is_mac(self.mac.lower())
 
     def nictag_exists(self):
-        cmd = [self.nictagadm_bin, "exists", self.name]
+        cmd = [self.nictagadm_bin, 'exists', self.name]
         (rc, dummy, dummy) = self.module.run_command(cmd)
 
         return rc == 0
 
     def add_nictag(self):
-        cmd = [self.nictagadm_bin, "-v", "add"]
+        cmd = [self.nictagadm_bin, '-v', 'add']
 
         if self.etherstub:
-            cmd.append("-l")
+            cmd.append('-l')
 
         if self.mtu:
-            cmd.append("-p")
-            cmd.append(f"mtu={self.mtu}")
+            cmd.append('-p')
+            cmd.append('mtu=' + str(self.mtu))
 
         if self.mac:
-            cmd.append("-p")
-            cmd.append(f"mac={self.mac}")
+            cmd.append('-p')
+            cmd.append('mac=' + str(self.mac))
 
         cmd.append(self.name)
 
         return self.module.run_command(cmd)
 
     def delete_nictag(self):
-        cmd = [self.nictagadm_bin, "-v", "delete"]
+        cmd = [self.nictagadm_bin, '-v', 'delete']
 
         if self.force:
-            cmd.append("-f")
+            cmd.append('-f')
 
         cmd.append(self.name)
 
@@ -160,29 +163,29 @@ class NicTag:
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type="str", required=True),
-            mac=dict(type="str"),
-            etherstub=dict(type="bool", default=False),
-            mtu=dict(type="int"),
-            force=dict(type="bool", default=False),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
+            name=dict(type='str', required=True),
+            mac=dict(type='str'),
+            etherstub=dict(type='bool', default=False),
+            mtu=dict(type='int'),
+            force=dict(type='bool', default=False),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
         ),
         mutually_exclusive=[
-            ["etherstub", "mac"],
-            ["etherstub", "mtu"],
+            ['etherstub', 'mac'],
+            ['etherstub', 'mtu'],
         ],
         required_if=[
-            ["etherstub", False, ["name", "mac"]],
-            ["state", "absent", ["name", "force"]],
+            ['etherstub', False, ['name', 'mac']],
+            ['state', 'absent', ['name', 'force']],
         ],
-        supports_check_mode=True,
+        supports_check_mode=True
     )
 
     nictag = NicTag(module)
 
     rc = None
-    out = ""
-    err = ""
+    out = ''
+    err = ''
     result = dict(
         changed=False,
         etherstub=nictag.etherstub,
@@ -193,17 +196,20 @@ def main():
         state=nictag.state,
     )
 
-    if not nictag.etherstub and not nictag.is_valid_mac():
-        module.fail_json(msg="Invalid MAC Address Value", name=nictag.name, mac=nictag.mac, etherstub=nictag.etherstub)
+    if not nictag.is_valid_mac():
+        module.fail_json(msg='Invalid MAC Address Value',
+                         name=nictag.name,
+                         mac=nictag.mac,
+                         etherstub=nictag.etherstub)
 
-    if nictag.state == "absent":
+    if nictag.state == 'absent':
         if nictag.nictag_exists():
             if module.check_mode:
                 module.exit_json(changed=True)
             (rc, out, err) = nictag.delete_nictag()
             if rc != 0:
                 module.fail_json(name=nictag.name, msg=err, rc=rc)
-    elif nictag.state == "present":
+    elif nictag.state == 'present':
         if not nictag.nictag_exists():
             if module.check_mode:
                 module.exit_json(changed=True)
@@ -212,14 +218,14 @@ def main():
                 module.fail_json(name=nictag.name, msg=err, rc=rc)
 
     if rc is not None:
-        result["changed"] = True
+        result['changed'] = True
     if out:
-        result["stdout"] = out
+        result['stdout'] = out
     if err:
-        result["stderr"] = err
+        result['stderr'] = err
 
     module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

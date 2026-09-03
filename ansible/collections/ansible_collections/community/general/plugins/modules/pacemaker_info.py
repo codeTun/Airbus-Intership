@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2025, Dexter Le <dextersydney2001@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: pacemaker_info
@@ -15,8 +17,8 @@ version_added: 11.2.0
 description:
   - Gather information about a Pacemaker cluster.
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -58,8 +60,8 @@ property_info:
 
 import json
 
-from ansible_collections.community.general.plugins.module_utils._module_helper import ModuleHelper
-from ansible_collections.community.general.plugins.module_utils._pacemaker import pacemaker_runner
+from ansible_collections.community.general.plugins.module_utils.module_helper import ModuleHelper
+from ansible_collections.community.general.plugins.module_utils.pacemaker import pacemaker_runner
 
 
 class PacemakerInfo(ModuleHelper):
@@ -72,9 +74,9 @@ class PacemakerInfo(ModuleHelper):
         "resource_info": "resource",
         "stonith_info": "stonith",
         "constraint_info": "constraint",
-        "property_info": "property",
+        "property_info": "property"
     }
-    output_params = list(info_vars.keys())
+    output_params = info_vars.keys()
 
     def __init_module__(self):
         self.runner = pacemaker_runner(self.module)
@@ -85,16 +87,13 @@ class PacemakerInfo(ModuleHelper):
     def _process_command_output(self, cli_action=""):
         def process(rc, out, err):
             if rc != 0:
-                self.do_raise(f"pcs {cli_action} config failed with error (rc={rc}): {err}")
+                self.do_raise('pcs {0} config failed with error (rc={1}): {2}'.format(cli_action, rc, err))
             out = json.loads(out)
             return None if out == "" else out
-
         return process
 
     def _get_info(self, cli_action):
-        with self.runner(
-            "cli_action config output_format", output_process=self._process_command_output(cli_action)
-        ) as ctx:
+        with self.runner("cli_action config output_format", output_process=self._process_command_output(cli_action)) as ctx:
             return ctx.run(cli_action=cli_action, output_format="json")
 
     def __run__(self):
@@ -106,5 +105,5 @@ def main():
     PacemakerInfo.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

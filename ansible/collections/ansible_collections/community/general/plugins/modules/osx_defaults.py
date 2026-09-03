@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2014, GeekChimp - Franck Nijhof <franck@geekchimp.com> (DO NOT CONTACT!)
 # Copyright (c) 2019, Ansible project
@@ -6,7 +7,8 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: osx_defaults
@@ -20,7 +22,7 @@ description:
     be maintained when the applications are not running (such as default font for new documents, or the position of an Info
     panel).
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -44,9 +46,8 @@ options:
   type:
     description:
       - The type of value to write.
-      - V(dict) has been added in community.general 12.5.0.
     type: str
-    choices: [array, bool, boolean, date, dict, float, int, integer, string]
+    choices: [array, bool, boolean, date, float, int, integer, string]
     default: string
   check_type:
     description:
@@ -60,15 +61,6 @@ options:
       - Add new elements to the array for a key which has an array as its value.
     type: bool
     default: false
-  dict_mode:
-    description:
-      - Defines the write behavior for O(type=dict) values.
-      - V(replace) writes the full dictionary, replacing any existing value.
-      - V(add) merges only the specified keys into the existing dictionary, leaving other keys untouched.
-    type: str
-    choices: [replace, add]
-    default: replace
-    version_added: "12.5.0"
   value:
     description:
       - The value to write.
@@ -137,16 +129,6 @@ EXAMPLES = r"""
       - en
       - nl
 
-- name: Setting a dict valued key
-  community.general.osx_defaults:
-    domain: com.apple.finder
-    key: FXInfoPanesExpanded
-    type: dict
-    value:
-      General: true
-      OpenWith: true
-      Privileges: true
-
 - name: Removing a key
   community.general.osx_defaults:
     domain: com.geekchimp.macable
@@ -154,13 +136,11 @@ EXAMPLES = r"""
     state: absent
 """
 
-import json
-import os
-import re
-import tempfile
 from datetime import datetime
+import re
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.six import binary_type, text_type
 
 
 # exceptions --------------------------------------------------------------- {{{
@@ -171,49 +151,38 @@ class OSXDefaultsException(Exception):
 
 # /exceptions -------------------------------------------------------------- }}}
 
-
 # class MacDefaults -------------------------------------------------------- {{{
-class OSXDefaults:
-    """Class to manage Mac OS user defaults"""
+class OSXDefaults(object):
+    """ Class to manage Mac OS user defaults """
 
     # init ---------------------------------------------------------------- {{{
     def __init__(self, module):
-        """Initialize this module. Finds 'defaults' executable and preps the parameters"""
+        """ Initialize this module. Finds 'defaults' executable and preps the parameters """
         # Initial var for storing current defaults value
         self.current_value = None
         self.module = module
-        self.domain = module.params["domain"]
-        self.host = module.params["host"]
-        self.key = module.params["key"]
-        self.check_type = module.params["check_type"]
-        self.type = module.params["type"]
-        self.array_add = module.params["array_add"]
-        self.dict_mode = module.params["dict_mode"]
-        self.value = module.params["value"]
-        self.state = module.params["state"]
-        self.path = module.params["path"]
+        self.domain = module.params['domain']
+        self.host = module.params['host']
+        self.key = module.params['key']
+        self.check_type = module.params['check_type']
+        self.type = module.params['type']
+        self.array_add = module.params['array_add']
+        self.value = module.params['value']
+        self.state = module.params['state']
+        self.path = module.params['path']
 
         # Try to find the defaults executable
         self.executable = self.module.get_bin_path(
-            "defaults",
+            'defaults',
             required=False,
-            opt_dirs=self.path.split(":"),
+            opt_dirs=self.path.split(':'),
         )
 
         if not self.executable:
             raise OSXDefaultsException("Unable to locate defaults executable.")
 
-        self.plutil = self.module.get_bin_path(
-            "plutil",
-            required=False,
-            opt_dirs=self.path.split(":"),
-        )
-
-        if self.type == "dict" and not self.plutil:
-            raise OSXDefaultsException("Unable to locate plutil executable (required for dict type).")
-
         # Ensure the value is the correct type
-        if self.state != "absent":
+        if self.state != 'absent':
             self.value = self._convert_type(self.type, self.value)
 
     # /init --------------------------------------------------------------- }}}
@@ -229,71 +198,57 @@ class OSXDefaults:
 
     @staticmethod
     def _convert_type(data_type, value):
-        """Converts value to given type"""
+        """ Converts value to given type """
         if data_type == "string":
             return str(value)
         elif data_type in ["bool", "boolean"]:
-            if isinstance(value, (bytes, str)):
+            if isinstance(value, (binary_type, text_type)):
                 value = value.lower()
             if value in [True, 1, "true", "1", "yes"]:
                 return True
             elif value in [False, 0, "false", "0", "no"]:
                 return False
-            raise OSXDefaultsException(f"Invalid boolean value: {value!r}")
+            raise OSXDefaultsException("Invalid boolean value: {0}".format(repr(value)))
         elif data_type == "date":
             try:
                 return datetime.strptime(value.split("+")[0].strip(), "%Y-%m-%d %H:%M:%S")
-            except ValueError as e:
-                raise OSXDefaultsException(f"Invalid date value: {value!r}. Required format yyy-mm-dd hh:mm:ss.") from e
+            except ValueError:
+                raise OSXDefaultsException(
+                    "Invalid date value: {0}. Required format yyy-mm-dd hh:mm:ss.".format(repr(value))
+                )
         elif data_type in ["int", "integer"]:
             if not OSXDefaults.is_int(value):
-                raise OSXDefaultsException(f"Invalid integer value: {value!r}")
+                raise OSXDefaultsException("Invalid integer value: {0}".format(repr(value)))
             return int(value)
         elif data_type == "float":
             try:
                 value = float(value)
-            except ValueError as e:
-                raise OSXDefaultsException(f"Invalid float value: {value!r}") from e
+            except ValueError:
+                raise OSXDefaultsException("Invalid float value: {0}".format(repr(value)))
             return value
         elif data_type == "array":
             if not isinstance(value, list):
                 raise OSXDefaultsException("Invalid value. Expected value to be an array")
             return value
-        elif data_type in ["dict", "dictionary"]:
-            if not isinstance(value, dict):
-                raise OSXDefaultsException("Invalid value. Expected value to be a dict")
-            return value
 
-        raise OSXDefaultsException(f"Type is not supported: {data_type}")
+        raise OSXDefaultsException('Type is not supported: {0}'.format(data_type))
 
     def _host_args(self):
-        """Returns a normalized list of commandline arguments based on the "host" attribute"""
+        """ Returns a normalized list of commandline arguments based on the "host" attribute """
         if self.host is None:
             return []
-        elif self.host == "currentHost":
-            return ["-currentHost"]
+        elif self.host == 'currentHost':
+            return ['-currentHost']
         else:
-            return ["-host", self.host]
+            return ['-host', self.host]
 
     def _base_command(self):
-        """Returns a list containing the "defaults" executable and any common base arguments"""
+        """ Returns a list containing the "defaults" executable and any common base arguments """
         return [self.executable] + self._host_args()
 
     @staticmethod
-    def _dict_value_to_args(key, val):
-        """Returns the [key, -type, value] tokens for a single dict entry when writing"""
-        if isinstance(val, bool):
-            return [key, "-bool", "TRUE" if val else "FALSE"]
-        elif isinstance(val, int):
-            return [key, "-int", str(val)]
-        elif isinstance(val, float):
-            return [key, "-float", str(val)]
-        else:
-            return [key, "-string", str(val)]
-
-    @staticmethod
     def _convert_defaults_str_to_list(value):
-        """Converts array output from defaults to an list"""
+        """ Converts array output from defaults to an list """
         # Split output of defaults. Every line contains a value
         value = value.splitlines()
 
@@ -302,7 +257,7 @@ class OSXDefaults:
         value.pop(-1)
 
         # Remove spaces at beginning and comma (,) at the end, unquote and unescape double quotes
-        value = [re.sub('^ *"?|"?,? *$', "", x.replace('\\"', '"')) for x in value]
+        value = [re.sub('^ *"?|"?,? *$', '', x.replace('\\"', '"')) for x in value]
 
         return value
 
@@ -310,7 +265,7 @@ class OSXDefaults:
 
     # commands ------------------------------------------------------------ {{{
     def read(self):
-        """Reads value of this domain & key from defaults"""
+        """ Reads value of this domain & key from defaults """
         # First try to find out the type
         rc, out, err = self.module.run_command(self._base_command() + ["read-type", self.domain, self.key])
 
@@ -320,10 +275,10 @@ class OSXDefaults:
 
         # If the RC is not 0, then terrible happened! Ooooh nooo!
         if rc != 0:
-            raise OSXDefaultsException(f"An error occurred while reading key type from defaults: {err}")
+            raise OSXDefaultsException("An error occurred while reading key type from defaults: %s" % err)
 
         # Ok, lets parse the type from output
-        data_type = out.strip().replace("Type is ", "")
+        data_type = out.strip().replace('Type is ', '')
 
         # Now get the current value
         rc, out, err = self.module.run_command(self._base_command() + ["read", self.domain, self.key])
@@ -333,48 +288,17 @@ class OSXDefaults:
 
         # A non zero RC at this point is kinda strange...
         if rc != 0:
-            raise OSXDefaultsException(f"An error occurred while reading key value from defaults: {err}")
+            raise OSXDefaultsException("An error occurred while reading key value from defaults: %s" % err)
 
         # Convert string to list when type is array
         if data_type == "array":
             out = self._convert_defaults_str_to_list(out)
-        elif data_type == "dictionary":
-            # Export domain plist to a temp file and use plutil -extract for type-preserving JSON conversion.
-            # Reading via 'defaults read' loses boolean type info (booleans appear as 1/0 in old-style plist text).
-            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".plist")
-            os.close(tmp_fd)
-            try:
-                rc2, out2, err2 = self.module.run_command(self._base_command() + ["export", self.domain, tmp_path])
-                if rc2 != 0:
-                    raise OSXDefaultsException(f"An error occurred while exporting domain plist: {err2}")
-                rc3, out3, err3 = self.module.run_command(
-                    [self.plutil, "-extract", self.key, "json", "-o", "-", tmp_path]
-                )
-                if rc3 != 0:
-                    raise OSXDefaultsException(f"An error occurred while extracting dict value via plutil: {err3}")
-                out = json.loads(out3)
-            finally:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
 
         # Store the current_value
         self.current_value = self._convert_type(data_type, out)
 
     def write(self):
-        """Writes value to this domain & key to defaults"""
-        if self.type == "dict":
-            effective_type = "dict-add" if (self.dict_mode == "add" and self.current_value is not None) else "dict"
-            tokens = []
-            for k, v in self.value.items():
-                tokens.extend(self._dict_value_to_args(str(k), v))
-            rc, out, err = self.module.run_command(
-                self._base_command() + ["write", self.domain, self.key, f"-{effective_type}"] + tokens,
-                expand_user_and_vars=False,
-            )
-            if rc != 0:
-                raise OSXDefaultsException(f"An error occurred while writing value to defaults: {err}")
-            return
-
+        """ Writes value to this domain & key to defaults """
         # We need to convert some values so the defaults commandline understands it
         if isinstance(self.value, bool):
             if self.value:
@@ -386,7 +310,7 @@ class OSXDefaults:
         elif self.array_add and self.current_value is not None:
             value = list(set(self.value) - set(self.current_value))
         elif isinstance(self.value, datetime):
-            value = self.value.strftime("%Y-%m-%d %H:%M:%S")
+            value = self.value.strftime('%Y-%m-%d %H:%M:%S')
         else:
             value = self.value
 
@@ -398,18 +322,17 @@ class OSXDefaults:
         if not isinstance(value, list):
             value = [value]
 
-        rc, out, err = self.module.run_command(
-            self._base_command() + ["write", self.domain, self.key, f"-{self.type}"] + value, expand_user_and_vars=False
-        )
+        rc, out, err = self.module.run_command(self._base_command() + ['write', self.domain, self.key, '-' + self.type] + value,
+                                               expand_user_and_vars=False)
 
         if rc != 0:
-            raise OSXDefaultsException(f"An error occurred while writing value to defaults: {err}")
+            raise OSXDefaultsException('An error occurred while writing value to defaults: %s' % err)
 
     def delete(self):
-        """Deletes defaults key from domain"""
-        rc, out, err = self.module.run_command(self._base_command() + ["delete", self.domain, self.key])
+        """ Deletes defaults key from domain """
+        rc, out, err = self.module.run_command(self._base_command() + ['delete', self.domain, self.key])
         if rc != 0:
-            raise OSXDefaultsException(f"An error occurred while deleting key from defaults: {err}")
+            raise OSXDefaultsException("An error occurred while deleting key from defaults: %s" % err)
 
     # /commands ----------------------------------------------------------- }}}
 
@@ -417,10 +340,11 @@ class OSXDefaults:
     """ Does the magic! :) """
 
     def run(self):
+
         # Get the current value from defaults
         self.read()
 
-        if self.state == "list":
+        if self.state == 'list':
             self.module.exit_json(key=self.key, value=self.current_value)
 
         # Handle absent state
@@ -436,29 +360,13 @@ class OSXDefaults:
         if self.check_type:
             value_type = type(self.value)
             if self.current_value is not None and not isinstance(self.current_value, value_type):
-                raise OSXDefaultsException(f"Type mismatch. Type in defaults: {type(self.current_value).__name__}")
+                raise OSXDefaultsException("Type mismatch. Type in defaults: %s" % type(self.current_value).__name__)
 
         # Current value matches the given value. Nothing need to be done. Arrays need extra care
-        if (
-            self.type == "array"
-            and self.current_value is not None
-            and not self.array_add
-            and set(self.current_value) == set(self.value)
-        ):
+        if self.type == "array" and self.current_value is not None and not self.array_add and \
+                        set(self.current_value) == set(self.value):
             return False
-        elif (
-            self.type == "array"
-            and self.current_value is not None
-            and self.array_add
-            and len(list(set(self.value) - set(self.current_value))) == 0
-        ):
-            return False
-        elif (
-            self.type == "dict"
-            and self.current_value is not None
-            and self.dict_mode == "add"
-            and all(self.current_value.get(k) == v for k, v in self.value.items())
-        ):
+        elif self.type == "array" and self.current_value is not None and self.array_add and len(list(set(self.value) - set(self.current_value))) == 0:
             return False
         elif self.current_value == self.value:
             return False
@@ -480,25 +388,21 @@ class OSXDefaults:
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            domain=dict(type="str", default="NSGlobalDomain"),
-            host=dict(type="str"),
-            key=dict(type="str", no_log=False),
-            check_type=dict(type="bool", default=True),
-            type=dict(
-                type="str",
-                default="string",
-                choices=["array", "bool", "boolean", "date", "dict", "float", "int", "integer", "string"],
-            ),
-            array_add=dict(type="bool", default=False),
-            dict_mode=dict(type="str", default="replace", choices=["replace", "add"]),
-            value=dict(type="raw"),
-            state=dict(type="str", default="present", choices=["absent", "list", "present"]),
-            path=dict(type="str", default="/usr/bin:/usr/local/bin"),
+            domain=dict(type='str', default='NSGlobalDomain'),
+            host=dict(type='str'),
+            key=dict(type='str', no_log=False),
+            check_type=dict(type='bool', default=True),
+            type=dict(type='str', default='string', choices=['array', 'bool', 'boolean', 'date', 'float', 'int', 'integer', 'string']),
+            array_add=dict(type='bool', default=False),
+            value=dict(type='raw'),
+            state=dict(type='str', default='present', choices=['absent', 'list', 'present']),
+            path=dict(type='str', default='/usr/bin:/usr/local/bin'),
         ),
         supports_check_mode=True,
-        required_if=(("state", "present", ["value"]),),
+        required_if=(
+            ('state', 'present', ['value']),
+        ),
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     try:
         defaults = OSXDefaults(module=module)
@@ -509,5 +413,5 @@ def main():
 
 # /main ------------------------------------------------------------------- }}}
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

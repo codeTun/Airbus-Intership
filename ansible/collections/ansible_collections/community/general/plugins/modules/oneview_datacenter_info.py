@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2016-2017 Hewlett Packard Enterprise Development LP
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: oneview_datacenter_info
@@ -33,10 +35,10 @@ options:
     elements: str
 
 extends_documentation_fragment:
-  - community.general._oneview
-  - community.general._oneview.factsparams
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.oneview
+  - community.general.oneview.factsparams
+  - community.general.attributes
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -117,34 +119,39 @@ datacenter_visual_content:
   type: dict
 """
 
-from ansible_collections.community.general.plugins.module_utils._oneview import OneViewModuleBase
+from ansible_collections.community.general.plugins.module_utils.oneview import OneViewModuleBase
 
 
 class DatacenterInfoModule(OneViewModuleBase):
-    argument_spec = dict(name=dict(type="str"), options=dict(type="list", elements="str"), params=dict(type="dict"))
+    argument_spec = dict(
+        name=dict(type='str'),
+        options=dict(type='list', elements='str'),
+        params=dict(type='dict')
+    )
 
     def __init__(self):
-        super().__init__(
+        super(DatacenterInfoModule, self).__init__(
             additional_arg_spec=self.argument_spec,
             supports_check_mode=True,
         )
 
     def execute_module(self):
+
         client = self.oneview_client.datacenters
         info = {}
 
-        if self.module.params.get("name"):
-            datacenters = client.get_by("name", self.module.params["name"])
+        if self.module.params.get('name'):
+            datacenters = client.get_by('name', self.module.params['name'])
 
-            if self.options and "visualContent" in self.options:
+            if self.options and 'visualContent' in self.options:
                 if datacenters:
-                    info["datacenter_visual_content"] = client.get_visual_content(datacenters[0]["uri"])
+                    info['datacenter_visual_content'] = client.get_visual_content(datacenters[0]['uri'])
                 else:
-                    info["datacenter_visual_content"] = None
+                    info['datacenter_visual_content'] = None
 
-            info["datacenters"] = datacenters
+            info['datacenters'] = datacenters
         else:
-            info["datacenters"] = client.get_all(**self.facts_params)
+            info['datacenters'] = client.get_all(**self.facts_params)
 
         return dict(changed=False, **info)
 
@@ -153,5 +160,5 @@ def main():
     DatacenterInfoModule().run()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

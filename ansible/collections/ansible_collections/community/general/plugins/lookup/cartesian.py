@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013, Bradley Young <young.bradley@gmail.com>
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 author: Unknown (!UNKNOWN)
@@ -49,8 +51,6 @@ from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 from ansible.utils.listify import listify_lookup_plugin_terms
 
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
-
 
 class LookupModule(LookupBase):
     """
@@ -71,7 +71,6 @@ class LookupModule(LookupBase):
 
     def run(self, terms, variables=None, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
         terms = self._lookup_variables(terms)
 

@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2015, Adam Števko <adam.stevko@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: smartos_image_info
@@ -13,8 +16,8 @@ description:
   - Retrieve information about all installed images on SmartOS.
 author: Adam Števko (@xen0l)
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 attributes:
   check_mode:
     version_added: 3.3.0
@@ -24,12 +27,8 @@ options:
     description:
       - Criteria for selecting image. Can be any value from image manifest and V(published_date), V(published), V(source),
         V(clones), and V(size).
-      - More information can be found at U(https://smartos.org/man/8/imgadm) under C(imgadm list).
+      - More information can be found at U(https://smartos.org/man/1m/imgadm) under C(imgadm list).
     type: str
-seealso:
-  - name: imgadm(8)
-    description: Complete manual page for the command C(imgadm).
-    link: https://smartos.org/man/8/imgadm
 """
 
 EXAMPLES = r"""
@@ -69,18 +68,18 @@ RETURN = r"""
 """
 
 import json
-
 from ansible.module_utils.basic import AnsibleModule
 
 
-class ImageFacts:
+class ImageFacts(object):
+
     def __init__(self, module):
         self.module = module
 
-        self.filters = module.params["filters"]
+        self.filters = module.params['filters']
 
     def return_all_installed_images(self):
-        cmd = [self.module.get_bin_path("imgadm"), "list", "-j"]
+        cmd = [self.module.get_bin_path('imgadm'), 'list', '-j']
 
         if self.filters:
             cmd.append(self.filters)
@@ -88,16 +87,17 @@ class ImageFacts:
         (rc, out, err) = self.module.run_command(cmd)
 
         if rc != 0:
-            self.module.exit_json(msg="Failed to get all installed images", stderr=err)
+            self.module.exit_json(
+                msg='Failed to get all installed images', stderr=err)
 
         images = json.loads(out)
 
         result = {}
         for image in images:
-            result[image["manifest"]["uuid"]] = image["manifest"]
+            result[image['manifest']['uuid']] = image['manifest']
             # Merge additional attributes with the image manifest.
-            for attrib in ["clones", "source", "zpool"]:
-                result[image["manifest"]["uuid"]][attrib] = image[attrib]
+            for attrib in ['clones', 'source', 'zpool']:
+                result[image['manifest']['uuid']][attrib] = image[attrib]
 
         return result
 
@@ -109,7 +109,6 @@ def main():
         ),
         supports_check_mode=True,
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     image_facts = ImageFacts(module)
 
@@ -118,5 +117,5 @@ def main():
     module.exit_json(**data)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2018, Yanis Guenane <yanis+ansible@guenane.org>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: scaleway_organization_info
@@ -26,10 +28,10 @@ options:
     default: 'https://account.scaleway.com'
     aliases: ['base_url']
 extends_documentation_fragment:
-  - community.general._scaleway
-  - community.general._attributes
-  - community.general._scaleway.actiongroup_scaleway
-  - community.general._attributes.info_module
+  - community.general.scaleway
+  - community.general.attributes
+  - community.general.scaleway.actiongroup_scaleway
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -74,29 +76,23 @@ scaleway_organization_info:
 """
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-
-from ansible_collections.community.general.plugins.module_utils._scaleway import (
-    Scaleway,
-    ScalewayException,
-    scaleway_argument_spec,
+from ansible_collections.community.general.plugins.module_utils.scaleway import (
+    Scaleway, ScalewayException, scaleway_argument_spec
 )
 
 
 class ScalewayOrganizationInfo(Scaleway):
+
     def __init__(self, module):
-        super().__init__(module)
-        self.name = "organizations"
+        super(ScalewayOrganizationInfo, self).__init__(module)
+        self.name = 'organizations'
 
 
 def main():
     argument_spec = scaleway_argument_spec()
-    argument_spec.update(
-        dict(
-            api_url=dict(
-                fallback=(env_fallback, ["SCW_API_URL"]), default="https://account.scaleway.com", aliases=["base_url"]
-            ),
-        )
-    )
+    argument_spec.update(dict(
+        api_url=dict(fallback=(env_fallback, ['SCW_API_URL']), default='https://account.scaleway.com', aliases=['base_url']),
+    ))
 
     module = AnsibleModule(
         argument_spec=argument_spec,
@@ -104,10 +100,12 @@ def main():
     )
 
     try:
-        module.exit_json(scaleway_organization_info=ScalewayOrganizationInfo(module).get_resources())
+        module.exit_json(
+            scaleway_organization_info=ScalewayOrganizationInfo(module).get_resources()
+        )
     except ScalewayException as exc:
         module.fail_json(msg=exc.message)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

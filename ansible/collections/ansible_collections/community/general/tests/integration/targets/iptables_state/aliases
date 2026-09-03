@@ -7,7 +7,9 @@ azp/posix/vm
 destructive
 skip/docker             # kernel modules not loadable
 skip/freebsd            # no iptables/netfilter (Linux specific)
+skip/osx                # no iptables/netfilter (Linux specific)
 skip/macos              # no iptables/netfilter (Linux specific)
+skip/aix                # no iptables/netfilter (Linux specific)
 
 # This test doesn't seem to work with split-controller testing.
 # That's the case when the target's Python version doesn't support

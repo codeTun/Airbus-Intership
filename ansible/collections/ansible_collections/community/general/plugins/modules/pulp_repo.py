@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2016, Joe Adams <@sysadmind>
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: pulp_repo
@@ -39,6 +42,7 @@ options:
   generate_sqlite:
     description:
       - Boolean flag to indicate whether sqlite files should be generated during a repository publish.
+    required: false
     type: bool
     default: false
   feed_ca_cert:
@@ -70,21 +74,25 @@ options:
   proxy_host:
     description:
       - Proxy URL setting for the pulp repository importer. This is in the format V(scheme://host).
+    required: false
     default:
     type: str
   proxy_port:
     description:
       - Proxy port setting for the pulp repository importer.
+    required: false
     default:
     type: str
   proxy_username:
     description:
       - Proxy username for the pulp repository importer.
+    required: false
     default:
     type: str
   proxy_password:
     description:
       - Proxy password for the pulp repository importer.
+    required: false
     default:
     type: str
   publish_distributor:
@@ -108,6 +116,7 @@ options:
   repoview:
     description:
       - Whether to generate repoview files for a published repository. Setting this to V(true) automatically activates O(generate_sqlite).
+    required: false
     type: bool
     default: false
   serve_http:
@@ -150,7 +159,7 @@ notes:
     types are welcome.
 extends_documentation_fragment:
   - ansible.builtin.url
-  - community.general._attributes
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -192,10 +201,11 @@ from time import sleep
 
 # import module snippets
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.urls import fetch_url, url_argument_spec
+from ansible.module_utils.urls import fetch_url
+from ansible.module_utils.urls import url_argument_spec
 
 
-class pulp_server:
+class pulp_server(object):
     """
     Class to interact with a Pulp server
     """
@@ -218,12 +228,12 @@ class pulp_server:
     def compare_repo_distributor_config(self, repo_id, **kwargs):
         repo_config = self.get_repo_config_by_id(repo_id)
 
-        for distributor in repo_config["distributors"]:
+        for distributor in repo_config['distributors']:
             for key, value in kwargs.items():
-                if key not in distributor["config"].keys():
+                if key not in distributor['config'].keys():
                     return False
 
-                if distributor["config"][key] != value:
+                if not distributor['config'][key] == value:
                     return False
 
         return True
@@ -231,13 +241,13 @@ class pulp_server:
     def compare_repo_importer_config(self, repo_id, **kwargs):
         repo_config = self.get_repo_config_by_id(repo_id)
 
-        for importer in repo_config["importers"]:
+        for importer in repo_config['importers']:
             for key, value in kwargs.items():
                 if value is not None:
-                    if key not in importer["config"].keys():
+                    if key not in importer['config'].keys():
                         return False
 
-                    if importer["config"][key] != value:
+                    if not importer['config'][key] == value:
                         return False
 
         return True
@@ -258,85 +268,95 @@ class pulp_server:
         ssl_ca_cert=None,
         ssl_client_cert=None,
         ssl_client_key=None,
-        add_export_distributor=False,
+        add_export_distributor=False
     ):
-        url = f"{self.host}/pulp/api/v2/repositories/"
+        url = "%s/pulp/api/v2/repositories/" % self.host
         data = dict()
-        data["id"] = repo_id
-        data["distributors"] = []
+        data['id'] = repo_id
+        data['distributors'] = []
 
-        if self.repo_type == "rpm":
+        if self.repo_type == 'rpm':
             yum_distributor = dict()
-            yum_distributor["distributor_id"] = "yum_distributor"
-            yum_distributor["distributor_type_id"] = "yum_distributor"
-            yum_distributor["auto_publish"] = True
-            yum_distributor["distributor_config"] = dict()
-            yum_distributor["distributor_config"]["http"] = serve_http
-            yum_distributor["distributor_config"]["https"] = serve_https
-            yum_distributor["distributor_config"]["relative_url"] = relative_url
-            yum_distributor["distributor_config"]["repoview"] = repoview
-            yum_distributor["distributor_config"]["generate_sqlite"] = generate_sqlite or repoview
-            data["distributors"].append(yum_distributor)
+            yum_distributor['distributor_id'] = "yum_distributor"
+            yum_distributor['distributor_type_id'] = "yum_distributor"
+            yum_distributor['auto_publish'] = True
+            yum_distributor['distributor_config'] = dict()
+            yum_distributor['distributor_config']['http'] = serve_http
+            yum_distributor['distributor_config']['https'] = serve_https
+            yum_distributor['distributor_config']['relative_url'] = relative_url
+            yum_distributor['distributor_config']['repoview'] = repoview
+            yum_distributor['distributor_config']['generate_sqlite'] = generate_sqlite or repoview
+            data['distributors'].append(yum_distributor)
 
             if add_export_distributor:
                 export_distributor = dict()
-                export_distributor["distributor_id"] = "export_distributor"
-                export_distributor["distributor_type_id"] = "export_distributor"
-                export_distributor["auto_publish"] = False
-                export_distributor["distributor_config"] = dict()
-                export_distributor["distributor_config"]["http"] = serve_http
-                export_distributor["distributor_config"]["https"] = serve_https
-                export_distributor["distributor_config"]["relative_url"] = relative_url
-                export_distributor["distributor_config"]["repoview"] = repoview
-                export_distributor["distributor_config"]["generate_sqlite"] = generate_sqlite or repoview
-                data["distributors"].append(export_distributor)
+                export_distributor['distributor_id'] = "export_distributor"
+                export_distributor['distributor_type_id'] = "export_distributor"
+                export_distributor['auto_publish'] = False
+                export_distributor['distributor_config'] = dict()
+                export_distributor['distributor_config']['http'] = serve_http
+                export_distributor['distributor_config']['https'] = serve_https
+                export_distributor['distributor_config']['relative_url'] = relative_url
+                export_distributor['distributor_config']['repoview'] = repoview
+                export_distributor['distributor_config']['generate_sqlite'] = generate_sqlite or repoview
+                data['distributors'].append(export_distributor)
 
-            data["importer_type_id"] = "yum_importer"
-            data["importer_config"] = dict()
+            data['importer_type_id'] = "yum_importer"
+            data['importer_config'] = dict()
 
             if feed:
-                data["importer_config"]["feed"] = feed
+                data['importer_config']['feed'] = feed
 
             if proxy_host:
-                data["importer_config"]["proxy_host"] = proxy_host
+                data['importer_config']['proxy_host'] = proxy_host
 
             if proxy_port:
-                data["importer_config"]["proxy_port"] = proxy_port
+                data['importer_config']['proxy_port'] = proxy_port
 
             if proxy_username:
-                data["importer_config"]["proxy_username"] = proxy_username
+                data['importer_config']['proxy_username'] = proxy_username
 
             if proxy_password:
-                data["importer_config"]["proxy_password"] = proxy_password
+                data['importer_config']['proxy_password'] = proxy_password
 
             if ssl_ca_cert:
-                data["importer_config"]["ssl_ca_cert"] = ssl_ca_cert
+                data['importer_config']['ssl_ca_cert'] = ssl_ca_cert
 
             if ssl_client_cert:
-                data["importer_config"]["ssl_client_cert"] = ssl_client_cert
+                data['importer_config']['ssl_client_cert'] = ssl_client_cert
 
             if ssl_client_key:
-                data["importer_config"]["ssl_client_key"] = ssl_client_key
+                data['importer_config']['ssl_client_key'] = ssl_client_key
 
-            data["notes"] = {"_repo-type": "rpm-repo"}
+            data['notes'] = {
+                "_repo-type": "rpm-repo"
+            }
 
-        response, info = fetch_url(self.module, url, data=json.dumps(data), method="POST")
+        response, info = fetch_url(
+            self.module,
+            url,
+            data=json.dumps(data),
+            method='POST')
 
-        if info["status"] != 201:
+        if info['status'] != 201:
             self.module.fail_json(
-                msg="Failed to create repo.", status_code=info["status"], response=info["msg"], url=url
-            )
+                msg="Failed to create repo.",
+                status_code=info['status'],
+                response=info['msg'],
+                url=url)
         else:
             return True
 
     def delete_repo(self, repo_id):
-        url = f"{self.host}/pulp/api/v2/repositories/{repo_id}/"
-        response, info = fetch_url(self.module, url, data="", method="DELETE")
+        url = "%s/pulp/api/v2/repositories/%s/" % (self.host, repo_id)
+        response, info = fetch_url(self.module, url, data='', method='DELETE')
 
-        if info["status"] != 202:
+        if info['status'] != 202:
             self.module.fail_json(
-                msg="Failed to delete repo.", status_code=info["status"], response=info["msg"], url=url
-            )
+                msg="Failed to delete repo.",
+                status_code=info['status'],
+                response=info['msg'],
+                url=url)
 
         if self.wait_for_completion:
             self.verify_tasks_completed(json.load(response))
@@ -345,44 +365,50 @@ class pulp_server:
 
     def get_repo_config_by_id(self, repo_id):
         if repo_id not in self.repo_cache.keys():
-            repo_array = [x for x in self.repo_list if x["id"] == repo_id]
+            repo_array = [x for x in self.repo_list if x['id'] == repo_id]
             self.repo_cache[repo_id] = repo_array[0]
 
         return self.repo_cache[repo_id]
 
     def publish_repo(self, repo_id, publish_distributor):
-        url = f"{self.host}/pulp/api/v2/repositories/{repo_id}/actions/publish/"
+        url = "%s/pulp/api/v2/repositories/%s/actions/publish/" % (self.host, repo_id)
 
         # If there's no distributor specified, we will publish them all
         if publish_distributor is None:
             repo_config = self.get_repo_config_by_id(repo_id)
 
-            for distributor in repo_config["distributors"]:
+            for distributor in repo_config['distributors']:
                 data = dict()
-                data["id"] = distributor["id"]
-                response, info = fetch_url(self.module, url, data=json.dumps(data), method="POST")
+                data['id'] = distributor['id']
+                response, info = fetch_url(
+                    self.module,
+                    url,
+                    data=json.dumps(data),
+                    method='POST')
 
-                if info["status"] != 202:
+                if info['status'] != 202:
                     self.module.fail_json(
                         msg="Failed to publish the repo.",
-                        status_code=info["status"],
-                        response=info["msg"],
+                        status_code=info['status'],
+                        response=info['msg'],
                         url=url,
-                        distributor=distributor["id"],
-                    )
+                        distributor=distributor['id'])
         else:
             data = dict()
-            data["id"] = publish_distributor
-            response, info = fetch_url(self.module, url, data=json.dumps(data), method="POST")
+            data['id'] = publish_distributor
+            response, info = fetch_url(
+                self.module,
+                url,
+                data=json.dumps(data),
+                method='POST')
 
-            if info["status"] != 202:
+            if info['status'] != 202:
                 self.module.fail_json(
                     msg="Failed to publish the repo",
-                    status_code=info["status"],
-                    response=info["msg"],
+                    status_code=info['status'],
+                    response=info['msg'],
                     url=url,
-                    distributor=publish_distributor,
-                )
+                    distributor=publish_distributor)
 
         if self.wait_for_completion:
             self.verify_tasks_completed(json.load(response))
@@ -390,13 +416,15 @@ class pulp_server:
         return True
 
     def sync_repo(self, repo_id):
-        url = f"{self.host}/pulp/api/v2/repositories/{repo_id}/actions/sync/"
-        response, info = fetch_url(self.module, url, data="", method="POST")
+        url = "%s/pulp/api/v2/repositories/%s/actions/sync/" % (self.host, repo_id)
+        response, info = fetch_url(self.module, url, data='', method='POST')
 
-        if info["status"] != 202:
+        if info['status'] != 202:
             self.module.fail_json(
-                msg="Failed to schedule a sync of the repo.", status_code=info["status"], response=info["msg"], url=url
-            )
+                msg="Failed to schedule a sync of the repo.",
+                status_code=info['status'],
+                response=info['msg'],
+                url=url)
 
         if self.wait_for_completion:
             self.verify_tasks_completed(json.load(response))
@@ -404,29 +432,32 @@ class pulp_server:
         return True
 
     def update_repo_distributor_config(self, repo_id, **kwargs):
-        url = f"{self.host}/pulp/api/v2/repositories/{repo_id}/distributors/"
+        url = "%s/pulp/api/v2/repositories/%s/distributors/" % (self.host, repo_id)
         repo_config = self.get_repo_config_by_id(repo_id)
 
-        for distributor in repo_config["distributors"]:
-            distributor_url = f"{url}{distributor['id']}/"
+        for distributor in repo_config['distributors']:
+            distributor_url = "%s%s/" % (url, distributor['id'])
             data = dict()
-            data["distributor_config"] = dict()
+            data['distributor_config'] = dict()
 
             for key, value in kwargs.items():
-                data["distributor_config"][key] = value
+                data['distributor_config'][key] = value
 
-            response, info = fetch_url(self.module, distributor_url, data=json.dumps(data), method="PUT")
+            response, info = fetch_url(
+                self.module,
+                distributor_url,
+                data=json.dumps(data),
+                method='PUT')
 
-            if info["status"] != 202:
+            if info['status'] != 202:
                 self.module.fail_json(
                     msg="Failed to set the relative url for the repository.",
-                    status_code=info["status"],
-                    response=info["msg"],
-                    url=url,
-                )
+                    status_code=info['status'],
+                    response=info['msg'],
+                    url=url)
 
     def update_repo_importer_config(self, repo_id, **kwargs):
-        url = f"{self.host}/pulp/api/v2/repositories/{repo_id}/importers/"
+        url = "%s/pulp/api/v2/repositories/%s/importers/" % (self.host, repo_id)
         data = dict()
         importer_config = dict()
 
@@ -434,53 +465,63 @@ class pulp_server:
             if value is not None:
                 importer_config[key] = value
 
-        data["importer_config"] = importer_config
+        data['importer_config'] = importer_config
 
-        if self.repo_type == "rpm":
-            data["importer_type_id"] = "yum_importer"
+        if self.repo_type == 'rpm':
+            data['importer_type_id'] = "yum_importer"
 
-        response, info = fetch_url(self.module, url, data=json.dumps(data), method="POST")
+        response, info = fetch_url(
+            self.module,
+            url,
+            data=json.dumps(data),
+            method='POST')
 
-        if info["status"] != 202:
+        if info['status'] != 202:
             self.module.fail_json(
                 msg="Failed to set the repo importer configuration",
-                status_code=info["status"],
-                response=info["msg"],
+                status_code=info['status'],
+                response=info['msg'],
                 importer_config=importer_config,
-                url=url,
-            )
+                url=url)
 
     def set_repo_list(self):
-        url = f"{self.host}/pulp/api/v2/repositories/?details=true"
-        response, info = fetch_url(self.module, url, method="GET")
+        url = "%s/pulp/api/v2/repositories/?details=true" % self.host
+        response, info = fetch_url(self.module, url, method='GET')
 
-        if info["status"] != 200:
-            self.module.fail_json(msg="Request failed", status_code=info["status"], response=info["msg"], url=url)
+        if info['status'] != 200:
+            self.module.fail_json(
+                msg="Request failed",
+                status_code=info['status'],
+                response=info['msg'],
+                url=url)
 
         self.repo_list = json.load(response)
 
     def verify_tasks_completed(self, response_dict):
-        for task in response_dict["spawned_tasks"]:
-            task_url = f"{self.host}{task['_href']}"
+        for task in response_dict['spawned_tasks']:
+            task_url = "%s%s" % (self.host, task['_href'])
 
             while True:
-                response, info = fetch_url(self.module, task_url, data="", method="GET")
+                response, info = fetch_url(
+                    self.module,
+                    task_url,
+                    data='',
+                    method='GET')
 
-                if info["status"] != 200:
+                if info['status'] != 200:
                     self.module.fail_json(
                         msg="Failed to check async task status.",
-                        status_code=info["status"],
-                        response=info["msg"],
-                        url=task_url,
-                    )
+                        status_code=info['status'],
+                        response=info['msg'],
+                        url=task_url)
 
                 task_dict = json.load(response)
 
-                if task_dict["state"] == "finished":
+                if task_dict['state'] == 'finished':
                     return True
 
-                if task_dict["state"] == "error":
-                    self.module.fail_json(msg="Asynchronous task failed to complete.", error=task_dict["error"])
+                if task_dict['state'] == 'error':
+                    self.module.fail_json(msg="Asynchronous task failed to complete.", error=task_dict['error'])
 
                 sleep(2)
 
@@ -488,13 +529,13 @@ class pulp_server:
 def main():
     argument_spec = url_argument_spec()
     argument_spec.update(
-        add_export_distributor=dict(default=False, type="bool"),
+        add_export_distributor=dict(default=False, type='bool'),
         feed=dict(),
-        generate_sqlite=dict(default=False, type="bool"),
-        feed_ca_cert=dict(aliases=["importer_ssl_ca_cert"]),
-        feed_client_cert=dict(aliases=["importer_ssl_client_cert"]),
-        feed_client_key=dict(aliases=["importer_ssl_client_key"], no_log=True),
-        name=dict(required=True, aliases=["repo"]),
+        generate_sqlite=dict(default=False, type='bool'),
+        feed_ca_cert=dict(aliases=['importer_ssl_ca_cert']),
+        feed_client_cert=dict(aliases=['importer_ssl_client_cert']),
+        feed_client_key=dict(aliases=['importer_ssl_client_key'], no_log=True),
+        name=dict(required=True, aliases=['repo']),
         proxy_host=dict(),
         proxy_port=dict(),
         proxy_username=dict(),
@@ -503,55 +544,58 @@ def main():
         pulp_host=dict(default="https://127.0.0.1"),
         relative_url=dict(),
         repo_type=dict(default="rpm"),
-        repoview=dict(default=False, type="bool"),
-        serve_http=dict(default=False, type="bool"),
-        serve_https=dict(default=True, type="bool"),
-        state=dict(default="present", choices=["absent", "present", "sync", "publish"]),
-        wait_for_completion=dict(default=False, type="bool"),
-    )
-    module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+        repoview=dict(default=False, type='bool'),
+        serve_http=dict(default=False, type='bool'),
+        serve_https=dict(default=True, type='bool'),
+        state=dict(
+            default="present",
+            choices=['absent', 'present', 'sync', 'publish']),
+        wait_for_completion=dict(default=False, type="bool"))
+    module = AnsibleModule(
+        argument_spec=argument_spec,
+        supports_check_mode=True)
 
-    add_export_distributor = module.params["add_export_distributor"]
-    feed = module.params["feed"]
-    generate_sqlite = module.params["generate_sqlite"]
-    importer_ssl_ca_cert = module.params["feed_ca_cert"]
-    importer_ssl_client_cert = module.params["feed_client_cert"]
-    importer_ssl_client_key = module.params["feed_client_key"]
-    proxy_host = module.params["proxy_host"]
-    proxy_port = module.params["proxy_port"]
-    proxy_username = module.params["proxy_username"]
-    proxy_password = module.params["proxy_password"]
-    publish_distributor = module.params["publish_distributor"]
-    pulp_host = module.params["pulp_host"]
-    relative_url = module.params["relative_url"]
-    repo = module.params["name"]
-    repo_type = module.params["repo_type"]
-    repoview = module.params["repoview"]
-    serve_http = module.params["serve_http"]
-    serve_https = module.params["serve_https"]
-    state = module.params["state"]
-    wait_for_completion = module.params["wait_for_completion"]
+    add_export_distributor = module.params['add_export_distributor']
+    feed = module.params['feed']
+    generate_sqlite = module.params['generate_sqlite']
+    importer_ssl_ca_cert = module.params['feed_ca_cert']
+    importer_ssl_client_cert = module.params['feed_client_cert']
+    importer_ssl_client_key = module.params['feed_client_key']
+    proxy_host = module.params['proxy_host']
+    proxy_port = module.params['proxy_port']
+    proxy_username = module.params['proxy_username']
+    proxy_password = module.params['proxy_password']
+    publish_distributor = module.params['publish_distributor']
+    pulp_host = module.params['pulp_host']
+    relative_url = module.params['relative_url']
+    repo = module.params['name']
+    repo_type = module.params['repo_type']
+    repoview = module.params['repoview']
+    serve_http = module.params['serve_http']
+    serve_https = module.params['serve_https']
+    state = module.params['state']
+    wait_for_completion = module.params['wait_for_completion']
 
-    if (state == "present") and (not relative_url):
+    if (state == 'present') and (not relative_url):
         module.fail_json(msg="When state is present, relative_url is required.")
 
     # Ensure that the importer_ssl_* is the content and not a file path
     if importer_ssl_ca_cert is not None:
         importer_ssl_ca_cert_file_path = os.path.abspath(importer_ssl_ca_cert)
         if os.path.isfile(importer_ssl_ca_cert_file_path):
-            with open(importer_ssl_ca_cert_file_path) as importer_ssl_ca_cert_file_object:
+            with open(importer_ssl_ca_cert_file_path, 'r') as importer_ssl_ca_cert_file_object:
                 importer_ssl_ca_cert = importer_ssl_ca_cert_file_object.read()
 
     if importer_ssl_client_cert is not None:
         importer_ssl_client_cert_file_path = os.path.abspath(importer_ssl_client_cert)
         if os.path.isfile(importer_ssl_client_cert_file_path):
-            with open(importer_ssl_client_cert_file_path) as importer_ssl_client_cert_file_object:
+            with open(importer_ssl_client_cert_file_path, 'r') as importer_ssl_client_cert_file_object:
                 importer_ssl_client_cert = importer_ssl_client_cert_file_object.read()
 
     if importer_ssl_client_key is not None:
         importer_ssl_client_key_file_path = os.path.abspath(importer_ssl_client_key)
         if os.path.isfile(importer_ssl_client_key_file_path):
-            with open(importer_ssl_client_key_file_path) as importer_ssl_client_key_file_object:
+            with open(importer_ssl_client_key_file_path, 'r') as importer_ssl_client_key_file_object:
                 importer_ssl_client_key = importer_ssl_client_key_file_object.read()
 
     server = pulp_server(module, pulp_host, repo_type, wait_for_completion=wait_for_completion)
@@ -560,13 +604,13 @@ def main():
 
     changed = False
 
-    if state == "absent" and repo_exists:
+    if state == 'absent' and repo_exists:
         if not module.check_mode:
             server.delete_repo(repo)
 
         changed = True
 
-    if state == "sync":
+    if state == 'sync':
         if not repo_exists:
             module.fail_json(msg="Repository was not found. The repository can not be synced.")
 
@@ -575,7 +619,7 @@ def main():
 
         changed = True
 
-    if state == "publish":
+    if state == 'publish':
         if not repo_exists:
             module.fail_json(msg="Repository was not found. The repository can not be published.")
 
@@ -584,7 +628,7 @@ def main():
 
         changed = True
 
-    if state == "present":
+    if state == 'present':
         if not repo_exists:
             if not module.check_mode:
                 server.create_repo(
@@ -602,8 +646,7 @@ def main():
                     ssl_ca_cert=importer_ssl_ca_cert,
                     ssl_client_cert=importer_ssl_client_cert,
                     ssl_client_key=importer_ssl_client_key,
-                    add_export_distributor=add_export_distributor,
-                )
+                    add_export_distributor=add_export_distributor)
 
             changed = True
 
@@ -620,7 +663,7 @@ def main():
                 proxy_password=proxy_password,
                 ssl_ca_cert=importer_ssl_ca_cert,
                 ssl_client_cert=importer_ssl_client_cert,
-                ssl_client_key=importer_ssl_client_key,
+                ssl_client_key=importer_ssl_client_key
             ):
                 if not module.check_mode:
                     server.update_repo_importer_config(
@@ -632,15 +675,19 @@ def main():
                         proxy_password=proxy_password,
                         ssl_ca_cert=importer_ssl_ca_cert,
                         ssl_client_cert=importer_ssl_client_cert,
-                        ssl_client_key=importer_ssl_client_key,
-                    )
+                        ssl_client_key=importer_ssl_client_key)
 
                 changed = True
 
             if relative_url is not None:
-                if not server.compare_repo_distributor_config(repo, relative_url=relative_url):
+                if not server.compare_repo_distributor_config(
+                    repo,
+                    relative_url=relative_url
+                ):
                     if not module.check_mode:
-                        server.update_repo_distributor_config(repo, relative_url=relative_url)
+                        server.update_repo_distributor_config(
+                            repo,
+                            relative_url=relative_url)
 
                     changed = True
 
@@ -671,5 +718,5 @@ def main():
     module.exit_json(changed=changed, repo=repo)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

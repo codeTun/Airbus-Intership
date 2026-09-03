@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2013, Nimbis Services, Inc.
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: htpasswd
@@ -32,11 +35,13 @@ options:
       - User name to add or remove.
   password:
     type: str
+    required: false
     description:
       - Password associated with user.
       - Must be specified if user does not exist yet.
   hash_scheme:
     type: str
+    required: false
     default: "apr_md5_crypt"
     description:
       - Hashing scheme to be used. As well as the four choices listed here, you can also use any other hash supported by passlib,
@@ -51,11 +56,13 @@ options:
     aliases: [crypt_scheme]
   state:
     type: str
+    required: false
     choices: [present, absent]
     default: "present"
     description:
       - Whether the user entry should be present or not.
   create:
+    required: false
     type: bool
     default: true
     description:
@@ -66,13 +73,11 @@ notes:
   - 'On Debian < 11, Ubuntu <= 20.04, or Fedora: install C(python-passlib).'
   - 'On Debian, Ubuntu: install C(python3-passlib).'
   - 'On RHEL or CentOS: Enable EPEL, then install C(python-passlib).'
-  - To use V(bcrypt) as O(hash_scheme), the C(bcrypt) Python library must also be installed.
-    Due to incompatibilities in C(passlib) 1.7.x, use C(bcrypt<4.2).
 requirements: [passlib>=1.6]
 author: "Ansible Core Team"
 extends_documentation_fragment:
   - ansible.builtin.files
-  - community.general._attributes
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -104,14 +109,13 @@ import os
 import tempfile
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.community.general.plugins.module_utils import deps
+from ansible.module_utils.common.text.converters import to_native
 
-from ansible_collections.community.general.plugins.module_utils import _deps as deps
 
 with deps.declare("passlib"):
-    # Apparently the type infos don't know htpasswd_context, which *does* exist
-    # (but isn't mentioned in the documentation for some reason)
-    from passlib.apache import HtpasswdFile, htpasswd_context  # type: ignore[attr-defined]
-    from passlib.context import CryptContext  # type: ignore[assignment]
+    from passlib.apache import HtpasswdFile, htpasswd_context
+    from passlib.context import CryptContext
 
 
 apache_hashes = ["apr_md5_crypt", "des_crypt", "ldap_sha1", "plaintext"]
@@ -123,66 +127,58 @@ def create_missing_directories(dest):
         os.makedirs(destpath)
 
 
-def obtain_crypt_context(hash_scheme):
-    if hash_scheme in apache_hashes or hash_scheme in htpasswd_context.schemes():
-        # Use htpasswd_context for all officially-supported schemes, including bcrypt
-        # (htpasswd_context produces Apache-compatible $2y$ bcrypt, not $2b$)
-        return htpasswd_context
-    try:
-        return CryptContext(schemes=[hash_scheme] + apache_hashes)
-    except KeyError:
-        # hash_scheme is a HtpasswdFile alias (e.g. portable, portable_apache_24)
-        # that is not a valid passlib scheme name; let HtpasswdFile resolve it natively
-        return htpasswd_context
-
-
 def present(dest, username, password, hash_scheme, create, check_mode):
-    """Ensures user is present
+    """ Ensures user is present
 
-    Returns (msg, changed)"""
-    context = obtain_crypt_context(hash_scheme)
+    Returns (msg, changed) """
+    if hash_scheme in apache_hashes:
+        context = htpasswd_context
+    else:
+        context = CryptContext(schemes=[hash_scheme] + apache_hashes)
     if not os.path.exists(dest):
         if not create:
-            raise ValueError(f"Destination {dest} does not exist")
+            raise ValueError('Destination %s does not exist' % dest)
         if check_mode:
-            return (f"Create {dest}", True)
+            return ("Create %s" % dest, True)
         create_missing_directories(dest)
         ht = HtpasswdFile(dest, new=True, default_scheme=hash_scheme, context=context)
         ht.set_password(username, password)
         ht.save()
-        return (f"Created {dest} and added {username}", True)
+        return ("Created %s and added %s" % (dest, username), True)
     else:
         ht = HtpasswdFile(dest, new=False, default_scheme=hash_scheme, context=context)
 
         found = ht.check_password(username, password)
 
         if found:
-            return (f"{username} already present", False)
+            return ("%s already present" % username, False)
         else:
             if not check_mode:
                 ht.set_password(username, password)
                 ht.save()
-            return (f"Add/update {username}", True)
+            return ("Add/update %s" % username, True)
 
 
 def absent(dest, username, check_mode):
-    """Ensures user is absent
+    """ Ensures user is absent
 
-    Returns (msg, changed)"""
+    Returns (msg, changed) """
     ht = HtpasswdFile(dest, new=False)
 
     if username not in ht.users():
-        return (f"{username} not present", False)
+        return ("%s not present" % username, False)
     else:
         if not check_mode:
             ht.delete(username)
             ht.save()
-        return (f"Remove {username}", True)
+        return ("Remove %s" % username, True)
 
 
 def check_file_attrs(module, changed, message):
+
     file_args = module.load_file_common_arguments(module.params)
     if module.set_fs_attributes_if_different(file_args, False):
+
         if changed:
             message += " and "
         changed = True
@@ -193,21 +189,24 @@ def check_file_attrs(module, changed, message):
 
 def main():
     arg_spec = dict(
-        path=dict(type="path", required=True, aliases=["dest", "destfile"]),
-        name=dict(type="str", required=True, aliases=["username"]),
-        password=dict(type="str", no_log=True),
-        hash_scheme=dict(type="str", default="apr_md5_crypt", aliases=["crypt_scheme"]),
-        state=dict(type="str", default="present", choices=["present", "absent"]),
-        create=dict(type="bool", default=True),
-    )
-    module = AnsibleModule(argument_spec=arg_spec, add_file_common_args=True, supports_check_mode=True)
+        path=dict(type='path', required=True, aliases=["dest", "destfile"]),
+        name=dict(type='str', required=True, aliases=["username"]),
+        password=dict(type='str', no_log=True),
+        hash_scheme=dict(type='str', default="apr_md5_crypt", aliases=["crypt_scheme"]),
+        state=dict(type='str', default="present", choices=["present", "absent"]),
+        create=dict(type='bool', default=True),
 
-    path = module.params["path"]
-    username = module.params["name"]
-    password = module.params["password"]
-    hash_scheme = module.params["hash_scheme"]
-    state = module.params["state"]
-    create = module.params["create"]
+    )
+    module = AnsibleModule(argument_spec=arg_spec,
+                           add_file_common_args=True,
+                           supports_check_mode=True)
+
+    path = module.params['path']
+    username = module.params['name']
+    password = module.params['password']
+    hash_scheme = module.params['hash_scheme']
+    state = module.params['state']
+    create = module.params['create']
     check_mode = module.check_mode
 
     deps.validate(module)
@@ -215,7 +214,7 @@ def main():
     # TODO double check if this hack below is still needed.
     # Check file for blank lines in effort to avoid "need more than 1 value to unpack" error.
     try:
-        with open(path) as f:
+        with open(path, "r") as f:
             lines = f.readlines()
 
         # If the file gets edited, it returns true, so only edit the file if it has blank lines
@@ -233,27 +232,27 @@ def main():
             with open(path, "w") as f:
                 f.writelines(line for line in lines if line.strip())
 
-    except OSError:
+    except IOError:
         # No preexisting file to remove blank lines from
         pass
 
     try:
-        if state == "present":
+        if state == 'present':
             (msg, changed) = present(path, username, password, hash_scheme, create, check_mode)
-        elif state == "absent":
+        elif state == 'absent':
             if not os.path.exists(path):
-                module.warn(f"{path} does not exist")
-                module.exit_json(msg=f"{username} not present", changed=False)
+                module.warn("%s does not exist" % path)
+                module.exit_json(msg="%s not present" % username, changed=False)
             (msg, changed) = absent(path, username, check_mode)
         else:
-            module.fail_json(msg=f"Invalid state: {state}")
+            module.fail_json(msg="Invalid state: %s" % state)
             return  # needed to make pylint happy
 
         (msg, changed) = check_file_attrs(module, changed, msg)
         module.exit_json(msg=msg, changed=changed)
     except Exception as e:
-        module.fail_json(msg=f"{e}")
+        module.fail_json(msg=to_native(e))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (C) 2018 IBM CORPORATION
 # Author(s): Tzur Eliyahu <tzure@il.ibm.com>
@@ -6,7 +7,8 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: ibm_sa_host_ports
@@ -35,19 +37,22 @@ options:
   iscsi_name:
     description:
       - The iSCSI initiator name.
+    required: false
     type: str
   fcaddress:
     description:
       - Fiber channel address.
+    required: false
     type: str
   num_of_visible_targets:
     description:
       - Number of visible targets.
+    required: false
     type: str
 
 extends_documentation_fragment:
-  - community.general._ibm_storage
-  - community.general._attributes
+  - community.general.ibm_storage
+  - community.general.attributes
 
 author:
   - Tzur Eliyahu (@tzure)
@@ -76,24 +81,19 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._ibm_sa_utils import (
-    connect_ssl,
-    execute_pyxcli_command,
-    is_pyxcli_installed,
-    spectrum_accelerate_spec,
-)
+from ansible_collections.community.general.plugins.module_utils.ibm_sa_utils import (execute_pyxcli_command, connect_ssl,
+                                                                                     spectrum_accelerate_spec, is_pyxcli_installed)
 
 
 def main():
     argument_spec = spectrum_accelerate_spec()
     argument_spec.update(
         dict(
-            state=dict(default="present", choices=["present", "absent"]),
+            state=dict(default='present', choices=['present', 'absent']),
             host=dict(required=True),
             iscsi_name=dict(),
             fcaddress=dict(),
-            num_of_visible_targets=dict(),
+            num_of_visible_targets=dict()
         )
     )
 
@@ -104,27 +104,32 @@ def main():
     # required args
     ports = []
     try:
-        ports = xcli_client.cmd.host_list_ports(host=module.params.get("host")).as_list
+        ports = xcli_client.cmd.host_list_ports(
+            host=module.params.get('host')).as_list
     except Exception:
         pass
-    state = module.params["state"]
+    state = module.params['state']
     port_exists = False
-    ports = [port.get("port_name") for port in ports]
+    ports = [port.get('port_name') for port in ports]
 
-    fc_ports = module.params.get("fcaddress") if module.params.get("fcaddress") else []
-    iscsi_ports = module.params.get("iscsi_name") if module.params.get("iscsi_name") else []
+    fc_ports = (module.params.get('fcaddress')
+                if module.params.get('fcaddress') else [])
+    iscsi_ports = (module.params.get('iscsi_name')
+                   if module.params.get('iscsi_name') else [])
     for port in ports:
         if port in iscsi_ports or port in fc_ports:
             port_exists = True
             break
     state_changed = False
-    if state == "present" and not port_exists:
-        state_changed = execute_pyxcli_command(module, "host_add_port", xcli_client)
-    if state == "absent" and port_exists:
-        state_changed = execute_pyxcli_command(module, "host_remove_port", xcli_client)
+    if state == 'present' and not port_exists:
+        state_changed = execute_pyxcli_command(
+            module, 'host_add_port', xcli_client)
+    if state == 'absent' and port_exists:
+        state_changed = execute_pyxcli_command(
+            module, 'host_remove_port', xcli_client)
 
     module.exit_json(changed=state_changed)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -11,7 +11,7 @@
 - name: Setup OpenLDAP on Debian or Ubuntu
   block:
     - name: Include OS-specific variables
-      include_vars: '{{ ansible_facts.os_family }}.yml'
+      include_vars: '{{ ansible_os_family }}.yml'
 
     - name: Install OpenLDAP server and tools
       become: true
@@ -19,10 +19,17 @@
         name: '{{ item }}'
       loop: '{{ openldap_packages_name }}'
 
-    - name: Install python-ldap
+    - name: Install python-ldap (Python 3)
       become: true
       package:
         name: '{{ python_ldap_package_name_python3 }}'
+      when: ansible_python_version is version('3.0', '>=')
+
+    - name: Install python-ldap (Python 2)
+      become: true
+      package:
+        name: '{{ python_ldap_package_name }}'
+      when: ansible_python_version is version('3.0', '<')
 
     - name: Make sure OpenLDAP service is stopped
       become: true
@@ -89,4 +96,4 @@
         - initial_config.ldif
         - ldap_inc_config.ldif
 
-  when: ansible_facts.os_family in ['Ubuntu', 'Debian']
+  when: ansible_os_family in ['Ubuntu', 'Debian']

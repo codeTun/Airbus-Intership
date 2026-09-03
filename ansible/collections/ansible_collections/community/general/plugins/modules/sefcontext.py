@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2016, Dag Wieers (@dagwieers) <dag@wieers.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: sefcontext
@@ -13,8 +15,8 @@ description:
   - Manages SELinux file context mapping definitions.
   - Similar to the C(semanage fcontext) command.
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.platform
+  - community.general.attributes
+  - community.general.attributes.platform
 attributes:
   check_mode:
     support: full
@@ -138,11 +140,11 @@ RETURN = r"""
 import traceback
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible.module_utils.common.text.converters import to_native
 
 SELINUX_IMP_ERR = None
 try:
     import selinux
-
     HAVE_SELINUX = True
 except ImportError:
     SELINUX_IMP_ERR = traceback.format_exc()
@@ -151,7 +153,6 @@ except ImportError:
 SEOBJECT_IMP_ERR = None
 try:
     import seobject
-
     HAVE_SEOBJECT = True
 except ImportError:
     SEOBJECT_IMP_ERR = traceback.format_exc()
@@ -172,14 +173,14 @@ if HAVE_SEOBJECT:
 
 # Make backward compatible
 option_to_file_type_str = dict(
-    a="all files",
-    b="block device",
-    c="character device",
-    d="directory",
-    f="regular file",
-    l="symbolic link",
-    p="named pipe",
-    s="socket",
+    a='all files',
+    b='block device',
+    c='character device',
+    d='directory',
+    f='regular file',
+    l='symbolic link',
+    p='named pipe',
+    s='socket',
 )
 
 
@@ -188,7 +189,7 @@ def get_runtime_status(ignore_selinux_state=False):
 
 
 def semanage_fcontext_exists(sefcontext, target, ftype):
-    """Get the SELinux file context mapping definition from policy. Return None if it does not exist."""
+    ''' Get the SELinux file context mapping definition from policy. Return None if it does not exist. '''
 
     # Beware that records comprise of a string representation of the file_type
     record = (target, option_to_file_type_str[ftype])
@@ -200,16 +201,16 @@ def semanage_fcontext_exists(sefcontext, target, ftype):
 
 
 def semanage_fcontext_substitute_exists(sefcontext, target):
-    """Get the SELinux file context path substitution definition from policy. Return None if it does not exist."""
+    ''' Get the SELinux file context path substitution definition from policy. Return None if it does not exist. '''
 
     return sefcontext.equiv_dist.get(target, sefcontext.equiv.get(target))
 
 
-def semanage_fcontext_modify(module, result, target, ftype, setype, substitute, do_reload, serange, seuser, sestore=""):
-    """Add or modify SELinux file context mapping definition to the policy."""
+def semanage_fcontext_modify(module, result, target, ftype, setype, substitute, do_reload, serange, seuser, sestore=''):
+    ''' Add or modify SELinux file context mapping definition to the policy. '''
 
     changed = False
-    prepared_diff = ""
+    prepared_diff = ''
 
     try:
         sefcontext = seobject.fcontextRecords(sestore)
@@ -231,25 +232,23 @@ def semanage_fcontext_modify(module, result, target, ftype, setype, substitute, 
                     changed = True
 
                     if module._diff:
-                        prepared_diff += "# Change to semanage file context mappings\n"
-                        prepared_diff += (
-                            f"-{target}      {ftype}      {orig_seuser}:{orig_serole}:{orig_setype}:{orig_serange}\n"
-                        )
-                        prepared_diff += f"+{target}      {ftype}      {seuser}:{orig_serole}:{setype}:{serange}\n"
+                        prepared_diff += '# Change to semanage file context mappings\n'
+                        prepared_diff += '-%s      %s      %s:%s:%s:%s\n' % (target, ftype, orig_seuser, orig_serole, orig_setype, orig_serange)
+                        prepared_diff += '+%s      %s      %s:%s:%s:%s\n' % (target, ftype, seuser, orig_serole, setype, serange)
             else:
                 # Add missing entry
                 if seuser is None:
-                    seuser = "system_u"
+                    seuser = 'system_u'
                 if serange is None:
-                    serange = "s0"
+                    serange = 's0'
 
                 if not module.check_mode:
                     sefcontext.add(target, setype, ftype, serange, seuser)
                 changed = True
 
                 if module._diff:
-                    prepared_diff += "# Addition to semanage file context mappings\n"
-                    prepared_diff += f"+{target}      {ftype}      {seuser}:object_r:{setype}:{serange}\n"
+                    prepared_diff += '# Addition to semanage file context mappings\n'
+                    prepared_diff += '+%s      %s      %s:%s:%s:%s\n' % (target, ftype, seuser, 'object_r', setype, serange)
         else:
             exists = semanage_fcontext_substitute_exists(sefcontext, target)
             if exists:
@@ -262,23 +261,23 @@ def semanage_fcontext_modify(module, result, target, ftype, setype, substitute, 
                     changed = True
 
                     if module._diff:
-                        prepared_diff += "# Change to semanage file context path substitutions\n"
-                        prepared_diff += f"-{target} = {orig_substitute}\n"
-                        prepared_diff += f"+{target} = {substitute}\n"
+                        prepared_diff += '# Change to semanage file context path substitutions\n'
+                        prepared_diff += '-%s = %s\n' % (target, orig_substitute)
+                        prepared_diff += '+%s = %s\n' % (target, substitute)
             else:
                 # Add missing path substitution entry
                 if not module.check_mode:
                     sefcontext.add_equal(target, substitute)
                 changed = True
                 if module._diff:
-                    prepared_diff += "# Addition to semanage file context path substitutions\n"
-                    prepared_diff += f"+{target} = {substitute}\n"
+                    prepared_diff += '# Addition to semanage file context path substitutions\n'
+                    prepared_diff += '+%s = %s\n' % (target, substitute)
 
     except Exception as e:
-        module.fail_json(msg=f"{e.__class__.__name__}: {e}\n")
+        module.fail_json(msg="%s: %s\n" % (e.__class__.__name__, to_native(e)))
 
     if module._diff and prepared_diff:
-        result["diff"] = dict(prepared=prepared_diff)
+        result['diff'] = dict(prepared=prepared_diff)
 
     if changed and not module.check_mode:
         # Flush the in-process matchpathcon cache
@@ -287,11 +286,11 @@ def semanage_fcontext_modify(module, result, target, ftype, setype, substitute, 
     module.exit_json(changed=changed, seuser=seuser, serange=serange, **result)
 
 
-def semanage_fcontext_delete(module, result, target, ftype, setype, substitute, do_reload, sestore=""):
-    """Delete SELinux file context mapping definition from the policy."""
+def semanage_fcontext_delete(module, result, target, ftype, setype, substitute, do_reload, sestore=''):
+    ''' Delete SELinux file context mapping definition from the policy. '''
 
     changed = False
-    prepared_diff = ""
+    prepared_diff = ''
 
     try:
         sefcontext = seobject.fcontextRecords(sestore)
@@ -307,13 +306,9 @@ def semanage_fcontext_delete(module, result, target, ftype, setype, substitute, 
             changed = True
 
             if module._diff:
-                prepared_diff += "# Deletion to semanage file context mappings\n"
-                prepared_diff += f"-{target}      {ftype}      {exists[0]}:{exists[1]}:{exists[2]}:{exists[3]}\n"
-        if (
-            substitute_exists
-            and setype is None
-            and ((substitute is not None and substitute_exists == substitute) or substitute is None)
-        ):
+                prepared_diff += '# Deletion to semanage file context mappings\n'
+                prepared_diff += '-%s      %s      %s:%s:%s:%s\n' % (target, ftype, exists[0], exists[1], exists[2], exists[3])
+        if substitute_exists and setype is None and ((substitute is not None and substitute_exists == substitute) or substitute is None):
             # Remove existing path substitution entry
             orig_substitute = substitute_exists
 
@@ -322,14 +317,14 @@ def semanage_fcontext_delete(module, result, target, ftype, setype, substitute, 
             changed = True
 
             if module._diff:
-                prepared_diff += "# Deletion to semanage file context path substitutions\n"
-                prepared_diff += f"-{target} = {orig_substitute}\n"
+                prepared_diff += '# Deletion to semanage file context path substitutions\n'
+                prepared_diff += '-%s = %s\n' % (target, orig_substitute)
 
     except Exception as e:
-        module.fail_json(msg=f"{e.__class__.__name__}: {e}\n")
+        module.fail_json(msg="%s: %s\n" % (e.__class__.__name__, to_native(e)))
 
     if module._diff and prepared_diff:
-        result["diff"] = dict(prepared=prepared_diff)
+        result['diff'] = dict(prepared=prepared_diff)
 
     if changed and not module.check_mode:
         # Flush the in-process matchpathcon cache
@@ -341,25 +336,26 @@ def semanage_fcontext_delete(module, result, target, ftype, setype, substitute, 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            ignore_selinux_state=dict(type="bool", default=False),
-            target=dict(type="str", required=True, aliases=["path"]),
-            ftype=dict(type="str", default="a", choices=list(option_to_file_type_str.keys())),
-            setype=dict(type="str"),
-            substitute=dict(type="str", aliases=["equal"]),
-            seuser=dict(type="str"),
-            selevel=dict(type="str", aliases=["serange"]),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
-            reload=dict(type="bool", default=True),
+            ignore_selinux_state=dict(type='bool', default=False),
+            target=dict(type='str', required=True, aliases=['path']),
+            ftype=dict(type='str', default='a', choices=list(option_to_file_type_str.keys())),
+            setype=dict(type='str'),
+            substitute=dict(type='str', aliases=['equal']),
+            seuser=dict(type='str'),
+            selevel=dict(type='str', aliases=['serange']),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
+            reload=dict(type='bool', default=True),
         ),
         mutually_exclusive=[
-            ("setype", "substitute"),
-            ("substitute", "ftype"),
-            ("substitute", "seuser"),
-            ("substitute", "selevel"),
+            ('setype', 'substitute'),
+            ('substitute', 'ftype'),
+            ('substitute', 'seuser'),
+            ('substitute', 'selevel'),
         ],
         required_if=[
-            ("state", "present", ("setype", "substitute"), True),
+            ('state', 'present', ('setype', 'substitute'), True),
         ],
+
         supports_check_mode=True,
     )
     if not HAVE_SELINUX:
@@ -368,29 +364,29 @@ def main():
     if not HAVE_SEOBJECT:
         module.fail_json(msg=missing_required_lib("policycoreutils-python"), exception=SEOBJECT_IMP_ERR)
 
-    ignore_selinux_state = module.params["ignore_selinux_state"]
+    ignore_selinux_state = module.params['ignore_selinux_state']
 
     if not get_runtime_status(ignore_selinux_state):
         module.fail_json(msg="SELinux is disabled on this host.")
 
-    target = module.params["target"]
-    ftype = module.params["ftype"]
-    setype = module.params["setype"]
-    substitute = module.params["substitute"]
-    seuser = module.params["seuser"]
-    serange = module.params["selevel"]
-    state = module.params["state"]
-    do_reload = module.params["reload"]
+    target = module.params['target']
+    ftype = module.params['ftype']
+    setype = module.params['setype']
+    substitute = module.params['substitute']
+    seuser = module.params['seuser']
+    serange = module.params['selevel']
+    state = module.params['state']
+    do_reload = module.params['reload']
 
     result = dict(target=target, ftype=ftype, setype=setype, substitute=substitute, state=state)
 
-    if state == "present":
+    if state == 'present':
         semanage_fcontext_modify(module, result, target, ftype, setype, substitute, do_reload, serange, seuser)
-    elif state == "absent":
+    elif state == 'absent':
         semanage_fcontext_delete(module, result, target, ftype, setype, substitute, do_reload)
     else:
-        module.fail_json(msg=f'Invalid value of argument "state": {state}')
+        module.fail_json(msg='Invalid value of argument "state": {0}'.format(state))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

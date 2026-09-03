@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2022, Alexander Hussey <ahussey@redhat.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -7,7 +8,9 @@
 Ansible Module - community.general.keyring_info
 """
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: keyring_info
@@ -23,8 +26,8 @@ requirements:
   - gnome-keyring (application - required for headless Linux keyring access)
   - dbus-run-session (application - required for headless Linux keyring access)
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 options:
   service:
     description: The name of the service.
@@ -61,8 +64,11 @@ passphrase:
   sample: Password123
 """
 
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 import traceback
-from shlex import quote
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 
@@ -77,9 +83,10 @@ except ImportError:
 
 
 def _alternate_retrieval_method(module):
-    get_argument = (
-        f'echo "{quote(module.params["keyring_password"])}" | gnome-keyring-daemon --unlock\n'
-        f"keyring get {quote(module.params['service'])} {quote(module.params['username'])}\n"
+    get_argument = 'echo "%s" | gnome-keyring-daemon --unlock\nkeyring get %s %s\n' % (
+        quote(module.params["keyring_password"]),
+        quote(module.params["service"]),
+        quote(module.params["username"]),
     )
     dummy, stdout, dummy = module.run_command(
         "dbus-run-session -- /bin/bash",
@@ -106,12 +113,13 @@ def run_module():
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     if not HAS_KEYRING:
         module.fail_json(msg=missing_required_lib("keyring"), exception=KEYRING_IMP_ERR)
     try:
-        passphrase = keyring.get_password(module.params["service"], module.params["username"])
+        passphrase = keyring.get_password(
+            module.params["service"], module.params["username"]
+        )
     except keyring.errors.KeyringLocked:
         pass
     except keyring.errors.InitError:
@@ -123,10 +131,16 @@ def run_module():
         passphrase = _alternate_retrieval_method(module)
 
     if passphrase is not None:
-        result["msg"] = f"Successfully retrieved password for {module.params['service']}@{module.params['username']}"
+        result["msg"] = "Successfully retrieved password for %s@%s" % (
+            module.params["service"],
+            module.params["username"],
+        )
         result["passphrase"] = passphrase
     if passphrase is None:
-        result["msg"] = f"Password for {module.params['service']}@{module.params['username']} does not exist."
+        result["msg"] = "Password for %s@%s does not exist." % (
+            module.params["service"],
+            module.params["username"],
+        )
     module.exit_json(**result)
 
 

@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: django_dumpdata
@@ -14,10 +16,10 @@ version_added: 11.3.0
 description:
   - This module is a wrapper for the execution of C(django-admin dumpdata).
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._django
-  - community.general._django.database
-  - community.general._django.data
+  - community.general.attributes
+  - community.general.django
+  - community.general.django.database
+  - community.general.django.data
 attributes:
   check_mode:
     support: none
@@ -49,7 +51,7 @@ options:
     description:
       - Path to the output file.
       - The fixture filename may end with V(.bz2), V(.gz), V(.lzma) or V(.xz), in which case the corresponding
-        compression format is used.
+        compression format will be used.
       - This corresponds to the C(--output) parameter for the C(django-admin dumpdata) command.
     type: path
     aliases: [output]
@@ -91,7 +93,7 @@ version:
   sample: 5.1.2
 """
 
-from ansible_collections.community.general.plugins.module_utils._django import DjangoModuleHelper
+from ansible_collections.community.general.plugins.module_utils.django import DjangoModuleHelper
 
 
 class DjangoDumpData(DjangoModuleHelper):
@@ -109,9 +111,7 @@ class DjangoDumpData(DjangoModuleHelper):
         supports_check_mode=False,
     )
     django_admin_cmd = "dumpdata"
-    django_admin_arg_order = (
-        "all format indent excludes database_dash natural_foreign natural_primary primary_keys fixture apps_models"
-    )
+    django_admin_arg_order = "all format indent excludes database_dash natural_foreign natural_primary primary_keys fixture apps_models"
     _django_args = ["data", "database_dash"]
 
     def __init_module__(self):
@@ -122,5 +122,5 @@ def main():
     DjangoDumpData.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

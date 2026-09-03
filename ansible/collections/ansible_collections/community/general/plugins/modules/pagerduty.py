@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: pagerduty
@@ -19,7 +22,7 @@ author:
 requirements:
   - PagerDuty API access
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -147,21 +150,21 @@ import json
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
 
-from ansible_collections.community.general.plugins.module_utils._datetime import (
+from ansible_collections.community.general.plugins.module_utils.datetime import (
     now,
 )
 
 
-class PagerDutyRequest:
+class PagerDutyRequest(object):
     def __init__(self, module, name, user, token):
         self.module = module
         self.name = name
         self.user = user
         self.token = token
         self.headers = {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             "Authorization": self._auth_header(),
-            "Accept": "application/vnd.pagerduty+json;version=2",
+            'Accept': 'application/vnd.pagerduty+json;version=2'
         }
 
     def ongoing(self, http_call=fetch_url):
@@ -169,8 +172,8 @@ class PagerDutyRequest:
         headers = dict(self.headers)
 
         response, info = http_call(self.module, url, headers=headers)
-        if info["status"] != 200:
-            self.module.fail_json(msg=f"failed to lookup the ongoing window: {info['msg']}")
+        if info['status'] != 200:
+            self.module.fail_json(msg="failed to lookup the ongoing window: %s" % info['msg'])
 
         json_out = self._read_response(response)
 
@@ -180,22 +183,20 @@ class PagerDutyRequest:
         if not requester_id:
             self.module.fail_json(msg="requester_id is required when maintenance window should be created")
 
-        url = "https://api.pagerduty.com/maintenance_windows"
+        url = 'https://api.pagerduty.com/maintenance_windows'
 
         headers = dict(self.headers)
-        headers.update({"From": requester_id})
+        headers.update({'From': requester_id})
 
         start, end = self._compute_start_end_time(hours, minutes)
         services = self._create_services_payload(service)
 
-        request_data = {
-            "maintenance_window": {"start_time": start, "end_time": end, "description": desc, "services": services}
-        }
+        request_data = {'maintenance_window': {'start_time': start, 'end_time': end, 'description': desc, 'services': services}}
 
         data = json.dumps(request_data)
-        response, info = http_call(self.module, url, data=data, headers=headers, method="POST")
-        if info["status"] != 201:
-            self.module.fail_json(msg=f"failed to create the window: {info['msg']}")
+        response, info = http_call(self.module, url, data=data, headers=headers, method='POST')
+        if info['status'] != 201:
+            self.module.fail_json(msg="failed to create the window: %s" % info['msg'])
 
         json_out = self._read_response(response)
 
@@ -203,9 +204,9 @@ class PagerDutyRequest:
 
     def _create_services_payload(self, service):
         if isinstance(service, list):
-            return [{"id": s, "type": "service_reference"} for s in service]
+            return [{'id': s, 'type': 'service_reference'} for s in service]
         else:
-            return [{"id": service, "type": "service_reference"}]
+            return [{'id': service, 'type': 'service_reference'}]
 
     def _compute_start_end_time(self, hours, minutes):
         now_t = now()
@@ -215,19 +216,19 @@ class PagerDutyRequest:
         return start, end
 
     def absent(self, window_id, http_call=fetch_url):
-        url = f"https://api.pagerduty.com/maintenance_windows/{window_id}"
+        url = "https://api.pagerduty.com/maintenance_windows/" + window_id
         headers = dict(self.headers)
 
-        response, info = http_call(self.module, url, headers=headers, method="DELETE")
-        if info["status"] != 204:
-            self.module.fail_json(msg=f"failed to delete the window: {info['msg']}")
+        response, info = http_call(self.module, url, headers=headers, method='DELETE')
+        if info['status'] != 204:
+            self.module.fail_json(msg="failed to delete the window: %s" % info['msg'])
 
         json_out = self._read_response(response)
 
         return False, json_out, True
 
     def _auth_header(self):
-        return f"Token token={self.token}"
+        return "Token token=%s" % self.token
 
     def _read_response(self, response):
         try:
@@ -237,32 +238,33 @@ class PagerDutyRequest:
 
 
 def main():
+
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(required=True, choices=["running", "started", "ongoing", "absent"]),
+            state=dict(required=True, choices=['running', 'started', 'ongoing', 'absent']),
             name=dict(),
             user=dict(),
             token=dict(required=True, no_log=True),
-            service=dict(type="list", elements="str", aliases=["services"]),
+            service=dict(type='list', elements='str', aliases=["services"]),
             window_id=dict(),
             requester_id=dict(),
-            hours=dict(default="1"),  # @TODO change to int?
-            minutes=dict(default="0"),  # @TODO change to int?
-            desc=dict(default="Created by Ansible"),
-            validate_certs=dict(default=True, type="bool"),
+            hours=dict(default='1'),   # @TODO change to int?
+            minutes=dict(default='0'),   # @TODO change to int?
+            desc=dict(default='Created by Ansible'),
+            validate_certs=dict(default=True, type='bool'),
         )
     )
 
-    state = module.params["state"]
-    name = module.params["name"]
-    user = module.params["user"]
-    service = module.params["service"]
-    window_id = module.params["window_id"]
-    hours = module.params["hours"]
-    minutes = module.params["minutes"]
-    token = module.params["token"]
-    desc = module.params["desc"]
-    requester_id = module.params["requester_id"]
+    state = module.params['state']
+    name = module.params['name']
+    user = module.params['user']
+    service = module.params['service']
+    window_id = module.params['window_id']
+    hours = module.params['hours']
+    minutes = module.params['minutes']
+    token = module.params['token']
+    desc = module.params['desc']
+    requester_id = module.params['requester_id']
 
     pd = PagerDutyRequest(module, name, user, token)
 
@@ -285,5 +287,5 @@ def main():
     module.exit_json(msg="success", result=out, changed=changed)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,9 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Florian Dambrine <android.florian@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: pritunl_org
@@ -13,8 +16,8 @@ short_description: Manages Pritunl Organizations using the Pritunl API
 description:
   - A module to manage Pritunl organizations using the Pritunl API.
 extends_documentation_fragment:
-  - community.general._pritunl
-  - community.general._attributes
+  - community.general.pritunl
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -76,14 +79,14 @@ response:
 
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.common.dict_transformations import dict_merge
-
-from ansible_collections.community.general.plugins.module_utils._pritunl_api import (
+from ansible_collections.community.general.plugins.module_utils.net_tools.pritunl.api import (
     PritunlException,
     delete_pritunl_organization,
-    get_pritunl_settings,
-    list_pritunl_organizations,
     post_pritunl_organization,
+    list_pritunl_organizations,
+    get_pritunl_settings,
     pritunl_argument_spec,
 )
 
@@ -157,10 +160,11 @@ def remove_pritunl_organization(module):
         else:
             module.fail_json(
                 msg=(
-                    f"Can not remove organization '{org_name}' with {org['user_count']} attached users. "
+                    "Can not remove organization '%s' with %d attached users. "
                     "Either set 'force' option to true or remove active users "
                     "from the organization"
                 )
+                % (org_name, org["user_count"])
             )
 
     module.exit_json(**result)
@@ -187,7 +191,7 @@ def main():
         elif state == "absent":
             remove_pritunl_organization(module)
     except PritunlException as e:
-        module.fail_json(msg=f"{e}")
+        module.fail_json(msg=to_native(e))
 
 
 if __name__ == "__main__":

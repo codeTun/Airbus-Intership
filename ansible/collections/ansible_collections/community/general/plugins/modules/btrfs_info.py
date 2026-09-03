@@ -4,7 +4,8 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: btrfs_info
@@ -16,8 +17,8 @@ author:
   - Gregory Furlong (@gnfzdz)
 
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -75,15 +76,17 @@ filesystems:
 """
 
 
+from ansible_collections.community.general.plugins.module_utils.btrfs import BtrfsFilesystemsProvider
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._btrfs import BtrfsFilesystemsProvider
 
 
 def run_module():
     module_args = dict()
 
-    module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
+    module = AnsibleModule(
+        argument_spec=module_args,
+        supports_check_mode=True
+    )
 
     provider = BtrfsFilesystemsProvider(module)
     filesystems = [x.get_summary() for x in provider.get_filesystems()]
@@ -97,5 +100,5 @@ def main():
     run_module()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

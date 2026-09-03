@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright 2018 www.privaz.io Valletech AB
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Make coding more python3-ish
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: one_host
@@ -79,8 +82,8 @@ options:
     type: dict
 
 extends_documentation_fragment:
-  - community.general._opennebula
-  - community.general._attributes
+  - community.general.opennebula
+  - community.general.attributes
 
 author:
   - Rafael del Valle (@rvalle)
@@ -111,7 +114,7 @@ RETURN = r"""
 # TODO: Documentation on valid state transitions is required to properly implement all valid cases
 # TODO: To be coherent with CLI this module should also provide "flush" functionality
 
-from ansible_collections.community.general.plugins.module_utils._opennebula import OpenNebulaModule
+from ansible_collections.community.general.plugins.module_utils.opennebula import OpenNebulaModule
 
 try:
     from pyone import HOST_STATES, HOST_STATUS
@@ -125,19 +128,23 @@ HOST_ABSENT = -99  # the host is absent (special case defined by this module)
 
 
 class HostModule(OpenNebulaModule):
+
     def __init__(self):
+
         argument_spec = dict(
-            name=dict(type="str", required=True),
-            state=dict(choices=["present", "absent", "enabled", "disabled", "offline"], default="present"),
-            im_mad_name=dict(type="str", default="kvm"),
-            vmm_mad_name=dict(type="str", default="kvm"),
-            cluster_id=dict(type="int", default=0),
-            cluster_name=dict(type="str"),
-            labels=dict(type="list", elements="str"),
-            template=dict(type="dict", aliases=["attributes"]),
+            name=dict(type='str', required=True),
+            state=dict(choices=['present', 'absent', 'enabled', 'disabled', 'offline'], default='present'),
+            im_mad_name=dict(type='str', default="kvm"),
+            vmm_mad_name=dict(type='str', default="kvm"),
+            cluster_id=dict(type='int', default=0),
+            cluster_name=dict(type='str'),
+            labels=dict(type='list', elements='str'),
+            template=dict(type='dict', aliases=['attributes']),
         )
 
-        mutually_exclusive = [["cluster_id", "cluster_name"]]
+        mutually_exclusive = [
+            ['cluster_id', 'cluster_name']
+        ]
 
         OpenNebulaModule.__init__(self, argument_spec, mutually_exclusive=mutually_exclusive)
 
@@ -149,15 +156,13 @@ class HostModule(OpenNebulaModule):
 
         """
         try:
-            self.one.host.allocate(
-                self.get_parameter("name"),
-                self.get_parameter("vmm_mad_name"),
-                self.get_parameter("im_mad_name"),
-                self.get_parameter("cluster_id"),
-            )
-            self.result["changed"] = True
+            self.one.host.allocate(self.get_parameter('name'),
+                                   self.get_parameter('vmm_mad_name'),
+                                   self.get_parameter('im_mad_name'),
+                                   self.get_parameter('cluster_id'))
+            self.result['changed'] = True
         except Exception as e:
-            self.fail(msg=f"Could not allocate host, ERROR: {e}")
+            self.fail(msg="Could not allocate host, ERROR: " + str(e))
 
         return True
 
@@ -169,21 +174,19 @@ class HostModule(OpenNebulaModule):
             target_states:
 
         """
-        return self.wait_for_state(
-            "host",
-            lambda: self.one.host.info(host.ID).STATE,
-            lambda s: HOST_STATES(s).name,
-            target_states,
-            invalid_states=[HOST_STATES.ERROR, HOST_STATES.MONITORING_ERROR],
-        )
+        return self.wait_for_state('host',
+                                   lambda: self.one.host.info(host.ID).STATE,
+                                   lambda s: HOST_STATES(s).name, target_states,
+                                   invalid_states=[HOST_STATES.ERROR, HOST_STATES.MONITORING_ERROR])
 
     def run(self, one, module, result):
+
         # Get the list of hosts
         host_name = self.get_parameter("name")
         host = self.get_host_by_name(host_name)
 
         # manage host state
-        desired_state = self.get_parameter("state")
+        desired_state = self.get_parameter('state')
         if bool(host):
             current_state = host.STATE
             current_state_name = HOST_STATES(host.STATE).name
@@ -192,15 +195,15 @@ class HostModule(OpenNebulaModule):
             current_state_name = "ABSENT"
 
         # apply properties
-        if desired_state == "present":
+        if desired_state == 'present':
             if current_state == HOST_ABSENT:
                 self.allocate_host()
                 host = self.get_host_by_name(host_name)
                 self.wait_for_host_state(host, [HOST_STATES.MONITORED])
             elif current_state in [HOST_STATES.ERROR, HOST_STATES.MONITORING_ERROR]:
-                self.fail(msg=f"invalid host state {current_state_name}")
+                self.fail(msg="invalid host state %s" % current_state_name)
 
-        elif desired_state == "enabled":
+        elif desired_state == 'enabled':
             if current_state == HOST_ABSENT:
                 self.allocate_host()
                 host = self.get_host_by_name(host_name)
@@ -208,67 +211,67 @@ class HostModule(OpenNebulaModule):
             elif current_state in [HOST_STATES.DISABLED, HOST_STATES.OFFLINE]:
                 if one.host.status(host.ID, HOST_STATUS.ENABLED):
                     self.wait_for_host_state(host, [HOST_STATES.MONITORED])
-                    result["changed"] = True
+                    result['changed'] = True
                 else:
                     self.fail(msg="could not enable host")
             elif current_state in [HOST_STATES.MONITORED]:
                 pass
             else:
-                self.fail(msg=f"unknown host state {current_state_name}, cowardly refusing to change state to enable")
+                self.fail(msg="unknown host state %s, cowardly refusing to change state to enable" % current_state_name)
 
-        elif desired_state == "disabled":
+        elif desired_state == 'disabled':
             if current_state == HOST_ABSENT:
-                self.fail(msg="absent host cannot be put in disabled state")
+                self.fail(msg='absent host cannot be put in disabled state')
             elif current_state in [HOST_STATES.MONITORED, HOST_STATES.OFFLINE]:
                 # returns host ID integer
                 try:
                     one.host.status(host.ID, HOST_STATUS.DISABLED)
-                    result["changed"] = True
+                    result['changed'] = True
                 except Exception as e:
-                    self.fail(msg=f"Could not disable host, ERROR: {e}")
+                    self.fail(msg="Could not disable host, ERROR: " + str(e))
                 self.wait_for_host_state(host, [HOST_STATES.DISABLED])
             elif current_state in [HOST_STATES.DISABLED]:
                 pass
             else:
-                self.fail(msg=f"unknown host state {current_state_name}, cowardly refusing to change state to disable")
+                self.fail(msg="unknown host state %s, cowardly refusing to change state to disable" % current_state_name)
 
-        elif desired_state == "offline":
+        elif desired_state == 'offline':
             if current_state == HOST_ABSENT:
-                self.fail(msg="absent host cannot be placed in offline state")
+                self.fail(msg='absent host cannot be placed in offline state')
             elif current_state in [HOST_STATES.MONITORED, HOST_STATES.DISABLED]:
                 # returns host ID integer
                 try:
                     one.host.status(host.ID, HOST_STATUS.OFFLINE)
-                    result["changed"] = True
+                    result['changed'] = True
                 except Exception as e:
-                    self.fail(msg=f"Could not set host offline, ERROR: {e}")
+                    self.fail(msg="Could not set host offline, ERROR: " + str(e))
                 self.wait_for_host_state(host, [HOST_STATES.OFFLINE])
             elif current_state in [HOST_STATES.OFFLINE]:
                 pass
             else:
-                self.fail(msg=f"unknown host state {current_state_name}, cowardly refusing to change state to offline")
+                self.fail(msg="unknown host state %s, cowardly refusing to change state to offline" % current_state_name)
 
-        elif desired_state == "absent":
+        elif desired_state == 'absent':
             if current_state != HOST_ABSENT:
                 # returns host ID integer
                 try:
                     one.host.delete(host.ID)
-                    result["changed"] = True
+                    result['changed'] = True
                 except Exception as e:
-                    self.fail(msg=f"Could not delete host from cluster, ERROR: {e}")
+                    self.fail(msg="Could not delete host from cluster, ERROR: " + str(e))
 
         # if we reach this point we can assume that the host was taken to the desired state
 
         if desired_state != "absent":
             # manipulate or modify the template
-            desired_template_changes = self.get_parameter("template")
+            desired_template_changes = self.get_parameter('template')
 
             if desired_template_changes is None:
                 desired_template_changes = dict()
 
             # complete the template with specific ansible parameters
-            if self.is_parameter("labels"):
-                desired_template_changes["LABELS"] = self.get_parameter("labels")
+            if self.is_parameter('labels'):
+                desired_template_changes['LABELS'] = self.get_parameter('labels')
 
             if self.requires_template_update(host.TEMPLATE, desired_template_changes):
                 # setup the root element so that pyone will generate XML instead of attribute vector
@@ -276,18 +279,18 @@ class HostModule(OpenNebulaModule):
                 # merge the template, returns host ID integer
                 try:
                     one.host.update(host.ID, desired_template_changes, 1)
-                    result["changed"] = True
+                    result['changed'] = True
                 except Exception as e:
-                    self.fail(msg=f"Failed to update the host template, ERROR: {e}")
+                    self.fail(msg="Failed to update the host template, ERROR: " + str(e))
 
             # the cluster
-            if self.get_parameter("cluster_id") != host.CLUSTER_ID:
+            if host.CLUSTER_ID != self.get_parameter('cluster_id'):
                 # returns cluster id in int
                 try:
-                    one.cluster.addhost(self.get_parameter("cluster_id"), host.ID)
-                    result["changed"] = True
+                    one.cluster.addhost(self.get_parameter('cluster_id'), host.ID)
+                    result['changed'] = True
                 except Exception as e:
-                    self.fail(msg=f"Failed to update the host cluster, ERROR: {e}")
+                    self.fail(msg="Failed to update the host cluster, ERROR: " + str(e))
 
         # return
         self.exit()
@@ -297,5 +300,5 @@ def main():
     HostModule().run_module()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

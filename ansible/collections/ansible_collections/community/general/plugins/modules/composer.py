@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2014, Dimitrios Tydeas Mengidis <tydeas.dr@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: composer
@@ -16,7 +19,7 @@ description:
   - Composer is a tool for dependency management in PHP. It allows you to declare the dependent libraries your project needs
     and it installs them in your project for you.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -98,14 +101,6 @@ options:
         these.
     default: false
     type: bool
-  force:
-    description:
-      - When O(command) is V(create-project), the module checks whether a V(composer.json) already
-        exists in O(working_dir) and skips the command if it does, making the task idempotent.
-      - Set to V(true) to always run the command regardless.
-    default: false
-    type: bool
-    version_added: 12.6.0
   composer_executable:
     type: path
     description:
@@ -147,10 +142,8 @@ EXAMPLES = r"""
     arguments: my/package
 """
 
-import os
 import re
 import shlex
-
 from ansible.module_utils.basic import AnsibleModule
 
 
@@ -159,13 +152,14 @@ def parse_out(string):
 
 
 def has_changed(string):
-    return all(
-        no_change not in string
-        for no_change in ["Nothing to install or update", "Nothing to install, update or remove"]
-    )
+    for no_change in ["Nothing to install or update", "Nothing to install, update or remove"]:
+        if no_change in string:
+            return False
+
+    return True
 
 
-def get_available_options(module, command="install"):
+def get_available_options(module, command='install'):
     # get all available options from a composer command using composer help to json
     rc, out, err = composer_command(module, ["help", command], arguments=["--no-interaction", "--format=json"])
     if rc != 0:
@@ -173,7 +167,7 @@ def get_available_options(module, command="install"):
         module.fail_json(msg=output)
 
     command_help_json = module.from_json(out)
-    return command_help_json["definition"]["options"]
+    return command_help_json['definition']['options']
 
 
 def composer_command(module, command, arguments=None, options=None):
@@ -182,67 +176,26 @@ def composer_command(module, command, arguments=None, options=None):
     if arguments is None:
         arguments = []
 
-    global_command = module.params["global_command"]
+    global_command = module.params['global_command']
 
     if global_command:
         global_arg = ["global"]
-        working_dir_option = []
     else:
         global_arg = []
-        working_dir_option = [f"--working-dir={module.params['working_dir']}"]
+        options.extend(['--working-dir', module.params['working_dir']])
 
-    if module.params["executable"] is None:
+    if module.params['executable'] is None:
         php_path = module.get_bin_path("php", True, ["/usr/local/bin"])
     else:
-        php_path = module.params["executable"]
+        php_path = module.params['executable']
 
-    if module.params["composer_executable"] is None:
+    if module.params['composer_executable'] is None:
         composer_path = module.get_bin_path("composer", True, ["/usr/local/bin"])
     else:
-        composer_path = module.params["composer_executable"]
+        composer_path = module.params['composer_executable']
 
-    cmd = [php_path, composer_path] + working_dir_option + global_arg + command + options + arguments
+    cmd = [php_path, composer_path] + global_arg + command + options + arguments
     return module.run_command(cmd)
-
-
-def get_composer_home(module):
-    """Get the composer home directory by running 'composer config --global home'."""
-    if module.params["executable"] is None:
-        php_path = module.get_bin_path("php", True, ["/usr/local/bin"])
-    else:
-        php_path = module.params["executable"]
-
-    if module.params["composer_executable"] is None:
-        composer_path = module.get_bin_path("composer", True, ["/usr/local/bin"])
-    else:
-        composer_path = module.params["composer_executable"]
-
-    cmd = [php_path, composer_path, "config", "--global", "--no-interaction", "home"]
-    rc, out, err = module.run_command(cmd)
-    if rc == 0:
-        return out.strip()
-    return None
-
-
-def get_config_files(module):
-    """Get list of config files that might be changed by 'composer config'."""
-    files = ["composer.json", "auth.json"]
-    global_command = module.params["global_command"]
-    working_dir = module.params["working_dir"]
-
-    if global_command:
-        composer_home = get_composer_home(module)
-        if composer_home:
-            files = [os.path.join(composer_home, f) for f in files]
-    elif working_dir:
-        files = [os.path.join(working_dir, f) for f in files]
-
-    return files
-
-
-def hash_config_files(module, files):
-    """Return a dict mapping file path to its sha256 hash (or None if the file does not exist)."""
-    return {f: (module.sha256(f) if os.path.isfile(f) else None) for f in files}
 
 
 def main():
@@ -262,70 +215,56 @@ def main():
             optimize_autoloader=dict(default=True, type="bool"),
             classmap_authoritative=dict(default=False, type="bool"),
             ignore_platform_reqs=dict(default=False, type="bool"),
-            force=dict(default=False, type="bool"),
             composer_executable=dict(type="path"),
         ),
-        required_if=[("global_command", False, ["working_dir"])],
-        supports_check_mode=True,
+        required_if=[('global_command', False, ['working_dir'])],
+        supports_check_mode=True
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     # Get composer command with fallback to default
-    command = module.params["command"]
+    command = module.params['command']
     if re.search(r"\s", command):
         module.fail_json(msg="Use the 'arguments' param for passing arguments with the 'command'")
 
-    arguments = shlex.split(module.params["arguments"])
+    arguments = shlex.split(module.params['arguments'])
     available_options = get_available_options(module=module, command=command)
 
     options = []
 
     # Default options
     default_options = [
-        "no-ansi",
-        "no-interaction",
-        "no-progress",
+        'no-ansi',
+        'no-interaction',
+        'no-progress',
     ]
 
     for option in default_options:
         if option in available_options:
-            option = f"--{option}"
+            option = "--%s" % option
             options.append(option)
 
     option_params = {
-        "prefer_source": "prefer-source",
-        "prefer_dist": "prefer-dist",
-        "no_dev": "no-dev",
-        "no_scripts": "no-scripts",
-        "no_plugins": "no-plugins",
-        "apcu_autoloader": "acpu-autoloader",
-        "optimize_autoloader": "optimize-autoloader",
-        "classmap_authoritative": "classmap-authoritative",
-        "ignore_platform_reqs": "ignore-platform-reqs",
+        'prefer_source': 'prefer-source',
+        'prefer_dist': 'prefer-dist',
+        'no_dev': 'no-dev',
+        'no_scripts': 'no-scripts',
+        'no_plugins': 'no-plugins',
+        'apcu_autoloader': 'acpu-autoloader',
+        'optimize_autoloader': 'optimize-autoloader',
+        'classmap_authoritative': 'classmap-authoritative',
+        'ignore_platform_reqs': 'ignore-platform-reqs',
     }
 
     for param, option in option_params.items():
         if module.params.get(param) and option in available_options:
-            option = f"--{option}"
+            option = "--%s" % option
             options.append(option)
 
-    working_dir = module.params["working_dir"]
-
-    if command == "create-project" and not module.params["force"]:
-        if working_dir and os.path.exists(os.path.join(working_dir, "composer.json")):
-            module.exit_json(changed=False, msg="composer.json already exists in working_dir, skipping create-project")
-
     if module.check_mode:
-        if "dry-run" in available_options:
-            options.append("--dry-run")
+        if 'dry-run' in available_options:
+            options.append('--dry-run')
         else:
-            module.exit_json(skipped=True, msg=f"command '{command}' does not support check mode, skipping")
-
-    # For 'config' command in non-check mode, use sha256 hashing to detect changes
-    use_hash_detection = command == "config" and not module.check_mode
-    if use_hash_detection:
-        config_files = get_config_files(module)
-        hashes_before = hash_config_files(module, config_files)
+            module.exit_json(skipped=True, msg="command '%s' does not support check mode, skipping" % command)
 
     rc, out, err = composer_command(module, [command], arguments, options)
 
@@ -335,13 +274,8 @@ def main():
     else:
         # Composer version > 1.0.0-alpha9 now use stderr for standard notification messages
         output = parse_out(out + err)
-        if use_hash_detection:
-            hashes_after = hash_config_files(module, config_files)
-            changed = hashes_before != hashes_after
-        else:
-            changed = has_changed(output)
-        module.exit_json(changed=changed, msg=output, stdout=out + err)
+        module.exit_json(changed=has_changed(output), msg=output, stdout=out + err)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

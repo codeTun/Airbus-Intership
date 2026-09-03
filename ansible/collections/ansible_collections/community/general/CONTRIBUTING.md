@@ -8,8 +8,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 We follow [Ansible Code of Conduct](https://docs.ansible.com/projects/ansible/latest/community/code_of_conduct.html) in all our contributions and interactions within this repository.
 
-**Please note that using AI is accepted but you MUST comply with the [Ansible Community Policy for AI-Assisted Contributions](https://docs.ansible.com/projects/ansible/devel/community/ai_policy.html)**!
-
 If you are a committer, also refer to the [collection's committer guidelines](https://github.com/ansible-collections/community.general/blob/main/commit-rights.md).
 
 ## Issue tracker
@@ -41,7 +39,7 @@ Please read our ['Contributing to collections'](https://docs.ansible.com/project
 * Make sure your PR includes a [changelog fragment](https://docs.ansible.com/projects/ansible/devel/community/collection_development_process.html#creating-a-changelog-fragment).
   * You must not include a fragment for new modules or new plugins. Also you shouldn't include one for docs-only changes. (If you're not sure, simply don't include one, we'll tell you whether one is needed or not :) )
   * Please always include a link to the pull request itself, and if the PR is about an issue, also a link to the issue. Also make sure the fragment ends with a period, and begins with a lower-case letter after `-`. (Again, if you don't do this, we'll add suggestions to fix it, so don't worry too much :) )
-* Note that we format the code with `ruff format`. If your change does not match the formatters expectations, CI will fail and your PR will not get merged. See below for how to format code with antsibull-nox.
+* Avoid reformatting unrelated parts of the codebase in your PR. These types of changes will likely be requested for reversion, create additional work for reviewers, and may cause approval to be delayed.
 
 You can also read the Ansible community's [Quick-start development guide](https://docs.ansible.com/projects/ansible/devel/community/create_pr_quick_start.html).
 
@@ -51,23 +49,10 @@ If you want to test a PR locally, refer to [our testing guide](https://docs.ansi
 
 If you find any inconsistencies or places in this document which can be improved, feel free to raise an issue or pull request to fix it.
 
-## Format code; and run sanity or unit tests locally (with antsibull-nox)
+## Run sanity or unit locally (with antsibull-nox)
 
-The easiest way to format the code, and to run sanity and unit tests locally is to use [antsibull-nox](https://docs.ansible.com/projects/antsibull-nox/).
+The easiest way to run sanity and unit tests locally is to use [antsibull-nox](https://docs.ansible.com/projects/antsibull-nox/).
 (If you have [nox](https://nox.thea.codes/en/stable/) installed, it will automatically install antsibull-nox in a virtual environment for you.)
-
-### Format code
-
-The following commands show how to run ruff format:
-
-```.bash
-# Run all configured formatters:
-nox -Re formatters
-
-# If you notice discrepancies between your local formatter and CI, you might
-# need to re-generate the virtual environment:
-nox -e formatters
-```
 
 ### Sanity tests
 
@@ -95,10 +80,10 @@ The following commands show how to run unit tests:
 nox -Re ansible-test-units-devel
 
 # Run all unit tests for one Python version (a lot faster):
-nox -Re ansible-test-units-devel-3.14
+nox -Re ansible-test-units-devel -- --python 3.13
 
 # Run a specific unit test (for the nmcli module) for one Python version:
-nox -Re ansible-test-units-devel-3.14 -- tests/unit/plugins/modules/net_tools/test_nmcli.py
+nox -Re ansible-test-units-devel -- --python 3.13 tests/unit/plugins/modules/net_tools/test_nmcli.py
 ```
 
 If you replace `-Re` with `-e`, then the virtual environments will be re-created. The `-R` re-uses them (if they already exist).
@@ -135,7 +120,6 @@ ansible-test sanity --docker -v plugins/modules/system/pids.py tests/integration
 Note that for running unit tests, you need to install required collections in the same folder structure that `community.general` is checked out in.
 Right now, you need to install [`community.internal_test_tools`](https://github.com/ansible-collections/community.internal_test_tools).
 If you want to use the latest version from GitHub, you can run:
-
 ```
 git clone https://github.com/ansible-collections/community.internal_test_tools.git ~/dev/ansible_collections/community/internal_test_tools
 ```
@@ -147,10 +131,10 @@ The following commands show how to run unit tests:
 ansible-test units --docker -v
 
 # Run all unit tests for one Python version (a lot faster):
-ansible-test units --docker -v --python 3.14
+ansible-test units --docker -v --python 3.8
 
 # Run a specific unit test (for the nmcli module) for one Python version:
-ansible-test units --docker -v --python 3.14 tests/unit/plugins/modules/net_tools/test_nmcli.py
+ansible-test units --docker -v --python 3.8 tests/unit/plugins/modules/net_tools/test_nmcli.py
 ```
 
 ### Integration tests
@@ -158,7 +142,6 @@ ansible-test units --docker -v --python 3.14 tests/unit/plugins/modules/net_tool
 Note that for running integration tests, you need to install required collections in the same folder structure that `community.general` is checked out in.
 Right now, depending on the test, you need to install [`ansible.posix`](https://github.com/ansible-collections/ansible.posix), [`community.crypto`](https://github.com/ansible-collections/community.crypto), and [`community.docker`](https://github.com/ansible-collections/community.docker):
 If you want to use the latest versions from GitHub, you can run:
-
 ```
 mkdir -p ~/dev/ansible_collections/ansible
 git clone https://github.com/ansible-collections/ansible.posix.git ~/dev/ansible_collections/ansible/posix
@@ -171,22 +154,20 @@ The following commands show how to run integration tests:
 #### In Docker
 
 Integration tests on Docker have the following parameters:
-
 - `image_name` (required): The name of the Docker image. To get the list of supported Docker images, run
   `ansible-test integration --help` and look for _target docker images_.
 - `test_name` (optional): The name of the integration test.
   For modules, this equals the short name of the module; for example, `pacman` in case of `community.general.pacman`.
   For plugins, the plugin type is added before the plugin's short name, for example `callback_yaml` for the `community.general.yaml` callback.
-
 ```.bash
-# Test all plugins/modules on fedora
-ansible-test integration -v --docker fedora
+# Test all plugins/modules on fedora40
+ansible-test integration -v --docker fedora40
 
 # Template
 ansible-test integration -v --docker image_name test_name
 
-# Example community.general.ini_file module on fedora Docker image:
-ansible-test integration -v --docker fedora ini_file
+# Example community.general.ini_file module on fedora40 Docker image:
+ansible-test integration -v --docker fedora40 ini_file
 ```
 
 #### Without isolation
@@ -198,31 +179,6 @@ ansible-test integration -v lookup_flattened
 
 If you are unsure about the integration test target name for a module or plugin, you can take a look in `tests/integration/targets/`. Tests for plugins have the plugin type prepended.
 
-## Devcontainer
-
-Since community.general 12.2.0, the project repository supports [devcontainers](https://containers.dev/). In short, it is a standard mechanism to
-create a container that is then used during the development cycle. Many tools are pre-installed in the container and will be already available
-to you as a developer. A number of different IDEs support that configuration, the most prominent ones being VSCode and PyCharm.
-
-See the files under [.devcontainer](.devcontainer) for details on what is deployed inside that container.
-
-Beware of:
-
-- By default, the devcontainer installs the latest version of `ansible-core`.
-  When testing your changes locally, keep in mind that the collection must support older versions of
-  `ansible-core` and, depending on what is being tested, results may vary.
-- Integration tests executed directly inside the devcontainer without isolation (see above) may fail if
-  they expected to be run in full fledged VMs. On the other hand, the devcontainer setup allows running
-  containers inside the container (the `docker-in-docker` feature).
-- The devcontainer is built with a directory structure such that
-  `.../ansible_collections/community/general` contains the project repository, so `ansible-test` and
-  other standard tools should work without any additional setup
-- By default, the devcontainer installs `pre-commit` and configures it to perform `ruff check` and
-  `ruff format` on the Python files, prior to commiting. That configuration is going to be used by
-  `git` even outside the devcontainer. To prevent errors, you have to either install `pre-commit` in
-  your computer, outside the devcontainer, or run `pre-commit uninstall` from within the devcontainer
-  before quitting it.
-
 ## Creating new modules or plugins
 
 Creating new modules and plugins requires a bit more work than other Pull Requests.
@@ -232,7 +188,7 @@ Creating new modules and plugins requires a bit more work than other Pull Reques
 
 2. Please do not add more than one plugin/module in one PR, especially if it is the first plugin/module you are contributing.
    That makes it easier for reviewers, and increases the chance that your PR will get merged. If you plan to contribute a group
-   of plugins/modules (say, more than a module and a corresponding `_info` module), please mention that in the first PR. In
+   of plugins/modules (say, more than a module and a corresponding ``_info`` module), please mention that in the first PR. In
    such cases, you also have to think whether it is better to publish the group of plugins/modules in a new collection.
 
 3. When creating a new module or plugin, please make sure that you follow various guidelines:

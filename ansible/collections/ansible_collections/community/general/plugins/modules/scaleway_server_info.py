@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2018, Yanis Guenane <yanis+ansible@guenane.org>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: scaleway_server_info
@@ -15,10 +17,10 @@ author:
   - "Yanis Guenane (@Spredzy)"
   - "Remy Leone (@remyleone)"
 extends_documentation_fragment:
-  - community.general._scaleway
-  - community.general._attributes
-  - community.general._scaleway.actiongroup_scaleway
-  - community.general._attributes.info_module
+  - community.general.scaleway
+  - community.general.attributes
+  - community.general.scaleway.actiongroup_scaleway
+  - community.general.attributes.info_module
 
 attributes:
   action_group:
@@ -166,31 +168,29 @@ scaleway_server_info:
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._scaleway import (
-    SCALEWAY_LOCATION,
+from ansible_collections.community.general.plugins.module_utils.scaleway import (
     Scaleway,
     ScalewayException,
     scaleway_argument_spec,
+    SCALEWAY_LOCATION,
 )
 
 
 class ScalewayServerInfo(Scaleway):
+
     def __init__(self, module):
-        super().__init__(module)
-        self.name = "servers"
+        super(ScalewayServerInfo, self).__init__(module)
+        self.name = 'servers'
 
         region = module.params["region"]
-        self.module.params["api_url"] = SCALEWAY_LOCATION[region]["api_endpoint"]
+        self.module.params['api_url'] = SCALEWAY_LOCATION[region]["api_endpoint"]
 
 
 def main():
     argument_spec = scaleway_argument_spec()
-    argument_spec.update(
-        dict(
-            region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
-        )
-    )
+    argument_spec.update(dict(
+        region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
+    ))
 
     module = AnsibleModule(
         argument_spec=argument_spec,
@@ -198,10 +198,12 @@ def main():
     )
 
     try:
-        module.exit_json(scaleway_server_info=ScalewayServerInfo(module).get_resources())
+        module.exit_json(
+            scaleway_server_info=ScalewayServerInfo(module).get_resources()
+        )
     except ScalewayException as exc:
         module.fail_json(msg=exc.message)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

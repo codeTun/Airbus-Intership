@@ -25,17 +25,6 @@ Hashids
 
 This produces:
 
-.. ansible-output-data::
-
-    variables:
-      task:
-        previous_code_block: yaml+jinja
-    playbook: |-
-      - hosts: localhost
-        gather_facts: false
-        tasks:
-          @{{ task | indent(4) }}@
-
 .. code-block:: ansible-output
 
     TASK [Create hashid] **********************************************************************
@@ -77,32 +66,16 @@ You can use the :ansplugin:`community.general.random_mac filter <community.gener
 
 This produces:
 
-.. ansible-output-data::
-
-    playbook: |-
-      - hosts: localhost
-        gather_facts: false
-        tasks:
-          - name: "Create a random MAC starting with ff:"
-            debug:
-              # We're using a seed here to avoid randomness in the output
-              msg: "{{ 'FF' | community.general.random_mac(seed='') }}"
-
-          - name: "Create a random MAC starting with 00:11:22:"
-            debug:
-              # We're using a seed here to avoid randomness in the output
-              msg: "{{ '00:11:22' | community.general.random_mac(seed='') }}"
-
 .. code-block:: ansible-output
 
     TASK [Create a random MAC starting with ff:] **********************************************
     ok: [localhost] => {
-        "msg": "ff:84:f5:d1:59:20"
+        "msg": "ff:69:d3:78:7f:b4"
     }
 
     TASK [Create a random MAC starting with 00:11:22:] ****************************************
     ok: [localhost] => {
-        "msg": "00:11:22:84:f5:d1"
+        "msg": "00:11:22:71:5d:3b"
     }
 
 You can also initialize the random number generator from a seed to create random-but-idempotent MAC addresses:

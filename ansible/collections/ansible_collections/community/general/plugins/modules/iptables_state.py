@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2020, quidame <quidame@poivron.org>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: iptables_state
@@ -12,8 +15,8 @@ short_description: Save iptables state into a file or restore it from a file
 version_added: '1.1.0'
 author: quidame (@quidame)
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.flow
+  - community.general.attributes
+  - community.general.attributes.flow
 description:
   - C(iptables) is used to set up, maintain, and inspect the tables of IP packet filter rules in the Linux kernel.
   - This module handles the saving and/or loading of rules. This is the same as the behaviour of the C(iptables-save) and
@@ -221,172 +224,176 @@ tables:
 """
 
 
-import os
 import re
+import os
 import time
+import tempfile
+import filecmp
+import shutil
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.text.converters import to_bytes, to_native
 
+
 IPTABLES = dict(
-    ipv4="iptables",
-    ipv6="ip6tables",
+    ipv4='iptables',
+    ipv6='ip6tables',
 )
 
 SAVE = dict(
-    ipv4="iptables-save",
-    ipv6="ip6tables-save",
+    ipv4='iptables-save',
+    ipv6='ip6tables-save',
 )
 
 RESTORE = dict(
-    ipv4="iptables-restore",
-    ipv6="ip6tables-restore",
+    ipv4='iptables-restore',
+    ipv6='ip6tables-restore',
 )
 
-TABLES = ["filter", "mangle", "nat", "raw", "security"]
+TABLES = ['filter', 'mangle', 'nat', 'raw', 'security']
 
 
 def read_state(b_path):
-    """
+    '''
     Read a file and store its content in a variable as a list.
-    """
-    with open(b_path) as f:
+    '''
+    with open(b_path, 'r') as f:
         text = f.read()
-    return [t for t in text.splitlines() if t != ""]
+    return [t for t in text.splitlines() if t != '']
 
 
-def get_file_contents(b_path: bytes) -> bytes | None:
-    try:
-        with open(b_path, "rb") as f:
-            return f.read()
-    except FileNotFoundError:
-        return None
-
-
-def write_state(module: AnsibleModule, b_path: bytes, lines: list[str], changed: bool) -> bool:
-    """
+def write_state(b_path, lines, changed):
+    '''
     Write given contents to the given path, and return changed status.
-    """
-    joined_lines = "\n".join(lines)
-    content = f"{joined_lines}\n".encode("utf-8")
+    '''
+    # Populate a temporary file
+    tmpfd, tmpfile = tempfile.mkstemp()
+    with os.fdopen(tmpfd, 'w') as f:
+        f.write("{0}\n".format("\n".join(lines)))
 
-    existing_contents = get_file_contents(b_path)
-    if existing_contents == content:
-        return changed
-
-    changed = True
-
-    if existing_contents is None:
+    # Prepare to copy temporary file to the final destination
+    if not os.path.exists(b_path):
         b_destdir = os.path.dirname(b_path)
-        destdir = to_native(b_destdir, errors="surrogate_or_strict")
+        destdir = to_native(b_destdir, errors='surrogate_or_strict')
         if b_destdir and not os.path.exists(b_destdir) and not module.check_mode:
             try:
                 os.makedirs(b_destdir)
             except Exception as err:
-                module.fail_json(msg=f"Error creating {destdir}: {err}", initial_state=lines)
+                module.fail_json(
+                    msg='Error creating %s: %s' % (destdir, to_native(err)),
+                    initial_state=lines)
+        changed = True
 
-    if not module.check_mode:
+    elif not filecmp.cmp(tmpfile, b_path):
+        changed = True
+
+    # Do it
+    if changed and not module.check_mode:
         try:
-            with open(b_path, "wb") as f:
-                f.write(content)
+            shutil.copyfile(tmpfile, b_path)
         except Exception as err:
-            path = to_native(b_path, errors="surrogate_or_strict")
-            module.fail_json(msg=f"Error saving state into {path}: {err}", initial_state=lines)
+            path = to_native(b_path, errors='surrogate_or_strict')
+            module.fail_json(
+                msg='Error saving state into %s: %s' % (path, to_native(err)),
+                initial_state=lines)
 
     return changed
 
 
-def initialize_from_null_state(module: AnsibleModule, initializer, initcommand, fallbackcmd, table):
-    """
+def initialize_from_null_state(initializer, initcommand, fallbackcmd, table):
+    '''
     This ensures iptables-state output is suitable for iptables-restore to roll
     back to it, i.e. iptables-save output is not empty. This also works for the
     iptables-nft-save alternative.
-    """
+    '''
     if table is None:
-        table = "filter"
+        table = 'filter'
 
     commandline = list(initializer)
-    commandline += ["-t", table]
+    commandline += ['-t', table]
     dummy = module.run_command(commandline, check_rc=True)
     (rc, out, err) = module.run_command(initcommand, check_rc=True)
-    if f"*{table}" not in out.splitlines():
+    if '*%s' % table not in out.splitlines():
         # The last resort.
-        iptables_input = f"*{table}\n:OUTPUT ACCEPT\nCOMMIT\n"
+        iptables_input = '*%s\n:OUTPUT ACCEPT\nCOMMIT\n' % table
         dummy = module.run_command(fallbackcmd, data=iptables_input, check_rc=True)
         (rc, out, err) = module.run_command(initcommand, check_rc=True)
 
     return rc, out, err
 
 
-def filter_and_format_state(module: AnsibleModule, string: str) -> list[str]:
-    """
+def filter_and_format_state(string):
+    '''
     Remove timestamps to ensure idempotence between runs. Also remove counters
     by default. And return the result as a list.
-    """
-    string = re.sub(r"((^|\n)# (Generated|Completed)[^\n]*) on [^\n]*", r"\1", string)
-    if not module.params["counters"]:
-        string = re.sub(r"\[[0-9]+:[0-9]+\]", r"[0:0]", string)
-    lines = [line for line in string.splitlines() if line != ""]
+    '''
+    string = re.sub(r'((^|\n)# (Generated|Completed)[^\n]*) on [^\n]*', r'\1', string)
+    if not module.params['counters']:
+        string = re.sub(r'\[[0-9]+:[0-9]+\]', r'[0:0]', string)
+    lines = [line for line in string.splitlines() if line != '']
     return lines
 
 
-def parse_per_table_state(module: AnsibleModule, all_states_dump) -> dict[str, list[str]]:
-    """
+def parse_per_table_state(all_states_dump):
+    '''
     Convert raw iptables-save output into usable datastructure, for reliable
     comparisons between initial and final states.
-    """
-    lines = filter_and_format_state(module, all_states_dump)
-    tables: dict[str, list[str]] = {}
-    current_table = ""
-    current_list: list[str] = []
+    '''
+    lines = filter_and_format_state(all_states_dump)
+    tables = dict()
+    current_table = ''
+    current_list = list()
     for line in lines:
-        if re.match(r"^[*](filter|mangle|nat|raw|security)$", line):
+        if re.match(r'^[*](filter|mangle|nat|raw|security)$', line):
             current_table = line[1:]
             continue
-        if line == "COMMIT":
+        if line == 'COMMIT':
             tables[current_table] = current_list
-            current_table = ""
-            current_list = []
+            current_table = ''
+            current_list = list()
             continue
-        if line.startswith("# "):
+        if line.startswith('# '):
             continue
         current_list.append(line)
     return tables
 
 
-def main() -> None:
+def main():
+
+    global module
+
     module = AnsibleModule(
         argument_spec=dict(
-            path=dict(type="path", required=True),
-            state=dict(type="str", choices=["saved", "restored"], required=True),
-            table=dict(type="str", choices=["filter", "nat", "mangle", "raw", "security"]),
-            noflush=dict(type="bool", default=False),
-            counters=dict(type="bool", default=False),
-            modprobe=dict(type="path"),
-            ip_version=dict(type="str", choices=["ipv4", "ipv6"], default="ipv4"),
-            wait=dict(type="int"),
-            _timeout=dict(type="int"),
-            _back=dict(type="path"),
+            path=dict(type='path', required=True),
+            state=dict(type='str', choices=['saved', 'restored'], required=True),
+            table=dict(type='str', choices=['filter', 'nat', 'mangle', 'raw', 'security']),
+            noflush=dict(type='bool', default=False),
+            counters=dict(type='bool', default=False),
+            modprobe=dict(type='path'),
+            ip_version=dict(type='str', choices=['ipv4', 'ipv6'], default='ipv4'),
+            wait=dict(type='int'),
+            _timeout=dict(type='int'),
+            _back=dict(type='path'),
         ),
         required_together=[
-            ["_timeout", "_back"],
+            ['_timeout', '_back'],
         ],
         supports_check_mode=True,
     )
 
     # We'll parse iptables-restore stderr
-    module.run_command_environ_update = dict(LANGUAGE="C", LC_ALL="C")
+    module.run_command_environ_update = dict(LANG='C', LC_MESSAGES='C')
 
-    path = module.params["path"]
-    state = module.params["state"]
-    table = module.params["table"]
-    noflush = module.params["noflush"]
-    counters = module.params["counters"]
-    modprobe = module.params["modprobe"]
-    ip_version = module.params["ip_version"]
-    wait = module.params["wait"]
-    _timeout = module.params["_timeout"]
-    _back = module.params["_back"]
+    path = module.params['path']
+    state = module.params['state']
+    table = module.params['table']
+    noflush = module.params['noflush']
+    counters = module.params['counters']
+    modprobe = module.params['modprobe']
+    ip_version = module.params['ip_version']
+    wait = module.params['wait']
+    _timeout = module.params['_timeout']
+    _back = module.params['_back']
 
     bin_iptables = module.get_bin_path(IPTABLES[ip_version], True)
     bin_iptables_save = module.get_bin_path(SAVE[ip_version], True)
@@ -396,51 +403,51 @@ def main() -> None:
     changed = False
     COMMANDARGS = []
     INITCOMMAND = [bin_iptables_save]
-    INITIALIZER = [bin_iptables, "-L", "-n"]
-    TESTCOMMAND = [bin_iptables_restore, "--test"]
+    INITIALIZER = [bin_iptables, '-L', '-n']
+    TESTCOMMAND = [bin_iptables_restore, '--test']
     FALLBACKCMD = [bin_iptables_restore]
 
     if counters:
-        COMMANDARGS.append("--counters")
+        COMMANDARGS.append('--counters')
 
     if table is not None:
-        COMMANDARGS.extend(["--table", table])
+        COMMANDARGS.extend(['--table', table])
 
     if wait is not None:
-        TESTCOMMAND.extend(["--wait", f"{wait}"])
+        TESTCOMMAND.extend(['--wait', '%d' % wait])
 
     if modprobe is not None:
-        b_modprobe = to_bytes(modprobe, errors="surrogate_or_strict")
+        b_modprobe = to_bytes(modprobe, errors='surrogate_or_strict')
         if not os.path.exists(b_modprobe):
-            module.fail_json(msg=f"modprobe {modprobe} not found")
+            module.fail_json(msg="modprobe %s not found" % modprobe)
         if not os.path.isfile(b_modprobe):
-            module.fail_json(msg=f"modprobe {modprobe} not a file")
+            module.fail_json(msg="modprobe %s not a file" % modprobe)
         if not os.access(b_modprobe, os.R_OK):
-            module.fail_json(msg=f"modprobe {modprobe} not readable")
+            module.fail_json(msg="modprobe %s not readable" % modprobe)
         if not os.access(b_modprobe, os.X_OK):
-            module.fail_json(msg=f"modprobe {modprobe} not executable")
-        COMMANDARGS.extend(["--modprobe", modprobe])
-        INITIALIZER.extend(["--modprobe", modprobe])
-        INITCOMMAND.extend(["--modprobe", modprobe])
-        TESTCOMMAND.extend(["--modprobe", modprobe])
-        FALLBACKCMD.extend(["--modprobe", modprobe])
+            module.fail_json(msg="modprobe %s not executable" % modprobe)
+        COMMANDARGS.extend(['--modprobe', modprobe])
+        INITIALIZER.extend(['--modprobe', modprobe])
+        INITCOMMAND.extend(['--modprobe', modprobe])
+        TESTCOMMAND.extend(['--modprobe', modprobe])
+        FALLBACKCMD.extend(['--modprobe', modprobe])
 
     SAVECOMMAND = list(COMMANDARGS)
     SAVECOMMAND.insert(0, bin_iptables_save)
 
-    b_path = to_bytes(path, errors="surrogate_or_strict")
+    b_path = to_bytes(path, errors='surrogate_or_strict')
 
-    if state == "restored":
+    if state == 'restored':
         if not os.path.exists(b_path):
-            module.fail_json(msg=f"Source {path} not found")
+            module.fail_json(msg="Source %s not found" % path)
         if not os.path.isfile(b_path):
-            module.fail_json(msg=f"Source {path} not a file")
+            module.fail_json(msg="Source %s not a file" % path)
         if not os.access(b_path, os.R_OK):
-            module.fail_json(msg=f"Source {path} not readable")
+            module.fail_json(msg="Source %s not readable" % path)
         state_to_restore = read_state(b_path)
         cmd = None
     else:
-        cmd = " ".join(SAVECOMMAND)
+        cmd = ' '.join(SAVECOMMAND)
 
     (rc, stdout, stderr) = module.run_command(INITCOMMAND, check_rc=True)
 
@@ -454,37 +461,38 @@ def main() -> None:
     # in the backup ! So we have to ensure tables to be restored have a backup
     # in case of rollback.
     if table is None:
-        if state == "restored":
+        if state == 'restored':
             for t in TABLES:
-                if f"*{t}" in state_to_restore:
-                    if len(stdout) == 0 or f"*{t}" not in stdout.splitlines():
-                        (rc, stdout, stderr) = initialize_from_null_state(
-                            module, INITIALIZER, INITCOMMAND, FALLBACKCMD, t
-                        )
+                if '*%s' % t in state_to_restore:
+                    if len(stdout) == 0 or '*%s' % t not in stdout.splitlines():
+                        (rc, stdout, stderr) = initialize_from_null_state(INITIALIZER, INITCOMMAND, FALLBACKCMD, t)
         elif len(stdout) == 0:
-            (rc, stdout, stderr) = initialize_from_null_state(module, INITIALIZER, INITCOMMAND, FALLBACKCMD, "filter")
+            (rc, stdout, stderr) = initialize_from_null_state(INITIALIZER, INITCOMMAND, FALLBACKCMD, 'filter')
 
-    elif state == "restored" and f"*{table}" not in state_to_restore:
-        module.fail_json(msg=f"Table {table} to restore not defined in {path}")
+    elif state == 'restored' and '*%s' % table not in state_to_restore:
+        module.fail_json(msg="Table %s to restore not defined in %s" % (table, path))
 
-    elif len(stdout) == 0 or f"*{table}" not in stdout.splitlines():
-        (rc, stdout, stderr) = initialize_from_null_state(module, INITIALIZER, INITCOMMAND, FALLBACKCMD, table)
+    elif len(stdout) == 0 or '*%s' % table not in stdout.splitlines():
+        (rc, stdout, stderr) = initialize_from_null_state(INITIALIZER, INITCOMMAND, FALLBACKCMD, table)
 
-    initial_state = filter_and_format_state(module, stdout)
+    initial_state = filter_and_format_state(stdout)
     if initial_state is None:
         module.fail_json(msg="Unable to initialize firewall from NULL state.")
 
     # Depending on the value of 'table', initref_state may differ from
     # initial_state.
     (rc, stdout, stderr) = module.run_command(SAVECOMMAND, check_rc=True)
-    tables_before = parse_per_table_state(module, stdout)
-    initref_state = filter_and_format_state(module, stdout)
+    tables_before = parse_per_table_state(stdout)
+    initref_state = filter_and_format_state(stdout)
 
-    if state == "saved":
-        changed = write_state(module, b_path, initref_state, changed)
+    if state == 'saved':
+        changed = write_state(b_path, initref_state, changed)
         module.exit_json(
-            changed=changed, cmd=cmd, tables=tables_before, initial_state=initial_state, saved=initref_state
-        )
+            changed=changed,
+            cmd=cmd,
+            tables=tables_before,
+            initial_state=initial_state,
+            saved=initref_state)
 
     #
     # All remaining code is for state=restored
@@ -494,36 +502,36 @@ def main() -> None:
     MAINCOMMAND.insert(0, bin_iptables_restore)
 
     if wait is not None:
-        MAINCOMMAND.extend(["--wait", f"{wait}"])
+        MAINCOMMAND.extend(['--wait', '%d' % wait])
 
     if _back is not None:
-        b_back = to_bytes(_back, errors="surrogate_or_strict")
-        dummy = write_state(module, b_back, initref_state, changed)
+        b_back = to_bytes(_back, errors='surrogate_or_strict')
+        dummy = write_state(b_back, initref_state, changed)
         BACKCOMMAND = list(MAINCOMMAND)
         BACKCOMMAND.append(_back)
 
     if noflush:
-        MAINCOMMAND.append("--noflush")
+        MAINCOMMAND.append('--noflush')
 
     MAINCOMMAND.append(path)
-    cmd = " ".join(MAINCOMMAND)
+    cmd = ' '.join(MAINCOMMAND)
 
     TESTCOMMAND = list(MAINCOMMAND)
-    TESTCOMMAND.insert(1, "--test")
-    error_msg = f"Source {path} is not suitable for input to {os.path.basename(bin_iptables_restore)}"
+    TESTCOMMAND.insert(1, '--test')
+    error_msg = "Source %s is not suitable for input to %s" % (path, os.path.basename(bin_iptables_restore))
 
     # Due to a bug in iptables-nft-restore --test, we have to validate tables
     # one by one (https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=960003).
     for t in tables_before:
         testcommand = list(TESTCOMMAND)
-        testcommand.extend(["--table", t])
+        testcommand.extend(['--table', t])
         (rc, stdout, stderr) = module.run_command(testcommand)
 
-        if "Another app is currently holding the xtables lock" in stderr:
+        if 'Another app is currently holding the xtables lock' in stderr:
             error_msg = stderr
 
         if rc != 0:
-            cmd = " ".join(testcommand)
+            cmd = ' '.join(testcommand)
             module.fail_json(
                 msg=error_msg,
                 cmd=cmd,
@@ -533,12 +541,14 @@ def main() -> None:
                 tables=tables_before,
                 initial_state=initial_state,
                 restored=state_to_restore,
-                applied=False,
-            )
+                applied=False)
 
     if module.check_mode:
-        joined_initial_state = "\n".join(initial_state)
-        if get_file_contents(b_path) == f"{joined_initial_state}\n".encode("utf-8"):
+        tmpfd, tmpfile = tempfile.mkstemp()
+        with os.fdopen(tmpfd, 'w') as f:
+            f.write("{0}\n".format("\n".join(initial_state)))
+
+        if filecmp.cmp(tmpfile, b_path):
             restored_state = initial_state
         else:
             restored_state = state_to_restore
@@ -547,7 +557,7 @@ def main() -> None:
         # Let time enough to the plugin to retrieve async status of the module
         # in case of bad option type/value and the like.
         if _back is not None:
-            b_starter = to_bytes(f"{_back}.starter", errors="surrogate_or_strict")
+            b_starter = to_bytes('%s.starter' % _back, errors='surrogate_or_strict')
             while True:
                 if os.path.exists(b_starter):
                     os.remove(b_starter)
@@ -555,7 +565,7 @@ def main() -> None:
                 time.sleep(0.01)
 
         (rc, stdout, stderr) = module.run_command(MAINCOMMAND)
-        if "Another app is currently holding the xtables lock" in stderr:
+        if 'Another app is currently holding the xtables lock' in stderr:
             module.fail_json(
                 msg=stderr,
                 cmd=cmd,
@@ -565,12 +575,11 @@ def main() -> None:
                 tables=tables_before,
                 initial_state=initial_state,
                 restored=state_to_restore,
-                applied=False,
-            )
+                applied=False)
 
         (rc, stdout, stderr) = module.run_command(SAVECOMMAND, check_rc=True)
-        restored_state = filter_and_format_state(module, stdout)
-    tables_after = parse_per_table_state(module, "\n".join(restored_state))
+        restored_state = filter_and_format_state(stdout)
+    tables_after = parse_per_table_state('\n'.join(restored_state))
     if restored_state not in (initref_state, initial_state):
         for table_name, table_content in tables_after.items():
             if table_name not in tables_before:
@@ -589,8 +598,7 @@ def main() -> None:
             tables=tables_before,
             initial_state=initial_state,
             restored=restored_state,
-            applied=True,
-        )
+            applied=True)
 
     # The rollback implementation currently needs:
     # Here:
@@ -605,7 +613,7 @@ def main() -> None:
     #   timeout
     # * task attribute 'poll' equals 0
     #
-    for dummy2 in range(_timeout):
+    for dummy in range(_timeout):
         if os.path.exists(b_back):
             time.sleep(1)
             continue
@@ -615,8 +623,7 @@ def main() -> None:
             tables=tables_before,
             initial_state=initial_state,
             restored=restored_state,
-            applied=True,
-        )
+            applied=True)
 
     # Here we are: for whatever reason, but probably due to the current ruleset,
     # the action plugin (i.e. on the controller) was unable to remove the backup
@@ -625,9 +632,12 @@ def main() -> None:
     os.remove(b_back)
 
     (rc, stdout, stderr) = module.run_command(SAVECOMMAND, check_rc=True)
-    tables_rollback = parse_per_table_state(module, stdout)
+    tables_rollback = parse_per_table_state(stdout)
 
-    msg = f"Failed to confirm state restored from {path} after {_timeout}s. Firewall has been rolled back to its initial state."
+    msg = (
+        "Failed to confirm state restored from %s after %ss. "
+        "Firewall has been rolled back to its initial state." % (path, _timeout)
+    )
 
     module.fail_json(
         changed=(tables_before != tables_rollback),
@@ -636,9 +646,8 @@ def main() -> None:
         tables=tables_before,
         initial_state=initial_state,
         restored=restored_state,
-        applied=False,
-    )
+        applied=False)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

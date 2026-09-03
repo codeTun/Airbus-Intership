@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2016, Ryan Scott Brown <ryansb@redhat.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: serverless
@@ -12,7 +14,7 @@ short_description: Manages a Serverless Framework project
 description:
   - Provides support for managing Serverless Framework (U(https://serverless.com/)) project deployments and stacks.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -122,7 +124,6 @@ import os
 
 try:
     import yaml
-
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -131,93 +132,91 @@ from ansible.module_utils.basic import AnsibleModule
 
 
 def read_serverless_config(module):
-    path = module.params.get("service_path")
-    full_path = os.path.join(path, "serverless.yml")
+    path = module.params.get('service_path')
+    full_path = os.path.join(path, 'serverless.yml')
 
     try:
         with open(full_path) as sls_config:
             config = yaml.safe_load(sls_config.read())
             return config
-    except OSError as e:
-        module.fail_json(msg=f"Could not open serverless.yml in {full_path}. err: {e}")
+    except IOError as e:
+        module.fail_json(msg="Could not open serverless.yml in {0}. err: {1}".format(full_path, str(e)))
 
 
 def get_service_name(module, stage):
     config = read_serverless_config(module)
-    if config.get("service") is None:
+    if config.get('service') is None:
         module.fail_json(msg="Could not read `service` key from serverless.yml file")
 
     if stage:
-        return f"{config['service']}-{stage}"
+        return "{0}-{1}".format(config['service'], stage)
 
-    return f"{config['service']}-{config.get('stage', 'dev')}"
+    return "{0}-{1}".format(config['service'], config.get('stage', 'dev'))
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            service_path=dict(type="path", required=True),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
-            region=dict(type="str", default=""),
-            stage=dict(type="str", default=""),
-            deploy=dict(type="bool", default=True),
-            serverless_bin_path=dict(type="path"),
-            force=dict(type="bool", default=False),
-            verbose=dict(type="bool", default=False),
+            service_path=dict(type='path', required=True),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
+            region=dict(type='str', default=''),
+            stage=dict(type='str', default=''),
+            deploy=dict(type='bool', default=True),
+            serverless_bin_path=dict(type='path'),
+            force=dict(type='bool', default=False),
+            verbose=dict(type='bool', default=False),
         ),
     )
 
     if not HAS_YAML:
-        module.fail_json(msg="yaml is required for this module")
+        module.fail_json(msg='yaml is required for this module')
 
-    service_path = module.params.get("service_path")
-    state = module.params.get("state")
-    region = module.params.get("region")
-    stage = module.params.get("stage")
-    deploy = module.params.get("deploy", True)
-    force = module.params.get("force", False)
-    verbose = module.params.get("verbose", False)
-    serverless_bin_path = module.params.get("serverless_bin_path")
+    service_path = module.params.get('service_path')
+    state = module.params.get('state')
+    region = module.params.get('region')
+    stage = module.params.get('stage')
+    deploy = module.params.get('deploy', True)
+    force = module.params.get('force', False)
+    verbose = module.params.get('verbose', False)
+    serverless_bin_path = module.params.get('serverless_bin_path')
 
     if serverless_bin_path is not None:
-        command = f"{serverless_bin_path} "
+        command = serverless_bin_path + " "
     else:
-        command = f"{module.get_bin_path('serverless')} "
+        command = module.get_bin_path("serverless") + " "
 
-    if state == "present":
-        command += "deploy "
-    elif state == "absent":
-        command += "remove "
+    if state == 'present':
+        command += 'deploy '
+    elif state == 'absent':
+        command += 'remove '
     else:
-        module.fail_json(msg=f"State must either be 'present' or 'absent'. Received: {state}")
+        module.fail_json(msg="State must either be 'present' or 'absent'. Received: {0}".format(state))
 
-    if state == "present":
+    if state == 'present':
         if not deploy:
-            command += "--noDeploy "
+            command += '--noDeploy '
         elif force:
-            command += "--force "
+            command += '--force '
 
     if region:
-        command += f"--region {region} "
+        command += '--region {0} '.format(region)
     if stage:
-        command += f"--stage {stage} "
+        command += '--stage {0} '.format(stage)
     if verbose:
-        command += "--verbose "
+        command += '--verbose '
 
     rc, out, err = module.run_command(command, cwd=service_path)
     if rc != 0:
-        if state == "absent" and f"-{stage}' does not exist" in out:
-            module.exit_json(
-                changed=False, state="absent", command=command, out=out, service_name=get_service_name(module, stage)
-            )
+        if state == 'absent' and "-{0}' does not exist".format(stage) in out:
+            module.exit_json(changed=False, state='absent', command=command,
+                             out=out, service_name=get_service_name(module, stage))
 
-        module.fail_json(msg=f"Failure when executing Serverless command. Exited {rc}.\nstdout: {out}\nstderr: {err}")
+        module.fail_json(msg="Failure when executing Serverless command. Exited {0}.\nstdout: {1}\nstderr: {2}".format(rc, out, err))
 
     # gather some facts about the deployment
-    module.exit_json(
-        changed=True, state="present", out=out, command=command, service_name=get_service_name(module, stage)
-    )
+    module.exit_json(changed=True, state='present', out=out, command=command,
+                     service_name=get_service_name(module, stage))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

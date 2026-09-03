@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: linode_v4
@@ -18,7 +20,7 @@ notes:
   - No Linode resizing is currently implemented. This module aims to replace the current Linode module which uses deprecated
     API bindings on the Linode side.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -171,13 +173,11 @@ instance:
 import traceback
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
-
-from ansible_collections.community.general.plugins.module_utils._linode import get_user_agent
+from ansible_collections.community.general.plugins.module_utils.linode import get_user_agent
 
 LINODE_IMP_ERR = None
 try:
     from linode_api4 import Instance, LinodeClient
-
     HAS_LINODE_DEPENDENCY = True
 except ImportError:
     LINODE_IMP_ERR = traceback.format_exc()
@@ -186,73 +186,83 @@ except ImportError:
 
 def create_linode(module, client, **kwargs):
     """Creates a Linode instance and handles return format."""
-    if kwargs["root_pass"] is None:
-        kwargs.pop("root_pass")
+    if kwargs['root_pass'] is None:
+        kwargs.pop('root_pass')
 
     try:
         response = client.linode.instance_create(**kwargs)
     except Exception as exception:
-        module.fail_json(msg=f"Unable to query the Linode API. Saw: {exception}")
+        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
 
     try:
         if isinstance(response, tuple):
             instance, root_pass = response
             instance_json = instance._raw_json
-            instance_json.update({"root_pass": root_pass})
+            instance_json.update({'root_pass': root_pass})
             return instance_json
         else:
             return response._raw_json
     except TypeError:
-        module.fail_json(
-            msg="Unable to parse Linode instance creation response. Please raise a bug against this"
-            " module on https://github.com/ansible-collections/community.general/issues"
-        )
+        module.fail_json(msg='Unable to parse Linode instance creation response. Please raise a bug against this'
+                             ' module on https://github.com/ansible-collections/community.general/issues'
+                         )
 
 
 def maybe_instance_from_label(module, client):
     """Try to retrieve an instance based on a label."""
     try:
-        label = module.params["label"]
+        label = module.params['label']
         result = client.linode.instances(Instance.label == label)
         return result[0]
     except IndexError:
         return None
     except Exception as exception:
-        module.fail_json(msg=f"Unable to query the Linode API. Saw: {exception}")
+        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
 
 
 def initialise_module():
     """Initialise the module parameter specification."""
     return AnsibleModule(
         argument_spec=dict(
-            label=dict(type="str", required=True),
-            state=dict(type="str", required=True, choices=["present", "absent"]),
+            label=dict(type='str', required=True),
+            state=dict(
+                type='str',
+                required=True,
+                choices=['present', 'absent']
+            ),
             access_token=dict(
-                type="str",
+                type='str',
                 required=True,
                 no_log=True,
-                fallback=(env_fallback, ["LINODE_ACCESS_TOKEN"]),
+                fallback=(env_fallback, ['LINODE_ACCESS_TOKEN']),
             ),
-            authorized_keys=dict(type="list", elements="str", no_log=False),
-            group=dict(type="str"),
-            image=dict(type="str"),
-            private_ip=dict(type="bool", default=False),
-            region=dict(type="str"),
-            root_pass=dict(type="str", no_log=True),
-            tags=dict(type="list", elements="str"),
-            type=dict(type="str"),
-            stackscript_id=dict(type="int"),
-            stackscript_data=dict(type="dict"),
+            authorized_keys=dict(type='list', elements='str', no_log=False),
+            group=dict(type='str'),
+            image=dict(type='str'),
+            private_ip=dict(type='bool', default=False),
+            region=dict(type='str'),
+            root_pass=dict(type='str', no_log=True),
+            tags=dict(type='list', elements='str'),
+            type=dict(type='str'),
+            stackscript_id=dict(type='int'),
+            stackscript_data=dict(type='dict'),
         ),
         supports_check_mode=False,
-        required_one_of=(["state", "label"],),
-        required_together=(["region", "image", "type"],),
+        required_one_of=(
+            ['state', 'label'],
+        ),
+        required_together=(
+            ['region', 'image', 'type'],
+        )
     )
 
 
 def build_client(module):
     """Build a LinodeClient."""
-    return LinodeClient(module.params["access_token"], user_agent=get_user_agent("linode_v4_module"))
+    return LinodeClient(
+        module.params['access_token'],
+        user_agent=get_user_agent('linode_v4_module')
+    )
 
 
 def main():
@@ -260,37 +270,36 @@ def main():
     module = initialise_module()
 
     if not HAS_LINODE_DEPENDENCY:
-        module.fail_json(msg=missing_required_lib("linode-api4"), exception=LINODE_IMP_ERR)
+        module.fail_json(msg=missing_required_lib('linode-api4'), exception=LINODE_IMP_ERR)
 
     client = build_client(module)
     instance = maybe_instance_from_label(module, client)
 
-    if module.params["state"] == "present" and instance is not None:
+    if module.params['state'] == 'present' and instance is not None:
         module.exit_json(changed=False, instance=instance._raw_json)
 
-    elif module.params["state"] == "present" and instance is None:
+    elif module.params['state'] == 'present' and instance is None:
         instance_json = create_linode(
-            module,
-            client,
-            authorized_keys=module.params["authorized_keys"],
-            group=module.params["group"],
-            image=module.params["image"],
-            label=module.params["label"],
-            private_ip=module.params["private_ip"],
-            region=module.params["region"],
-            root_pass=module.params["root_pass"],
-            tags=module.params["tags"],
-            ltype=module.params["type"],
-            stackscript=module.params["stackscript_id"],
-            stackscript_data=module.params["stackscript_data"],
+            module, client,
+            authorized_keys=module.params['authorized_keys'],
+            group=module.params['group'],
+            image=module.params['image'],
+            label=module.params['label'],
+            private_ip=module.params['private_ip'],
+            region=module.params['region'],
+            root_pass=module.params['root_pass'],
+            tags=module.params['tags'],
+            ltype=module.params['type'],
+            stackscript=module.params['stackscript_id'],
+            stackscript_data=module.params['stackscript_data'],
         )
         module.exit_json(changed=True, instance=instance_json)
 
-    elif module.params["state"] == "absent" and instance is not None:
+    elif module.params['state'] == 'absent' and instance is not None:
         instance.delete()
         module.exit_json(changed=True, instance=instance._raw_json)
 
-    elif module.params["state"] == "absent" and instance is None:
+    elif module.params['state'] == 'absent' and instance is None:
         module.exit_json(changed=False, instance={})
 
 

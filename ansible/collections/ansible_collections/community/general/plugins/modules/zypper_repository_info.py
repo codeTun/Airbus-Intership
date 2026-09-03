@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2024, Tobias Zeuch <tobias.zeuch@sap.com>
 #
@@ -6,7 +7,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: zypper_repository_info
@@ -16,11 +18,11 @@ short_description: List Zypper repositories
 description:
   - List Zypper repositories on SUSE and openSUSE.
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 
 requirements:
-  - "zypper >= 1.0 (included in openSUSE >= 11.1 or SUSE Linux Enterprise Server/Desktop >= 11.0)"
+  - "zypper >= 1.0  (included in openSUSE >= 11.1 or SUSE Linux Enterprise Server/Desktop >= 11.0)"
   - python-xml
 notes:
   - For info about packages, use the module M(ansible.builtin.package_facts).
@@ -71,19 +73,19 @@ repodatalist:
 """
 
 
-from ansible_collections.community.general.plugins.module_utils import _deps as deps
+from ansible_collections.community.general.plugins.module_utils import deps
 
 with deps.declare("parseXML"):
     from xml.dom.minidom import parseString as parseXML
 
 from ansible.module_utils.basic import AnsibleModule
 
-REPO_OPTS = ["alias", "name", "priority", "enabled", "autorefresh", "gpgcheck"]
+REPO_OPTS = ['alias', 'name', 'priority', 'enabled', 'autorefresh', 'gpgcheck']
 
 
 def _get_cmd(module, *args):
     """Combines the non-interactive zypper command with arguments/subcommands"""
-    cmd = [module.get_bin_path("zypper", required=True), "--quiet", "--non-interactive"]
+    cmd = [module.get_bin_path('zypper', required=True), '--quiet', '--non-interactive']
     cmd.extend(args)
 
     return cmd
@@ -91,18 +93,18 @@ def _get_cmd(module, *args):
 
 def _parse_repos(module):
     """parses the output of zypper --xmlout repos and return a parse repo dictionary"""
-    cmd = _get_cmd(module, "--xmlout", "repos")
+    cmd = _get_cmd(module, '--xmlout', 'repos')
 
     rc, stdout, stderr = module.run_command(cmd, check_rc=False)
     if rc == 0:
         repos = []
         dom = parseXML(stdout)
-        repo_list = dom.getElementsByTagName("repo")
+        repo_list = dom.getElementsByTagName('repo')
         for repo in repo_list:
             opts = {}
             for o in REPO_OPTS:
                 opts[o] = repo.getAttribute(o)
-            opts["url"] = repo.getElementsByTagName("url")[0].firstChild.data
+            opts['url'] = repo.getElementsByTagName('url')[0].firstChild.data
             # A repo can be uniquely identified by an alias + url
             repos.append(opts)
         return repos
@@ -110,12 +112,15 @@ def _parse_repos(module):
     elif rc == 6:
         return []
     else:
-        module.fail_json(msg=f'Failed to execute "{" ".join(cmd)}"', rc=rc, stdout=stdout, stderr=stderr)
+        module.fail_json(msg='Failed to execute "%s"' % " ".join(cmd), rc=rc, stdout=stdout, stderr=stderr)
 
 
 def main():
-    module = AnsibleModule(argument_spec=dict(), supports_check_mode=True)
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
+    module = AnsibleModule(
+        argument_spec=dict(
+        ),
+        supports_check_mode=True
+    )
 
     deps.validate(parseXML)
 
@@ -123,5 +128,5 @@ def main():
     module.exit_json(changed=False, repodatalist=repodatalist)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

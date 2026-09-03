@@ -4,3 +4,4 @@
 
 azp/posix/3
 destructive
+skip/aix

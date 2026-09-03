@@ -12,6 +12,25 @@ visioconference_version: "stable-11146-2"
 visioconference_racine: /opt/jitsi
 visioconference_config: /opt/jitsi/config
 
+# Les images de docker-jitsi-meet s'executent sous l'identifiant 1000, pas root.
+# Docker cree en root les repertoires de montage absents, et les conteneurs qui
+# ecrivent dans leur volume s'arretent alors sur "not writable by the container
+# user (uid 1000)". Web et Prosody sont concernes, Jicofo et JVB non.
+visioconference_uid_conteneur: 1000
+
+# Releve dans le fichier compose de la version epinglee. A revoir en meme temps
+# que visioconference_version, la liste ayant deja change entre deux versions.
+visioconference_repertoires:
+  - jicofo
+  - jvb
+  - prosody/config
+  - prosody/prosody-plugins-custom
+  - storage/prosody
+  - storage/transcripts
+  - storage/web
+  - tmp/web-load-test
+  - web
+
 visioconference_port_web: 443
 # UDP. Le videobridge n'expose plus de repli TCP depuis plusieurs versions :
 # si ce port est ferme, les appels echouent au lieu de se degrader.
@@ -21,6 +40,13 @@ visioconference_port_media: 10000
 visioconference_authentification: true
 visioconference_invites: false
 visioconference_compte_animateur: animateur
+
+# Chemin du fichier de configuration DANS le conteneur prosody. La documentation
+# de Jitsi cite /config/prosody.cfg.lua, mais ce repertoire est vide depuis que
+# la configuration est engendree au demarrage dans /run. Prosody essaie alors son
+# emplacement par defaut et se plaint de /etc/prosody, qui n'existe pas non plus.
+# A verifier en meme temps que visioconference_version.
+visioconference_config_prosody: /run/prosody/config/prosody.cfg.lua
 
 visioconference_reseaux_autorises:
   - "{{ vlan_users }}"

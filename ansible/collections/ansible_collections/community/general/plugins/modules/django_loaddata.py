@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: django_loaddata
@@ -14,10 +16,10 @@ version_added: 11.3.0
 description:
   - This module is a wrapper for the execution of C(django-admin loaddata).
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._django
-  - community.general._django.database
-  - community.general._django.data
+  - community.general.attributes
+  - community.general.django
+  - community.general.django.database
+  - community.general.django.data
 attributes:
   check_mode:
     support: none
@@ -62,7 +64,7 @@ version:
   sample: 5.1.2
 """
 
-from ansible_collections.community.general.plugins.module_utils._django import DjangoModuleHelper
+from ansible_collections.community.general.plugins.module_utils.django import DjangoModuleHelper
 
 
 class DjangoLoadData(DjangoModuleHelper):
@@ -86,5 +88,5 @@ def main():
     DjangoLoadData.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

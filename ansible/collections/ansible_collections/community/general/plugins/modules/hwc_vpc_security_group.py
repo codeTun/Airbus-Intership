@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (C) 2019 Huawei
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 ###############################################################################
 # Documentation
@@ -48,13 +50,15 @@ options:
       - Specifies the enterprise project ID. When creating a security group, associate the enterprise project ID with the
         security group.s.
     type: str
+    required: false
   vpc_id:
     description:
       - Specifies the resource ID of the VPC to which the security group belongs.
     type: str
+    required: false
 extends_documentation_fragment:
-  - community.general._hwc
-  - community.general._attributes
+  - community.general.hwc
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -85,8 +89,7 @@ vpc_id:
 rules:
   description:
     - Specifies the security group rule, which ensures that resources in the security group can communicate with one another.
-  type: list
-  elements: dict
+  type: complex
   returned: success
   contains:
     description:
@@ -145,25 +148,19 @@ rules:
       returned: success
 """
 
-from ansible_collections.community.general.plugins.module_utils._hwc_utils import (
-    Config,
-    HwcClientException,
-    HwcModule,
-    are_different_dicts,
-    build_path,
-    get_region,
-    is_empty_value,
-    navigate_value,
-)
+from ansible_collections.community.general.plugins.module_utils.hwc_utils import (
+    Config, HwcClientException, HwcModule, are_different_dicts, build_path,
+    get_region, is_empty_value, navigate_value)
 
 
 def build_module():
     return HwcModule(
         argument_spec=dict(
-            state=dict(default="present", choices=["present", "absent"], type="str"),
-            name=dict(type="str", required=True),
-            enterprise_project_id=dict(type="str"),
-            vpc_id=dict(type="str"),
+            state=dict(default='present', choices=['present', 'absent'],
+                       type='str'),
+            name=dict(type='str', required=True),
+            enterprise_project_id=dict(type='str'),
+            vpc_id=dict(type='str')
         ),
         supports_check_mode=True,
     )
@@ -179,20 +176,21 @@ def main():
         resource = None
         if module.params.get("id"):
             resource = read_resource(config)
-            if module.params["state"] == "present":
+            if module.params['state'] == 'present':
                 check_resource_option(resource, module)
         else:
             v = search_resource(config)
             if len(v) > 1:
-                raise Exception(f"Found more than one resource({', '.join([navigate_value(i, ['id']) for i in v])})")
+                raise Exception("Found more than one resource(%s)" % ", ".join([
+                                navigate_value(i, ["id"]) for i in v]))
 
             if len(v) == 1:
                 resource = update_properties(module, {"read": v[0]}, None)
-                module.params["id"] = navigate_value(resource, ["id"])
+                module.params['id'] = navigate_value(resource, ["id"])
 
         result = {}
         changed = False
-        if module.params["state"] == "present":
+        if module.params['state'] == 'present':
             if resource is None:
                 if not module.check_mode:
                     resource = create(config)
@@ -209,7 +207,7 @@ def main():
         module.fail_json(msg=str(ex))
 
     else:
-        result["changed"] = changed
+        result['changed'] = changed
         module.exit_json(**result)
 
 
@@ -234,8 +232,9 @@ def check_resource_option(resource, module):
 
     if are_different_dicts(resource, opts):
         raise Exception(
-            f"Cannot change option from ({resource}) to ({opts}) for an existing security group({module.params['id']})."
-        )
+            "Cannot change option from (%s) to (%s) for an"
+            " existing security group(%s)." % (resource, opts,
+                                               module.params.get('id')))
 
 
 def create(config):
@@ -245,7 +244,7 @@ def create(config):
 
     params = build_create_parameters(opts)
     r = send_create_request(module, params, client)
-    module.params["id"] = navigate_value(r, ["security_group", "id"])
+    module.params['id'] = navigate_value(r, ["security_group", "id"])
 
     result = update_properties(module, {"read": fill_read_resp_body(r)}, None)
     return result
@@ -275,15 +274,15 @@ def _build_query_link(opts):
 
     v = navigate_value(opts, ["enterprise_project_id"])
     if v:
-        query_params.append(f"enterprise_project_id={v}")
+        query_params.append("enterprise_project_id=" + str(v))
 
     v = navigate_value(opts, ["vpc_id"])
     if v:
-        query_params.append(f"vpc_id={v}")
+        query_params.append("vpc_id=" + str(v))
 
     query_link = "?marker={marker}&limit=10"
     if query_params:
-        query_link += f"&{'&'.join(query_params)}"
+        query_link += "&" + "&".join(query_params)
 
     return query_link
 
@@ -294,10 +293,10 @@ def search_resource(config):
     opts = user_input_parameters(module)
     identity_obj = _build_identity_object(opts)
     query_link = _build_query_link(opts)
-    link = f"security-groups{query_link}"
+    link = "security-groups" + query_link
 
     result = []
-    p = {"marker": ""}
+    p = {'marker': ''}
     while True:
         url = link.format(**p)
         r = send_list_request(module, client, url)
@@ -312,7 +311,7 @@ def search_resource(config):
         if len(result) > 1:
             break
 
-        p["marker"] = r[-1].get("id")
+        p['marker'] = r[-1].get('id')
 
     return result
 
@@ -345,7 +344,8 @@ def send_create_request(module, params, client):
     try:
         r = client.post(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_security_group): error running api(create), error: {ex}"
+        msg = ("module(hwc_vpc_security_group): error running "
+               "api(create), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -357,7 +357,8 @@ def send_delete_request(module, params, client):
     try:
         r = client.delete(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_security_group): error running api(delete), error: {ex}"
+        msg = ("module(hwc_vpc_security_group): error running "
+               "api(delete), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -370,7 +371,8 @@ def send_read_request(module, client):
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_security_group): error running api(read), error: {ex}"
+        msg = ("module(hwc_vpc_security_group): error running "
+               "api(read), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["security_group"], None)
@@ -431,7 +433,8 @@ def fill_read_resp_security_group_rules(value):
 def update_properties(module, response, array_index, exclude_output=False):
     r = user_input_parameters(module)
 
-    v = navigate_value(response, ["read", "enterprise_project_id"], array_index)
+    v = navigate_value(response, ["read", "enterprise_project_id"],
+                       array_index)
     r["enterprise_project_id"] = v
 
     v = navigate_value(response, ["read", "name"], array_index)
@@ -460,7 +463,8 @@ def flatten_rules(d, array_index, current_value, exclude_output):
     else:
         has_init_value = False
         result = []
-        v = navigate_value(d, ["read", "security_group_rules"], array_index)
+        v = navigate_value(d, ["read", "security_group_rules"],
+                           array_index)
         if not v:
             return current_value
         n = len(v)
@@ -477,43 +481,53 @@ def flatten_rules(d, array_index, current_value, exclude_output):
             val = result[i]
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "description"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "description"],
+                               new_array_index)
             val["description"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "direction"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "direction"],
+                               new_array_index)
             val["direction"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "ethertype"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "ethertype"],
+                               new_array_index)
             val["ethertype"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "id"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "id"],
+                               new_array_index)
             val["id"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "port_range_max"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "port_range_max"],
+                               new_array_index)
             val["port_range_max"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "port_range_min"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "port_range_min"],
+                               new_array_index)
             val["port_range_min"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "protocol"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "protocol"],
+                               new_array_index)
             val["protocol"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "remote_address_group_id"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "remote_address_group_id"],
+                               new_array_index)
             val["remote_address_group_id"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "remote_group_id"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "remote_group_id"],
+                               new_array_index)
             val["remote_group_id"] = v
 
         if not exclude_output:
-            v = navigate_value(d, ["read", "security_group_rules", "remote_ip_prefix"], new_array_index)
+            v = navigate_value(d, ["read", "security_group_rules", "remote_ip_prefix"],
+                               new_array_index)
             val["remote_ip_prefix"] = v
 
         if len(result) >= (i + 1):
@@ -528,11 +542,13 @@ def flatten_rules(d, array_index, current_value, exclude_output):
 
 
 def send_list_request(module, client, url):
+
     r = None
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_security_group): error running api(list), error: {ex}"
+        msg = ("module(hwc_vpc_security_group): error running "
+               "api(list), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["security_groups"], None)
@@ -609,5 +625,5 @@ def fill_list_resp_security_group_rules(value):
     return result
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

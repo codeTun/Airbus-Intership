@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2018, Sean Myers <sean.myers@redhat.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: rhsm_release
@@ -19,7 +21,7 @@ notes:
 requirements:
   - Red Hat Enterprise Linux 6+ with subscription-manager installed
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -59,28 +61,28 @@ current_release:
   type: str
 """
 
+from ansible.module_utils.basic import AnsibleModule
+
 import os
 import re
 
-from ansible.module_utils.basic import AnsibleModule
-
 # Matches release-like values such as 7.2, 5.10, 6Server, 8
 # but rejects unlikely values, like 100Server, 1.100, 7server etc.
-release_matcher = re.compile(r"\b\d{1,2}(?:\.\d{1,2}|Server|Client|Workstation|)\b")
+release_matcher = re.compile(r'\b\d{1,2}(?:\.\d{1,2}|Server|Client|Workstation|)\b')
 
 
 def _sm_release(module, *args):
     # pass args to s-m release, e.g. _sm_release(module, '--set', '0.1') becomes
     # "subscription-manager release --set 0.1"
-    sm_bin = module.get_bin_path("subscription-manager", required=True)
-    cmd = [sm_bin, "release"] + list(args)
+    sm_bin = module.get_bin_path('subscription-manager', required=True)
+    cmd = [sm_bin, 'release'] + list(args)
     # delegate nonzero rc handling to run_command
     return module.run_command(cmd, check_rc=True, expand_user_and_vars=False)
 
 
 def get_release(module):
     # Get the current release version, or None if release unset
-    rc, out, err = _sm_release(module, "--show")
+    rc, out, err = _sm_release(module, '--show')
     try:
         match = release_matcher.findall(out)[0]
     except IndexError:
@@ -93,9 +95,9 @@ def get_release(module):
 def set_release(module, release):
     # Set current release version, or unset if release is None
     if release is None:
-        args = ("--unset",)
+        args = ('--unset',)
     else:
-        args = ("--set", release)
+        args = ('--set', release)
 
     return _sm_release(module, *args)
 
@@ -103,25 +105,26 @@ def set_release(module, release):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            release=dict(type="str"),
+            release=dict(type='str'),
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     if os.getuid() != 0:
-        module.fail_json(msg="Interacting with subscription-manager requires root permissions ('become: true')")
+        module.fail_json(
+            msg="Interacting with subscription-manager requires root permissions ('become: true')"
+        )
 
-    target_release = module.params["release"]
+    target_release = module.params['release']
 
     # sanity check: the target release at least looks like a valid release
     if target_release and not release_matcher.findall(target_release):
-        module.fail_json(msg=f'"{target_release}" does not appear to be a valid release.')
+        module.fail_json(msg='"{0}" does not appear to be a valid release.'.format(target_release))
 
     # Will fail with useful error from s-m if system not subscribed
     current_release = get_release(module)
 
-    changed = target_release != current_release
+    changed = (target_release != current_release)
     if not module.check_mode and changed:
         set_release(module, target_release)
         # If setting the release fails, then a fail_json would have exited with
@@ -132,5 +135,5 @@ def main():
     module.exit_json(current_release=current_release, changed=changed)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

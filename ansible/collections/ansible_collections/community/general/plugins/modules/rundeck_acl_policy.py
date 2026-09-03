@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017, Loic Blot <loic.blot@unix-experience.fr>
 # Sponsored by Infopro Digital. http://www.infopro-digital.com/
@@ -6,7 +7,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: rundeck_acl_policy
@@ -67,8 +70,8 @@ options:
     version_added: '0.2.0'
 extends_documentation_fragment:
   - ansible.builtin.url
-  - community.general._attributes
-  - community.general._rundeck
+  - community.general.attributes
+  - community.general.rundeck
 """
 
 EXAMPLES = r"""
@@ -117,8 +120,7 @@ after:
 import re
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._rundeck import (
+from ansible_collections.community.general.plugins.module_utils.rundeck import (
     api_argument_spec,
     api_request,
 )
@@ -128,9 +130,12 @@ class RundeckACLManager:
     def __init__(self, module):
         self.module = module
         if module.params.get("project"):
-            self.endpoint = f"project/{self.module.params['project']}/acl/{self.module.params['name']}.aclpolicy"
+            self.endpoint = "project/%s/acl/%s.aclpolicy" % (
+                self.module.params["project"],
+                self.module.params["name"],
+            )
         else:
-            self.endpoint = f"system/acl/{self.module.params['name']}.aclpolicy"
+            self.endpoint = "system/acl/%s.aclpolicy" % self.module.params["name"]
 
     def get_acl(self):
         resp, info = api_request(
@@ -157,17 +162,13 @@ class RundeckACLManager:
             if info["status"] == 201:
                 self.module.exit_json(changed=True, before={}, after=self.get_acl())
             elif info["status"] == 400:
-                self.module.fail_json(
-                    msg=f"Unable to validate acl {self.module.params['name']}. Please ensure it is a valid ACL"
-                )
+                self.module.fail_json(msg="Unable to validate acl %s. Please ensure it is a valid ACL" %
+                                          self.module.params["name"])
             elif info["status"] == 409:
-                self.module.fail_json(msg=f"ACL {self.module.params['name']} already exists")
+                self.module.fail_json(msg="ACL %s already exists" % self.module.params["name"])
             else:
-                self.module.fail_json(
-                    msg=f"Unhandled HTTP status {info['status']}, please report the bug",
-                    before={},
-                    after=self.get_acl(),
-                )
+                self.module.fail_json(msg="Unhandled HTTP status %d, please report the bug" % info["status"],
+                                      before={}, after=self.get_acl())
         else:
             if facts["contents"] == self.module.params["policy"]:
                 self.module.exit_json(changed=False, before=facts, after=facts)
@@ -185,11 +186,10 @@ class RundeckACLManager:
             if info["status"] == 200:
                 self.module.exit_json(changed=True, before=facts, after=self.get_acl())
             elif info["status"] == 400:
-                self.module.fail_json(
-                    msg=f"Unable to validate acl {self.module.params['name']}. Please ensure it is a valid ACL"
-                )
+                self.module.fail_json(msg="Unable to validate acl %s. Please ensure it is a valid ACL" %
+                                          self.module.params["name"])
             elif info["status"] == 404:
-                self.module.fail_json(msg=f"ACL {self.module.params['name']} doesn't exists. Cannot update.")
+                self.module.fail_json(msg="ACL %s doesn't exists. Cannot update." % self.module.params["name"])
 
     def remove_acl(self):
         facts = self.get_acl()
@@ -211,39 +211,35 @@ class RundeckACLManager:
 def main():
     # Also allow the user to set values for fetch_url
     argument_spec = api_argument_spec()
-    argument_spec.update(
-        dict(
-            state=dict(type="str", choices=["present", "absent"], default="present"),
-            name=dict(required=True, type="str"),
-            policy=dict(type="str"),
-            project=dict(type="str"),
-        )
-    )
+    argument_spec.update(dict(
+        state=dict(type='str', choices=['present', 'absent'], default='present'),
+        name=dict(required=True, type='str'),
+        policy=dict(type='str'),
+        project=dict(type='str'),
+    ))
 
-    argument_spec["api_token"]["aliases"] = ["token"]
+    argument_spec['api_token']['aliases'] = ['token']
 
     module = AnsibleModule(
         argument_spec=argument_spec,
         required_if=[
-            ["state", "present", ["policy"]],
+            ['state', 'present', ['policy']],
         ],
         supports_check_mode=True,
     )
 
     if not bool(re.match("[a-zA-Z0-9,.+_-]+", module.params["name"])):
-        module.fail_json(
-            msg="Name contains forbidden characters. The policy can contain the characters: a-zA-Z0-9,.+_-"
-        )
+        module.fail_json(msg="Name contains forbidden characters. The policy can contain the characters: a-zA-Z0-9,.+_-")
 
     if module.params["api_version"] < 14:
         module.fail_json(msg="API version should be at least 14")
 
     rundeck = RundeckACLManager(module)
-    if module.params["state"] == "present":
+    if module.params['state'] == 'present':
         rundeck.create_or_update_acl()
-    elif module.params["state"] == "absent":
+    elif module.params['state'] == 'absent':
         rundeck.remove_acl()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

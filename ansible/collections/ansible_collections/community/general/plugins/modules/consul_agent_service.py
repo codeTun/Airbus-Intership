@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2024, Michael Ilg
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: consul_agent_service
@@ -18,10 +21,10 @@ description:
 author:
   - Michael Ilg (@Ilgmi)
 extends_documentation_fragment:
-  - community.general._consul
-  - community.general._consul.actiongroup_consul
-  - community.general._consul.token
-  - community.general._attributes
+  - community.general.consul
+  - community.general.consul.actiongroup_consul
+  - community.general.consul.token
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -183,41 +186,39 @@ operation:
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._consul import (
+from ansible_collections.community.general.plugins.module_utils.consul import (
     AUTH_ARGUMENTS_SPEC,
     OPERATION_CREATE,
-    OPERATION_DELETE,
     OPERATION_UPDATE,
-    _ConsulModule,
+    OPERATION_DELETE,
+    _ConsulModule
 )
 
-_CHECK_MUTUALLY_EXCLUSIVE = [("args", "ttl", "tcp", "http")]
+_CHECK_MUTUALLY_EXCLUSIVE = [('args', 'ttl', 'tcp', 'http')]
 _CHECK_REQUIRED_BY = {
-    "args": "interval",
-    "http": "interval",
-    "tcp": "interval",
+    'args': 'interval',
+    'http': 'interval',
+    'tcp': 'interval',
 }
 
 _ARGUMENT_SPEC = {
     "state": dict(default="present", choices=["present", "absent"]),
-    "name": dict(type="str"),
-    "id": dict(type="str"),
-    "tags": dict(type="list", elements="str"),
-    "address": dict(type="str"),
-    "meta": dict(type="dict"),
-    "service_port": dict(type="int"),
-    "enable_tag_override": dict(type="bool", default=False),
-    "weights": dict(
-        type="dict",
-        options=dict(passing=dict(type="int", default=1, no_log=False), warning=dict(type="int", default=1)),
-        default={"passing": 1, "warning": 1},
-    ),
+    "name": dict(type='str'),
+    "id": dict(type='str'),
+    "tags": dict(type='list', elements='str'),
+    "address": dict(type='str'),
+    "meta": dict(type='dict'),
+    "service_port": dict(type='int'),
+    "enable_tag_override": dict(type='bool', default=False),
+    "weights": dict(type='dict', options=dict(
+        passing=dict(type='int', default=1, no_log=False),
+        warning=dict(type='int', default=1)
+    ), default={"passing": 1, "warning": 1})
 }
 
 _REQUIRED_IF = [
-    ("state", "present", ["name"]),
-    ("state", "absent", ("id", "name"), True),
+    ('state', 'present', ['name']),
+    ('state', 'absent', ('id', 'name'), True),
 ]
 
 _ARGUMENT_SPEC.update(AUTH_ARGUMENTS_SPEC)
@@ -231,14 +232,14 @@ class ConsulAgentServiceModule(_ConsulModule):
 
     def endpoint_url(self, operation, identifier=None):
         if operation in [OPERATION_CREATE, OPERATION_UPDATE]:
-            return f"{self.api_endpoint}/register"
+            return "/".join([self.api_endpoint, "register"])
         if operation == OPERATION_DELETE:
-            return f"{self.api_endpoint}/deregister/{identifier}"
+            return "/".join([self.api_endpoint, "deregister", identifier])
 
-        return super().endpoint_url(operation, identifier)
+        return super(ConsulAgentServiceModule, self).endpoint_url(operation, identifier)
 
     def prepare_object(self, existing, obj):
-        existing = super().prepare_object(existing, obj)
+        existing = super(ConsulAgentServiceModule, self).prepare_object(existing, obj)
         if "ServicePort" in existing:
             existing["Port"] = existing.pop("ServicePort")
 
@@ -258,7 +259,7 @@ class ConsulAgentServiceModule(_ConsulModule):
         if "ServicePort" in module_obj:
             module_obj["Port"] = module_obj.pop("ServicePort")
 
-        return super().needs_update(api_obj, module_obj)
+        return super(ConsulAgentServiceModule, self).needs_update(api_obj, module_obj)
 
     def delete_object(self, obj):
         if not self._module.check_mode:

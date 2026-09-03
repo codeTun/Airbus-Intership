@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2014, Nate Coraor <nate@bx.psu.edu>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: capabilities
@@ -12,7 +14,7 @@ short_description: Manage Linux capabilities
 description:
   - This module manipulates files privileges using the Linux capabilities(7) system.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -62,50 +64,47 @@ EXAMPLES = r"""
 
 from ansible.module_utils.basic import AnsibleModule
 
-OPS = ("=", "-", "+")
+OPS = ('=', '-', '+')
 
 
-class CapabilitiesModule:
-    platform = "Linux"
+class CapabilitiesModule(object):
+    platform = 'Linux'
     distribution = None
 
     def __init__(self, module):
         self.module = module
-        self.path = module.params["path"].strip()
-        self.capability = module.params["capability"].strip().lower()
-        self.state = module.params["state"]
-        self.getcap_cmd = module.get_bin_path("getcap", required=True)
-        self.setcap_cmd = module.get_bin_path("setcap", required=True)
-        self.capability_tup = self._parse_cap(self.capability, op_required=self.state == "present")
+        self.path = module.params['path'].strip()
+        self.capability = module.params['capability'].strip().lower()
+        self.state = module.params['state']
+        self.getcap_cmd = module.get_bin_path('getcap', required=True)
+        self.setcap_cmd = module.get_bin_path('setcap', required=True)
+        self.capability_tup = self._parse_cap(self.capability, op_required=self.state == 'present')
 
         self.run()
 
     def run(self):
+
         current = self.getcap(self.path)
         caps = [cap[0] for cap in current]
 
-        if self.state == "present" and self.capability_tup not in current:
+        if self.state == 'present' and self.capability_tup not in current:
             # need to add capability
             if self.module.check_mode:
-                self.module.exit_json(changed=True, msg="capabilities changed")
+                self.module.exit_json(changed=True, msg='capabilities changed')
             else:
                 # remove from current cap list if it is already set (but op/flags differ)
-                current = [x for x in current if x[0] != self.capability_tup[0]]
+                current = list(filter(lambda x: x[0] != self.capability_tup[0], current))
                 # add new cap with correct op/flags
                 current.append(self.capability_tup)
-                self.module.exit_json(
-                    changed=True, state=self.state, msg="capabilities changed", stdout=self.setcap(self.path, current)
-                )
-        elif self.state == "absent" and self.capability_tup[0] in caps:
+                self.module.exit_json(changed=True, state=self.state, msg='capabilities changed', stdout=self.setcap(self.path, current))
+        elif self.state == 'absent' and self.capability_tup[0] in caps:
             # need to remove capability
             if self.module.check_mode:
-                self.module.exit_json(changed=True, msg="capabilities changed")
+                self.module.exit_json(changed=True, msg='capabilities changed')
             else:
                 # remove from current cap list and then set current list
-                current = [x for x in current if x[0] != self.capability_tup[0]]
-                self.module.exit_json(
-                    changed=True, state=self.state, msg="capabilities changed", stdout=self.setcap(self.path, current)
-                )
+                current = filter(lambda x: x[0] != self.capability_tup[0], current)
+                self.module.exit_json(changed=True, state=self.state, msg='capabilities changed', stdout=self.setcap(self.path, current))
         self.module.exit_json(changed=False, state=self.state)
 
     def getcap(self, path):
@@ -119,13 +118,13 @@ class CapabilitiesModule:
         # If the file does not exist, the stderr will be (with rc == 0...):
         #   '/foo (No such file or directory)'
         if rc != 0 or stderr != "":
-            self.module.fail_json(msg=f"Unable to get capabilities of {path}", stdout=stdout.strip(), stderr=stderr)
+            self.module.fail_json(msg="Unable to get capabilities of %s" % path, stdout=stdout.strip(), stderr=stderr)
         if stdout.strip() != path:
-            if " =" in stdout:
+            if ' =' in stdout:
                 # process output of an older version of libcap
-                caps = stdout.split(" =")[1].strip().split()
+                caps = stdout.split(' =')[1].strip().split()
             elif stdout.strip().endswith(")"):  # '/foo (Error Message)'
-                self.module.fail_json(msg=f"Unable to get capabilities of {path}", stdout=stdout.strip(), stderr=stderr)
+                self.module.fail_json(msg="Unable to get capabilities of %s" % path, stdout=stdout.strip(), stderr=stderr)
             else:
                 # otherwise, we have a newer version here
                 # see original commit message of cap/v0.2.40-18-g177cd41 in libcap.git
@@ -134,8 +133,8 @@ class CapabilitiesModule:
                 cap = cap.lower()
                 # getcap condenses capabilities with the same op/flags into a
                 # comma-separated list, so we have to parse that
-                if "," in cap:
-                    cap_group = cap.split(",")
+                if ',' in cap:
+                    cap_group = cap.split(',')
                     cap_group[-1], op, flags = self._parse_cap(cap_group[-1])
                     for subcap in cap_group:
                         rval.append((subcap, op, flags))
@@ -144,11 +143,11 @@ class CapabilitiesModule:
         return rval
 
     def setcap(self, path, caps):
-        caps = " ".join(["".join(cap) for cap in caps])
+        caps = ' '.join([''.join(cap) for cap in caps])
         cmd = [self.setcap_cmd, caps, path]
         rc, stdout, stderr = self.module.run_command(cmd)
         if rc != 0:
-            self.module.fail_json(msg=f"Unable to set capabilities of {path}", stdout=stdout, stderr=stderr)
+            self.module.fail_json(msg="Unable to set capabilities of %s" % path, stdout=stdout, stderr=stderr)
         else:
             return stdout
 
@@ -161,7 +160,7 @@ class CapabilitiesModule:
                 i += 1
         except Exception:
             if op_required:
-                self.module.fail_json(msg=f"Couldn't find operator (one of: {OPS})")
+                self.module.fail_json(msg="Couldn't find operator (one of: %s)" % str(OPS))
             else:
                 return (cap, None, None)
         op = cap[opind]
@@ -172,21 +171,19 @@ class CapabilitiesModule:
 # ==============================================================
 # main
 
-
 def main():
     # defining module
     module = AnsibleModule(
         argument_spec=dict(
-            path=dict(type="str", required=True, aliases=["key"]),
-            capability=dict(type="str", required=True, aliases=["cap"]),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
+            path=dict(type='str', required=True, aliases=['key']),
+            capability=dict(type='str', required=True, aliases=['cap']),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
         ),
         supports_check_mode=True,
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     CapabilitiesModule(module)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

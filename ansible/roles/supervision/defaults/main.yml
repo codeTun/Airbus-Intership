@@ -12,9 +12,41 @@ supervision_paquets_base:
   - snmp
   - snmpd
   - rsyslog
+  # Exige par le module deb822_repository sur la machine cible. Present par
+  # hasard sur cette image, pas garanti sur une autre.
+  - python3-debian
+  # L'image cloud Debian ne genere aucune locale, et l'installeur web en a besoin.
+  - locales
+
+# Une locale doit exister avant l'installation.
+supervision_locale: en_US.UTF-8
+
+# Version de PHP fournie par Debian 12, et celle qu'exige Centreon 24.10. Le
+# depot de Sury est donc inutile. A revoir en meme temps que supervision_version.
+supervision_version_php: "8.2"
+
+# Reglages exiges par Centreon, a poser avant l'installation.
+supervision_mariadb_reglages:
+  innodb_file_per_table: "1"
+  open_files_limit: "32000"
 
 supervision_port_web: 80
+
+# Centreon 24.10 ne livre AUCUN modele d'hote : ils viennent des Monitoring
+# Connectors, dont la plupart exigent un abonnement. Le champ accepte d'etre
+# vide, et les controles sont de toute facon attaches explicitement par
+# supervision_controles. A renseigner le jour ou le role creera son propre modele.
+supervision_modele_hote: ""
+
+# Le collecteur par defaut porte une majuscule. La casse passe par accident,
+# la collation MariaDB y etant insensible, mais autant ecrire le vrai nom.
+supervision_collecteur: Central
 supervision_port_syslog: 514
+
+# rsyslog s'execute sous root sur Debian, et sous le compte syslog sur Ubuntu.
+# Nommer syslog en dur faisait echouer la creation du repertoire des journaux
+# depuis que cette machine est passee sous Debian.
+supervision_utilisateur_syslog: "{{ 'syslog' if ansible_facts.distribution == 'Ubuntu' else 'root' }}"
 
 supervision_seuils:
   processeur: {avertissement: 80, critique: 90}

@@ -27,17 +27,34 @@
       - bzip2
     state: latest
   when:
-    - ansible_facts.system != 'FreeBSD'
-    - ansible_facts.os_family != 'Darwin'
-    - ansible_facts.os_family != 'Debian'
+    - ansible_system != 'FreeBSD'
+    - ansible_os_family != 'Darwin'
+    - ansible_os_family != 'Debian'
 
 - name: Ensure xz is present to create compressed files (Debian)
   package:
     name: xz-utils
     state: latest
-  when: ansible_facts.os_family == 'Debian'
+  when: ansible_os_family == 'Debian'
 
-- name: Ensure xz is present to create compressed file (macOS)
+- name: Install prerequisites for backports.lzma when using python2 (non OSX)
+  block:
+    - name: Set liblzma package name depending on the OS
+      set_fact:
+        liblzma_dev_package:
+          Debian: liblzma-dev
+          RedHat: xz-devel
+          Suse: xz-devel
+    - name: Ensure liblzma-dev is present to install backports-lzma
+      package:
+        name: "{{ liblzma_dev_package[ansible_os_family] }}"
+        state: latest
+      when: ansible_os_family in liblzma_dev_package.keys()
+  when:
+    - ansible_python_version.split('.')[0] == '2'
+    - ansible_os_family != 'Darwin'
+
+- name: Install prerequisites for backports.lzma when using python2 (OSX)
   block:
     - name: Find brew binary
       command: which brew
@@ -58,7 +75,15 @@
       environment:
         HOMEBREW_NO_AUTO_UPDATE: "True"
   when:
-    - ansible_facts.os_family == 'Darwin'
+    - ansible_os_family == 'Darwin'
+
+- name: Ensure backports.lzma is present to create test archive (pip)
+  pip:
+    name: backports.lzma
+    state: latest
+  when: ansible_python_version.split('.')[0] == '2'
+  notify:
+    - delete backports.lzma
 
 - name: Generate compressed files
   shell: |

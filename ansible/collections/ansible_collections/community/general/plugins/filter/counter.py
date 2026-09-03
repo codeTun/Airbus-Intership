@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Remy Keil <remy.keil@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -34,34 +35,32 @@ _value:
   type: dictionary
 """
 
-from collections import Counter
-from collections.abc import Sequence
-
 from ansible.errors import AnsibleFilterError
+from collections.abc import Sequence
+from collections import Counter
 
 
 def counter(sequence):
-    """Count elements in a sequence. Returns dict with count result."""
+    ''' Count elements in a sequence. Returns dict with count result. '''
     if not isinstance(sequence, Sequence):
-        raise AnsibleFilterError(
-            f"Argument for community.general.counter must be a sequence (string or list). {sequence} is {type(sequence)}"
-        )
+        raise AnsibleFilterError('Argument for community.general.counter must be a sequence (string or list). %s is %s' %
+                                 (sequence, type(sequence)))
 
     try:
         result = dict(Counter(sequence))
     except TypeError as e:
         raise AnsibleFilterError(
-            f"community.general.counter needs a sequence with hashable elements (int, float or str) - {e}"
-        ) from e
+            "community.general.counter needs a sequence with hashable elements (int, float or str) - %s" % (e)
+        )
     return result
 
 
-class FilterModule:
-    """Ansible counter jinja2 filters"""
+class FilterModule(object):
+    ''' Ansible counter jinja2 filters '''
 
     def filters(self):
         filters = {
-            "counter": counter,
+            'counter': counter,
         }
 
         return filters

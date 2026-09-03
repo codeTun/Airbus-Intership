@@ -4,4 +4,3 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 monitrc: "/etc/monitrc"
-virtualenv_command: python3 -m venv

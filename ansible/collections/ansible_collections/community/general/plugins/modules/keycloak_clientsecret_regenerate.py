@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2022, Fynn Chen <ethan.cfchen@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: keycloak_clientsecret_regenerate
@@ -53,9 +56,9 @@ options:
 
 
 extends_documentation_fragment:
-  - community.general._keycloak
-  - community.general._keycloak.actiongroup_keycloak
-  - community.general._attributes
+  - community.general.keycloak
+  - community.general.keycloak.actiongroup_keycloak
+  - community.general.attributes
 
 author:
   - Fynn Chen (@fynncfchen)
@@ -115,7 +118,7 @@ msg:
 end_state:
   description: Representation of the client credential after module execution.
   returned: on success
-  type: dict
+  type: complex
   contains:
     type:
       description: Credential type.
@@ -129,15 +132,10 @@ end_state:
       sample: cUGnX1EIeTtPPAkcyGMv0ncyqDPu68P1
 """
 
-from ansible_collections.community.general.plugins.module_utils._keycloak import (
-    KeycloakAPI,
-    KeycloakError,
-    get_token,
-)
-from ansible_collections.community.general.plugins.module_utils._keycloak_clientsecret import (
-    keycloak_clientsecret_module,
-    keycloak_clientsecret_module_resolve_params,
-)
+from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+    KeycloakAPI, KeycloakError, get_token)
+from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak_clientsecret import (
+    keycloak_clientsecret_module, keycloak_clientsecret_module_resolve_params)
 
 
 def main():
@@ -161,17 +159,20 @@ def main():
 
     if module.check_mode:
         dummy_result = {
-            "msg": "No action taken while in check mode",
-            "end_state": {"type": "secret", "value": "X" * 32},
+            "msg": 'No action taken while in check mode',
+            "end_state": {'type': 'secret', 'value': 'X' * 32}
         }
         module.exit_json(**dummy_result)
 
     # Create new secret
     clientsecret = kc.create_clientsecret(id=id, realm=realm)
 
-    result = {"msg": f"New client secret has been generated for ID {id}", "end_state": clientsecret}
+    result = {
+        "msg": 'New client secret has been generated for ID {id}'.format(id=id),
+        "end_state": clientsecret
+    }
     module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

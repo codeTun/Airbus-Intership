@@ -19,6 +19,11 @@ users:
 disable_root: true
 ssh_pwauth: false
 
+# Inscrit le nom complet dans /etc/hosts. Sans cela sudo interroge le DNS pour
+# resoudre le nom de la machine, et une panne de resolution suffit a rendre
+# toute elevation de privileges impossible pendant quarante secondes.
+manage_etc_hosts: localhost
+
 timezone: ${fuseau_horaire}
 ntp:
   enabled: true

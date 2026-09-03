@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 azp/posix/1
+skip/aix
 skip/freebsd
+skip/osx
 skip/macos
+skip/rhel8.4  # TODO make sure that tests work on 8.4 as well!
 disabled  # TODO

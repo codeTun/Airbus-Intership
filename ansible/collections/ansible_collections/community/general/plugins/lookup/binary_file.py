@@ -1,9 +1,8 @@
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2025, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
-from __future__ import annotations
 
 DOCUMENTATION = r"""
 name: binary_file
@@ -79,17 +78,16 @@ import base64
 
 from ansible.errors import AnsibleLookupError
 from ansible.plugins.lookup import LookupBase
-from ansible.utils.display import Display
 
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+from ansible.utils.display import Display
 
 display = Display()
 
 
 class LookupModule(LookupBase):
+
     def run(self, terms, variables=None, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
         not_exist = self.get_option("not_exist")
 
         result = []
@@ -111,6 +109,6 @@ class LookupModule(LookupBase):
                 with open(path, "rb") as f:
                     result.append(base64.b64encode(f.read()).decode("utf-8"))
             except Exception as exc:
-                raise AnsibleLookupError(f"Error while reading {path}: {exc}") from exc
+                raise AnsibleLookupError(f"Error while reading {path}: {exc}")
 
         return result

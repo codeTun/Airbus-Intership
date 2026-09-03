@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Scaleway user data management module
 #
@@ -8,7 +9,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: scaleway_user_data
@@ -18,9 +21,9 @@ description:
   - This module manages user_data on compute instances on Scaleway.
   - It can be used to configure cloud-init for instance.
 extends_documentation_fragment:
-  - community.general._scaleway
-  - community.general._attributes
-  - community.general._scaleway.actiongroup_scaleway
+  - community.general.scaleway
+  - community.general.attributes
+  - community.general.scaleway.actiongroup_scaleway
 
 attributes:
   check_mode:
@@ -43,6 +46,7 @@ options:
     description:
       - User defined data. Typically used with C(cloud-init).
       - Pass your C(cloud-init) script here as a string.
+    required: false
 
   region:
     type: str
@@ -78,33 +82,28 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._scaleway import (
-    SCALEWAY_LOCATION,
-    Scaleway,
-    scaleway_argument_spec,
-)
+from ansible_collections.community.general.plugins.module_utils.scaleway import SCALEWAY_LOCATION, scaleway_argument_spec, Scaleway
 
 
 def patch_user_data(compute_api, server_id, key, value):
     compute_api.module.debug("Starting patching user_data attributes")
 
-    path = f"servers/{server_id}/user_data/{key}"
+    path = "servers/%s/user_data/%s" % (server_id, key)
     response = compute_api.patch(path=path, data=value, headers={"Content-Type": "text/plain"})
     if not response.ok:
-        msg = f"Error during user_data patching: {response.status_code} {response.body}"
+        msg = 'Error during user_data patching: %s %s' % (response.status_code, response.body)
         compute_api.module.fail_json(msg=msg)
 
     return response
 
 
 def delete_user_data(compute_api, server_id, key):
-    compute_api.module.debug(f"Starting deleting user_data attributes: {key}")
+    compute_api.module.debug("Starting deleting user_data attributes: %s" % key)
 
-    response = compute_api.delete(path=f"servers/{server_id}/user_data/{key}")
+    response = compute_api.delete(path="servers/%s/user_data/%s" % (server_id, key))
 
     if not response.ok:
-        msg = f"Error during user_data deleting: ({response.status_code}) {response.body}"
+        msg = 'Error during user_data deleting: (%s) %s' % response.status_code, response.body
         compute_api.module.fail_json(msg=msg)
 
     return response
@@ -113,10 +112,10 @@ def delete_user_data(compute_api, server_id, key):
 def get_user_data(compute_api, server_id, key):
     compute_api.module.debug("Starting patching user_data attributes")
 
-    path = f"servers/{server_id}/user_data/{key}"
+    path = "servers/%s/user_data/%s" % (server_id, key)
     response = compute_api.get(path=path)
     if not response.ok:
-        msg = f"Error during user_data patching: {response.status_code} {response.body}"
+        msg = 'Error during user_data patching: %s %s' % (response.status_code, response.body)
         compute_api.module.fail_json(msg=msg)
 
     return response.json
@@ -128,17 +127,18 @@ def core(module):
     user_data = module.params["user_data"]
     changed = False
 
-    module.params["api_url"] = SCALEWAY_LOCATION[region]["api_endpoint"]
+    module.params['api_url'] = SCALEWAY_LOCATION[region]["api_endpoint"]
     compute_api = Scaleway(module=module)
 
-    user_data_list = compute_api.get(path=f"servers/{server_id}/user_data")
+    user_data_list = compute_api.get(path="servers/%s/user_data" % server_id)
     if not user_data_list.ok:
-        msg = f"Error during user_data fetching: {user_data_list.status_code} {user_data_list.body}"
+        msg = 'Error during user_data fetching: %s %s' % user_data_list.status_code, user_data_list.body
         compute_api.module.fail_json(msg=msg)
 
     present_user_data_keys = user_data_list.json["user_data"]
     present_user_data = {
-        key: get_user_data(compute_api=compute_api, server_id=server_id, key=key) for key in present_user_data_keys
+        key: get_user_data(compute_api=compute_api, server_id=server_id, key=key)
+        for key in present_user_data_keys
     }
 
     if present_user_data == user_data:
@@ -147,18 +147,20 @@ def core(module):
     # First we remove keys that are not defined in the wished user_data
     for key in present_user_data:
         if key not in user_data:
+
             changed = True
             if compute_api.module.check_mode:
-                module.exit_json(changed=changed, msg={"status": f"User-data of {server_id} would be patched."})
+                module.exit_json(changed=changed, msg={"status": "User-data of %s would be patched." % server_id})
 
             delete_user_data(compute_api=compute_api, server_id=server_id, key=key)
 
     # Then we patch keys that are different
     for key, value in user_data.items():
         if key not in present_user_data or value != present_user_data[key]:
+
             changed = True
             if compute_api.module.check_mode:
-                module.exit_json(changed=changed, msg={"status": f"User-data of {server_id} would be patched."})
+                module.exit_json(changed=changed, msg={"status": "User-data of %s would be patched." % server_id})
 
             patch_user_data(compute_api=compute_api, server_id=server_id, key=key, value=value)
 
@@ -167,13 +169,11 @@ def core(module):
 
 def main():
     argument_spec = scaleway_argument_spec()
-    argument_spec.update(
-        dict(
-            region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
-            user_data=dict(type="dict"),
-            server_id=dict(required=True),
-        )
-    )
+    argument_spec.update(dict(
+        region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
+        user_data=dict(type="dict"),
+        server_id=dict(required=True),
+    ))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -182,5 +182,5 @@ def main():
     core(module)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,11 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (C) 2019 Huawei
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or SPDX-License-Identifier: GPL-3.0-or-later
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 ###############################################################################
 # Documentation
@@ -68,13 +70,15 @@ options:
         description:
           - Specifies the ID of the project which the peering vpc belongs to.
         type: str
+        required: false
   description:
     description:
       - The description of vpc peering connection.
     type: str
+    required: false
 extends_documentation_fragment:
-  - community.general._hwc
-  - community.general._attributes
+  - community.general.hwc
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -131,39 +135,27 @@ description:
   returned: success
 """
 
-from ansible_collections.community.general.plugins.module_utils._hwc_utils import (
-    Config,
-    HwcClientException,
-    HwcClientException404,
-    HwcModule,
-    are_different_dicts,
-    build_path,
-    get_region,
-    is_empty_value,
-    navigate_value,
-    wait_to_finish,
-)
+from ansible_collections.community.general.plugins.module_utils.hwc_utils import (
+    Config, HwcClientException, HwcClientException404, HwcModule,
+    are_different_dicts, build_path, get_region, is_empty_value,
+    navigate_value, wait_to_finish)
 
 
 def build_module():
     return HwcModule(
         argument_spec=dict(
-            state=dict(default="present", choices=["present", "absent"], type="str"),
-            timeouts=dict(
-                type="dict",
-                options=dict(
-                    create=dict(default="15m", type="str"),
-                ),
-                default=dict(),
-            ),
-            local_vpc_id=dict(type="str", required=True),
-            name=dict(type="str", required=True),
-            peering_vpc=dict(
-                type="dict",
-                required=True,
-                options=dict(vpc_id=dict(type="str", required=True), project_id=dict(type="str")),
-            ),
-            description=dict(type="str"),
+            state=dict(default='present', choices=['present', 'absent'],
+                       type='str'),
+            timeouts=dict(type='dict', options=dict(
+                create=dict(default='15m', type='str'),
+            ), default=dict()),
+            local_vpc_id=dict(type='str', required=True),
+            name=dict(type='str', required=True),
+            peering_vpc=dict(type='dict', required=True, options=dict(
+                vpc_id=dict(type='str', required=True),
+                project_id=dict(type='str')
+            )),
+            description=dict(type='str')
         ),
         supports_check_mode=True,
     )
@@ -177,20 +169,21 @@ def main():
 
     try:
         resource = None
-        if module.params["id"]:
+        if module.params['id']:
             resource = True
         else:
             v = search_resource(config)
             if len(v) > 1:
-                raise Exception(f"Found more than one resource({', '.join([navigate_value(i, ['id']) for i in v])})")
+                raise Exception("Found more than one resource(%s)" % ", ".join([
+                                navigate_value(i, ["id"]) for i in v]))
 
             if len(v) == 1:
                 resource = v[0]
-                module.params["id"] = navigate_value(resource, ["id"])
+                module.params['id'] = navigate_value(resource, ["id"])
 
         result = {}
         changed = False
-        if module.params["state"] == "present":
+        if module.params['state'] == 'present':
             if resource is None:
                 if not module.check_mode:
                     create(config)
@@ -204,7 +197,7 @@ def main():
                 changed = True
 
             result = read_resource(config)
-            result["id"] = module.params.get("id")
+            result['id'] = module.params.get('id')
         else:
             if resource:
                 if not module.check_mode:
@@ -215,7 +208,7 @@ def main():
         module.fail_json(msg=str(ex))
 
     else:
-        result["changed"] = changed
+        result['changed'] = changed
         module.exit_json(**result)
 
 
@@ -231,13 +224,13 @@ def user_input_parameters(module):
 def create(config):
     module = config.module
     client = config.client(get_region(module), "network", "project")
-    timeout = 60 * int(module.params["timeouts"]["create"].rstrip("m"))
+    timeout = 60 * int(module.params['timeouts']['create'].rstrip('m'))
     opts = user_input_parameters(module)
 
     params = build_create_parameters(opts)
     r = send_create_request(module, params, client)
     obj = async_wait_create(config, r, client, timeout)
-    module.params["id"] = navigate_value(obj, ["peering", "id"])
+    module.params['id'] = navigate_value(obj, ["peering", "id"])
 
 
 def update(config):
@@ -269,11 +262,13 @@ def delete(config):
 
         return True, "Pending"
 
-    timeout = 60 * int(module.params["timeouts"]["create"].rstrip("m"))
+    timeout = 60 * int(module.params['timeouts']['create'].rstrip('m'))
     try:
         wait_to_finish(["Done"], ["Pending"], _refresh_status, timeout)
     except Exception as ex:
-        module.fail_json(msg=f"module(hwc_vpc_peering_connect): error waiting for api(delete) to be done, error= {ex}")
+        module.fail_json(msg="module(hwc_vpc_peering_connect): error "
+                             "waiting for api(delete) to "
+                             "be done, error= %s" % str(ex))
 
 
 def read_resource(config, exclude_output=False):
@@ -293,15 +288,15 @@ def _build_query_link(opts):
 
     v = navigate_value(opts, ["local_vpc_id"])
     if v:
-        query_params.append(f"vpc_id={v}")
+        query_params.append("vpc_id=" + str(v))
 
     v = navigate_value(opts, ["name"])
     if v:
-        query_params.append(f"name={v}")
+        query_params.append("name=" + str(v))
 
     query_link = "?marker={marker}&limit=10"
     if query_params:
-        query_link += f"&{'&'.join(query_params)}"
+        query_link += "&" + "&".join(query_params)
 
     return query_link
 
@@ -312,10 +307,10 @@ def search_resource(config):
     opts = user_input_parameters(module)
     identity_obj = _build_identity_object(opts)
     query_link = _build_query_link(opts)
-    link = f"v2.0/vpc/peerings{query_link}"
+    link = "v2.0/vpc/peerings" + query_link
 
     result = []
-    p = {"marker": ""}
+    p = {'marker': ''}
     while True:
         url = link.format(**p)
         r = send_list_request(module, client, url)
@@ -330,7 +325,7 @@ def search_resource(config):
         if len(result) > 1:
             break
 
-        p["marker"] = r[-1].get("id")
+        p['marker'] = r[-1].get('id')
 
     return result
 
@@ -393,7 +388,8 @@ def send_create_request(module, params, client):
     try:
         r = client.post(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_peering_connect): error running api(create), error: {ex}"
+        msg = ("module(hwc_vpc_peering_connect): error running "
+               "api(create), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -423,9 +419,14 @@ def async_wait_create(config, result, client, timeout):
             return None, ""
 
     try:
-        return wait_to_finish(["ACTIVE"], ["PENDING_ACCEPTANCE"], _query_status, timeout)
+        return wait_to_finish(
+            ["ACTIVE"],
+            ["PENDING_ACCEPTANCE"],
+            _query_status, timeout)
     except Exception as ex:
-        module.fail_json(msg=f"module(hwc_vpc_peering_connect): error waiting for api(create) to be done, error= {ex}")
+        module.fail_json(msg="module(hwc_vpc_peering_connect): error "
+                             "waiting for api(create) to "
+                             "be done, error= %s" % str(ex))
 
 
 def build_update_parameters(opts):
@@ -453,7 +454,8 @@ def send_update_request(module, params, client):
     try:
         r = client.put(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_peering_connect): error running api(update), error: {ex}"
+        msg = ("module(hwc_vpc_peering_connect): error running "
+               "api(update), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -465,7 +467,8 @@ def send_delete_request(module, params, client):
     try:
         r = client.delete(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_peering_connect): error running api(delete), error: {ex}"
+        msg = ("module(hwc_vpc_peering_connect): error running "
+               "api(delete), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -478,7 +481,8 @@ def send_read_request(module, client):
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_peering_connect): error running api(read), error: {ex}"
+        msg = ("module(hwc_vpc_peering_connect): error running "
+               "api(read), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["peering"], None)
@@ -536,7 +540,8 @@ def update_properties(module, response, array_index, exclude_output=False):
     v = navigate_value(response, ["read", "description"], array_index)
     r["description"] = v
 
-    v = navigate_value(response, ["read", "request_vpc_info", "vpc_id"], array_index)
+    v = navigate_value(response, ["read", "request_vpc_info", "vpc_id"],
+                       array_index)
     r["local_vpc_id"] = v
 
     v = navigate_value(response, ["read", "name"], array_index)
@@ -556,7 +561,8 @@ def flatten_peering_vpc(d, array_index, current_value, exclude_output):
         result = dict()
         has_init_value = False
 
-    v = navigate_value(d, ["read", "accept_vpc_info", "tenant_id"], array_index)
+    v = navigate_value(d, ["read", "accept_vpc_info", "tenant_id"],
+                       array_index)
     result["project_id"] = v
 
     v = navigate_value(d, ["read", "accept_vpc_info", "vpc_id"], array_index)
@@ -572,11 +578,13 @@ def flatten_peering_vpc(d, array_index, current_value, exclude_output):
 
 
 def send_list_request(module, client, url):
+
     r = None
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_peering_connect): error running api(list), error: {ex}"
+        msg = ("module(hwc_vpc_peering_connect): error running "
+               "api(list), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["peerings"], None)
@@ -679,5 +687,5 @@ def fill_list_resp_request_vpc_info(value):
     return result
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

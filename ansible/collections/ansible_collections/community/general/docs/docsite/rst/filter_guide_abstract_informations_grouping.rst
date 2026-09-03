@@ -22,49 +22,6 @@ One example is ``ansible_facts.mounts``, which is a list of dictionaries where e
 
 This produces:
 
-.. ansible-output-data::
-
-    variables:
-      task:
-        previous_code_block: yaml+jinja
-    skip_first_lines: 3  # the set_fact task
-    playbook: |-
-      - hosts: localhost
-        gather_facts: false
-        tasks:
-          - ansible.builtin.set_fact:
-              ansible_facts:
-                mounts:
-                  - block_available: 2000
-                    block_size: 4096
-                    block_total: 2345
-                    block_used: 345
-                    device: "/dev/sda1"
-                    fstype: "ext4"
-                    inode_available: 500
-                    inode_total: 512
-                    inode_used: 12
-                    mount: "/boot"
-                    options: "rw,relatime,data=ordered"
-                    size_available: 56821
-                    size_total: 543210
-                    uuid: "ab31cade-d9c1-484d-8482-8a4cbee5241a"
-                  - block_available: 1234
-                    block_size: 4096
-                    block_total: 12345
-                    block_used: 11111
-                    device: "/dev/sda2"
-                    fstype: "ext4"
-                    inode_available: 1111
-                    inode_total: 1234
-                    inode_used: 123
-                    mount: "/"
-                    options: "rw,relatime"
-                    size_available: 42143
-                    size_total: 543210
-                    uuid: "abcdef01-2345-6789-0abc-def012345678"
-          @{{ task | indent(4) }}@
-
 .. code-block:: ansible-output
 
     TASK [Output mount facts grouped by device name] ******************************************
@@ -122,7 +79,7 @@ This produces:
                 "options": "rw,relatime",
                 "size_available": 42143,
                 "size_total": 543210,
-                "uuid": "abcdef01-2345-6789-0abc-def012345678"
+                "uuid": "bdf50b7d-4859-40af-8665-c637ee7a7808"
             },
             "/boot": {
                 "block_available": 2000,

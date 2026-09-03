@@ -8,12 +8,13 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-- when:
-    - ansible_facts.os_family != 'Suse'
-  block:
-    - name: Install EPEL repository (only effective in RHEL)
+- block:
+    - name: Install EPEL repository (RHEL only)
       include_role:
         name: setup_epel
+      when:
+        - ansible_distribution in ['RedHat', 'CentOS']
+        - ansible_distribution_major_version is version('9', '<')
 
     - name: create required directories
       become: true
@@ -35,7 +36,7 @@
       with_first_found:
         - files:
             - "{{ ansible_facts.distribution }}-{{ ansible_facts.distribution_major_version }}.yml"
-            - '{{ ansible_facts.os_family }}.yml'
+            - '{{ ansible_os_family }}.yml'
             - 'defaults.yml'
 
     - name: monit config
@@ -50,20 +51,25 @@
         src: httpd_echo.py
         dest: "{{ process_file }}"
 
+    - name: Install virtualenv on CentOS 8
+      package:
+        name: virtualenv
+        state: present
+      when: ansible_distribution == 'CentOS' and ansible_distribution_major_version == '8'
+
     - name: Install virtualenv on Arch Linux
       pip:
         name: virtualenv
         state: present
-      when: ansible_facts.os_family == 'Archlinux'
+      when: ansible_os_family == 'Archlinux'
 
     - name: install dependencies
       pip:
         name: "{{ item }}"
         virtualenv: "{{ process_venv }}"
-        virtualenv_command: "{{ virtualenv_command }}"
         extra_args: "-c {{ remote_constraints }}"
       loop:
-        - setuptools
+        - setuptools==44
         - python-daemon
 
     - name: restart monit

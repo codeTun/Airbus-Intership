@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Ensighten <infra@ensighten.com>
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 author: Unknown (!UNKNOWN)
@@ -94,13 +96,10 @@ _raw:
 from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
-
 CREDSTASH_INSTALLED = False
 
 try:
     import credstash
-
     CREDSTASH_INSTALLED = True
 except ImportError:
     CREDSTASH_INSTALLED = False
@@ -109,48 +108,37 @@ except ImportError:
 class LookupModule(LookupBase):
     def run(self, terms, variables=None, **kwargs):
         if not CREDSTASH_INSTALLED:
-            raise AnsibleError("The credstash lookup plugin requires credstash to be installed.")
+            raise AnsibleError('The credstash lookup plugin requires credstash to be installed.')
 
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
-        version = self.get_option("version")
-        region = self.get_option("region")
-        table = self.get_option("table")
-        profile_name = self.get_option("profile_name")
-        aws_access_key_id = self.get_option("aws_access_key_id")
-        aws_secret_access_key = self.get_option("aws_secret_access_key")
-        aws_session_token = self.get_option("aws_session_token")
+        version = self.get_option('version')
+        region = self.get_option('region')
+        table = self.get_option('table')
+        profile_name = self.get_option('profile_name')
+        aws_access_key_id = self.get_option('aws_access_key_id')
+        aws_secret_access_key = self.get_option('aws_secret_access_key')
+        aws_session_token = self.get_option('aws_session_token')
 
         context = {
-            k: v
-            for k, v in kwargs.items()
-            if k
-            not in (
-                "version",
-                "region",
-                "table",
-                "profile_name",
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-            )
+            k: v for k, v in kwargs.items()
+            if k not in ('version', 'region', 'table', 'profile_name', 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token')
         }
 
         kwargs_pass = {
-            "profile_name": profile_name,
-            "aws_access_key_id": aws_access_key_id,
-            "aws_secret_access_key": aws_secret_access_key,
-            "aws_session_token": aws_session_token,
+            'profile_name': profile_name,
+            'aws_access_key_id': aws_access_key_id,
+            'aws_secret_access_key': aws_secret_access_key,
+            'aws_session_token': aws_session_token,
         }
 
         ret = []
         for term in terms:
             try:
                 ret.append(credstash.getSecret(term, version, region, table, context=context, **kwargs_pass))
-            except credstash.ItemNotFound as e:
-                raise AnsibleError(f"Key {term} not found") from e
+            except credstash.ItemNotFound:
+                raise AnsibleError(f'Key {term} not found')
             except Exception as e:
-                raise AnsibleError(f"Encountered exception while fetching {term}: {e}") from e
+                raise AnsibleError(f'Encountered exception while fetching {term}: {e}')
 
         return ret

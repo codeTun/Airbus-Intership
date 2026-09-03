@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Brian Coca
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -46,8 +47,9 @@ options:
 import os
 
 import yaml
-from ansible.parsing.yaml.dumper import AnsibleDumper
+
 from ansible.parsing.yaml.loader import AnsibleLoader
+from ansible.parsing.yaml.dumper import AnsibleDumper
 from ansible.plugins.cache import BaseFileCacheModule
 
 
@@ -57,9 +59,9 @@ class CacheModule(BaseFileCacheModule):
     """
 
     def _load(self, filepath):
-        with open(os.path.abspath(filepath), encoding="utf-8") as f:
+        with open(os.path.abspath(filepath), 'r', encoding='utf-8') as f:
             return AnsibleLoader(f).get_single_data()
 
     def _dump(self, value, filepath):
-        with open(os.path.abspath(filepath), "w", encoding="utf-8") as f:
+        with open(os.path.abspath(filepath), 'w', encoding='utf-8') as f:
             yaml.dump(value, f, Dumper=AnsibleDumper, default_flow_style=False)

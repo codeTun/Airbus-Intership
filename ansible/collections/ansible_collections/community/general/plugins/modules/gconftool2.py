@@ -1,11 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2016, Kenneth D. Evensen <kevensen@redhat.com>
 # Copyright (c) 2017, Abhijeet Kasurde <akasurde@redhat.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: gconftool2
@@ -21,7 +23,7 @@ seealso:
     link: https://help.gnome.org/admin//system-admin-guide/2.32/gconf-6.html.en
 
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -102,27 +104,27 @@ version:
   version_added: 10.0.0
 """
 
-from ansible_collections.community.general.plugins.module_utils._gconftool2 import gconftool2_runner
-from ansible_collections.community.general.plugins.module_utils._module_helper import StateModuleHelper
+from ansible_collections.community.general.plugins.module_utils.module_helper import StateModuleHelper
+from ansible_collections.community.general.plugins.module_utils.gconftool2 import gconftool2_runner
 
 
 class GConftool(StateModuleHelper):
-    diff_params = ("value",)
-    output_params = ("key", "value_type")
-    facts_params = ("key", "value_type")
-    facts_name = "gconftool2"
+    diff_params = ('value', )
+    output_params = ('key', 'value_type')
+    facts_params = ('key', 'value_type')
+    facts_name = 'gconftool2'
     module = dict(
         argument_spec=dict(
-            key=dict(type="str", required=True, no_log=False),
-            value_type=dict(type="str", choices=["bool", "float", "int", "string"]),
-            value=dict(type="str"),
-            state=dict(type="str", required=True, choices=["absent", "present"]),
-            direct=dict(type="bool", default=False),
-            config_source=dict(type="str"),
+            key=dict(type='str', required=True, no_log=False),
+            value_type=dict(type='str', choices=['bool', 'float', 'int', 'string']),
+            value=dict(type='str'),
+            state=dict(type='str', required=True, choices=['absent', 'present']),
+            direct=dict(type='bool', default=False),
+            config_source=dict(type='str'),
         ),
         required_if=[
-            ("state", "present", ["value", "value_type"]),
-            ("direct", True, ["config_source"]),
+            ('state', 'present', ['value', 'value_type']),
+            ('direct', True, ['config_source']),
         ],
         supports_check_mode=True,
     )
@@ -136,20 +138,19 @@ class GConftool(StateModuleHelper):
             rc, out, err = ctx.run()
             self.vars.version = out.strip()
 
-        self.vars.set("previous_value", self._get(), fact=True)
-        self.vars.set("value_type", self.vars.value_type)
-        self.vars.set("_value", self.vars.previous_value, output=False, change=True)
-        self.vars.set_meta("value", initial_value=self.vars.previous_value)
-        self.vars.set("playbook_value", self.vars.value, fact=True)
+        self.vars.set('previous_value', self._get(), fact=True)
+        self.vars.set('value_type', self.vars.value_type)
+        self.vars.set('_value', self.vars.previous_value, output=False, change=True)
+        self.vars.set_meta('value', initial_value=self.vars.previous_value)
+        self.vars.set('playbook_value', self.vars.value, fact=True)
 
     def _make_process(self, fail_on_err):
         def process(rc, out, err):
             if err and fail_on_err:
-                self.do_raise(f"gconftool-2 failed with error:\n{err.strip()}")
+                self.do_raise('gconftool-2 failed with error:\n%s' % err.strip())
             out = out.rstrip()
             self.vars.value = None if out == "" else out
             return self.vars.value
-
         return process
 
     def _get(self):
@@ -158,17 +159,15 @@ class GConftool(StateModuleHelper):
     def state_absent(self):
         with self.runner("state key", output_process=self._make_process(False)) as ctx:
             ctx.run()
-            self.vars.set("run_info", ctx.run_info, verbosity=4)
-        self.vars.set("new_value", None, fact=True)
+            self.vars.set('run_info', ctx.run_info, verbosity=4)
+        self.vars.set('new_value', None, fact=True)
         self.vars._value = None
 
     def state_present(self):
-        with self.runner(
-            "direct config_source value_type state key value", output_process=self._make_process(True)
-        ) as ctx:
+        with self.runner("direct config_source value_type state key value", output_process=self._make_process(True)) as ctx:
             ctx.run()
-            self.vars.set("run_info", ctx.run_info, verbosity=4)
-        self.vars.set("new_value", self._get(), fact=True)
+            self.vars.set('run_info', ctx.run_info, verbosity=4)
+        self.vars.set('new_value', self._get(), fact=True)
         self.vars._value = self.vars.new_value
 
 
@@ -176,5 +175,5 @@ def main():
     GConftool.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2013, Evgenii Terechkov
 # Written by Evgenii Terechkov <evg@altlinux.org>
@@ -7,7 +8,8 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: apt_rpm
@@ -15,7 +17,7 @@ short_description: APT-RPM package manager
 description:
   - Manages packages with C(apt-rpm). Both low-level (C(rpm)) and high-level (C(apt-get)) package manager binaries required.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -129,7 +131,6 @@ from ansible.module_utils.basic import (
 )
 from ansible.module_utils.common.text.converters import to_native
 
-RPM_PYTHON_IMPORT_ERROR: str | None
 try:
     import rpm
 except ImportError:
@@ -144,103 +145,80 @@ APT_PATH = "/usr/bin/apt-get"
 RPM_PATH = "/usr/bin/rpm"
 APT_GET_ZERO = "\n0 upgraded, 0 newly installed"
 UPDATE_KERNEL_ZERO = "\nTry to install new kernel "
-UPDATE_KERNEL_NO_NEW = "There are no available kernels"
 
 
 def local_rpm_package_name(path):
     """return package name of a local rpm passed in.
     Inspired by ansible.builtin.yum"""
 
-    header = get_local_rpm_header(path)
-    if header is None:
-        return None
-
-    return to_native(header[rpm.RPMTAG_NAME])
-
-
-def get_local_rpm_header(path):
-    """return rpm header of a local rpm file."""
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES)
     fd = os.open(path, os.O_RDONLY)
     try:
-        return ts.hdrFromFdno(fd)
-    except rpm.error:
+        header = ts.hdrFromFdno(fd)
+    except rpm.error as e:
         return None
     finally:
         os.close(fd)
 
-
-def get_installed_rpm_header(name):
-    """return rpm header of an installed package."""
-    ts = rpm.TransactionSet()
-    return next(ts.dbMatch(rpm.RPMTAG_NAME, name), None)
+    return to_native(header[rpm.RPMTAG_NAME])
 
 
 def query_package(module, name):
     # rpm -q returns 0 if the package is installed,
     # 1 if it is not installed
     rc, out, err = module.run_command([RPM_PATH, "-q", name])
-    return rc == 0
+    if rc == 0:
+        return True
+    else:
+        return False
 
 
-def check_package_version(module, name, local_rpm_path):
+def check_package_version(module, name):
     # compare installed and candidate version
     # if newest version already installed return True
     # otherwise return False
 
-    if local_rpm_path is not None:
-        local_hdr = get_local_rpm_header(local_rpm_path)
-        if local_hdr is None:
-            module.fail_json(msg=f"Failed to read version from local RPM file: {local_rpm_path}")
-        inst_hdr = get_installed_rpm_header(name)
-        if inst_hdr is None:
-            return False
-        result = rpm.versionCompare(inst_hdr, local_hdr)
-        return result >= 0
-    else:
-        rc, out, err = module.run_command([APT_CACHE, "policy", name], environ_update={"LANGUAGE": "C", "LC_ALL": "C"})
-        installed = re.split("\n |: ", out)[2]
-        candidate = re.split("\n |: ", out)[4]
-        return installed >= candidate
+    rc, out, err = module.run_command([APT_CACHE, "policy", name], environ_update={"LANG": "C"})
+    installed = re.split("\n |: ", out)[2]
+    candidate = re.split("\n |: ", out)[4]
+    if installed >= candidate:
+        return True
+    return False
 
 
 def query_package_provides(module, name, allow_upgrade=False):
     # rpm -q returns 0 if the package is installed,
     # 1 if it is not installed
-    local_rpm_path = None
-    if name.endswith(".rpm"):
+    if name.endswith('.rpm'):
         # Likely a local RPM file
         if not HAS_RPM_PYTHON:
             module.fail_json(
-                msg=missing_required_lib("rpm"),
+                msg=missing_required_lib('rpm'),
                 exception=RPM_PYTHON_IMPORT_ERROR,
             )
 
-        local_rpm_path = name
         name = local_rpm_package_name(name)
 
     rc, out, err = module.run_command([RPM_PATH, "-q", "--provides", name])
     if rc == 0:
         if not allow_upgrade:
             return True
-        if check_package_version(module, name, local_rpm_path):
+        if check_package_version(module, name):
             return True
     return False
 
 
 def update_package_db(module):
-    rc, update_out, err = module.run_command(
-        [APT_PATH, "update"], check_rc=True, environ_update={"LANGUAGE": "C", "LC_ALL": "C"}
-    )
+    rc, update_out, err = module.run_command([APT_PATH, "update"], check_rc=True, environ_update={"LANG": "C"})
     return (False, update_out)
 
 
 def dir_size(module, path):
     total_size = 0
-    for cur_path, _dirs, files in os.walk(path):
+    for path, dirs, files in os.walk(path):
         for f in files:
-            total_size += os.path.getsize(os.path.join(cur_path, f))
+            total_size += os.path.getsize(os.path.join(path, f))
     return total_size
 
 
@@ -251,24 +229,17 @@ def clean(module):
 
 
 def dist_upgrade(module):
-    rc, out, err = module.run_command(
-        [APT_PATH, "-y", "dist-upgrade"], check_rc=True, environ_update={"LANGUAGE": "C", "LC_ALL": "C"}
-    )
+    rc, out, err = module.run_command([APT_PATH, "-y", "dist-upgrade"], check_rc=True, environ_update={"LANG": "C"})
     return (APT_GET_ZERO not in out, out)
 
 
 def update_kernel(module):
-    rc, out, err = module.run_command(
-        ["/usr/sbin/update-kernel", "-y"], environ_update={"LANGUAGE": "C", "LC_ALL": "C"}
-    )
-    if rc != 0:
-        if UPDATE_KERNEL_NO_NEW in err:
-            return (False, out)
-        module.fail_json(msg=f"Error while updating kernel: {err or out}", rc=rc, stdout=out, stderr=err)
+    rc, out, err = module.run_command(["/usr/sbin/update-kernel", "-y"], check_rc=True, environ_update={"LANG": "C"})
     return (UPDATE_KERNEL_ZERO not in out, out)
 
 
 def remove_packages(module, packages):
+
     if packages is None:
         return (False, "Empty package list")
 
@@ -279,22 +250,21 @@ def remove_packages(module, packages):
         if not query_package(module, package):
             continue
 
-        rc, out, err = module.run_command(
-            [APT_PATH, "-y", "remove", package], environ_update={"LANGUAGE": "C", "LC_ALL": "C"}
-        )
+        rc, out, err = module.run_command([APT_PATH, "-y", "remove", package], environ_update={"LANG": "C"})
 
         if rc != 0:
-            module.fail_json(msg=f"failed to remove {package}: {err}")
+            module.fail_json(msg="failed to remove %s: %s" % (package, err))
 
         remove_c += 1
 
     if remove_c > 0:
-        return (True, f"removed {remove_c} package(s)")
+        return (True, "removed %s package(s)" % remove_c)
 
     return (False, "package(s) already absent")
 
 
 def install_packages(module, pkgspec, allow_upgrade=False):
+
     if pkgspec is None:
         return (False, "Empty package list")
 
@@ -305,7 +275,7 @@ def install_packages(module, pkgspec, allow_upgrade=False):
 
     if packages:
         command = [APT_PATH, "-y", "install"] + packages
-        rc, out, err = module.run_command(command, environ_update={"LANGUAGE": "C", "LC_ALL": "C"})
+        rc, out, err = module.run_command(command, environ_update={"LANG": "C"})
 
         installed = True
         for package in pkgspec:
@@ -314,9 +284,9 @@ def install_packages(module, pkgspec, allow_upgrade=False):
 
         # apt-rpm always have 0 for exit code if --force is used
         if rc or not installed:
-            module.fail_json(msg=f"'{' '.join(command)}' failed: {err}")
+            module.fail_json(msg="'%s' failed: %s" % (" ".join(command), err))
         else:
-            return (True, f"{packages} present(s)")
+            return (True, "%s present(s)" % packages)
     else:
         return (False, "Nothing to install")
 
@@ -324,16 +294,12 @@ def install_packages(module, pkgspec, allow_upgrade=False):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(
-                type="str",
-                default="present",
-                choices=["absent", "installed", "present", "removed", "present_not_latest", "latest"],
-            ),
-            update_cache=dict(type="bool", default=False),
-            clean=dict(type="bool", default=False),
-            dist_upgrade=dict(type="bool", default=False),
-            update_kernel=dict(type="bool", default=False),
-            package=dict(type="list", elements="str", aliases=["name", "pkg"]),
+            state=dict(type='str', default='present', choices=['absent', 'installed', 'present', 'removed', 'present_not_latest', 'latest']),
+            update_cache=dict(type='bool', default=False),
+            clean=dict(type='bool', default=False),
+            dist_upgrade=dict(type='bool', default=False),
+            update_kernel=dict(type='bool', default=False),
+            package=dict(type='list', elements='str', aliases=['name', 'pkg']),
         ),
     )
 
@@ -345,30 +311,30 @@ def main():
     modified = False
     output = ""
 
-    if p["update_cache"]:
+    if p['update_cache']:
         update_package_db(module)
 
-    if p["clean"]:
+    if p['clean']:
         (m, out) = clean(module)
         modified = modified or m
 
-    if p["dist_upgrade"]:
+    if p['dist_upgrade']:
         (m, out) = dist_upgrade(module)
         modified = modified or m
         output += out
 
-    if p["update_kernel"]:
+    if p['update_kernel']:
         (m, out) = update_kernel(module)
         modified = modified or m
         output += out
 
-    packages = p["package"]
-    if p["state"] in ["installed", "present", "present_not_latest", "latest"]:
-        (m, out) = install_packages(module, packages, allow_upgrade=p["state"] == "latest")
+    packages = p['package']
+    if p['state'] in ['installed', 'present', 'present_not_latest', 'latest']:
+        (m, out) = install_packages(module, packages, allow_upgrade=p['state'] == 'latest')
         modified = modified or m
         output += out
 
-    if p["state"] in ["absent", "removed"]:
+    if p['state'] in ['absent', 'removed']:
         (m, out) = remove_packages(module, packages)
         modified = modified or m
         output += out
@@ -377,5 +343,5 @@ def main():
     module.exit_json(changed=modified, msg=output)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

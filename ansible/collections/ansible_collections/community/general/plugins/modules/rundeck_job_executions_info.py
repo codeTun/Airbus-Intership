@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2021, Phillipe Smith <phsmithcc@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: rundeck_job_executions_info
@@ -35,10 +38,10 @@ options:
       - The start point to return the results.
     default: 0
 extends_documentation_fragment:
-  - community.general._rundeck
+  - community.general.rundeck
   - ansible.builtin.url
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -127,14 +130,15 @@ executions:
     ]
 """
 
-from urllib.parse import quote
-
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.six.moves.urllib.parse import quote
+from ansible_collections.community.general.plugins.module_utils.rundeck import (
+    api_argument_spec,
+    api_request
+)
 
-from ansible_collections.community.general.plugins.module_utils._rundeck import api_argument_spec, api_request
 
-
-class RundeckJobExecutionsInfo:
+class RundeckJobExecutionsInfo(object):
     def __init__(self, module):
         self.module = module
         self.url = self.module.params["url"]
@@ -147,28 +151,36 @@ class RundeckJobExecutionsInfo:
     def job_executions(self):
         response, info = api_request(
             module=self.module,
-            endpoint=f"job/{quote(self.job_id)}/executions?offset={self.offset}&max={self.max}&status={self.status}",
-            method="GET",
+            endpoint="job/%s/executions?offset=%s&max=%s&status=%s"
+                     % (quote(self.job_id), self.offset, self.max, self.status),
+            method="GET"
         )
 
         if info["status"] != 200:
-            self.module.fail_json(msg=info["msg"], executions=response)
+            self.module.fail_json(
+                msg=info["msg"],
+                executions=response
+            )
 
         self.module.exit_json(msg="Executions info result", **response)
 
 
 def main():
     argument_spec = api_argument_spec()
-    argument_spec.update(
-        dict(
-            job_id=dict(required=True, type="str"),
-            offset=dict(type="int", default=0),
-            max=dict(type="int", default=20),
-            status=dict(type="str", choices=["succeeded", "failed", "aborted", "running"]),
+    argument_spec.update(dict(
+        job_id=dict(required=True, type="str"),
+        offset=dict(type="int", default=0),
+        max=dict(type="int", default=20),
+        status=dict(
+            type="str",
+            choices=["succeeded", "failed", "aborted", "running"]
         )
-    )
+    ))
 
-    module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+    module = AnsibleModule(
+        argument_spec=argument_spec,
+        supports_check_mode=True
+    )
 
     if module.params["api_version"] < 14:
         module.fail_json(msg="API version should be at least 14")

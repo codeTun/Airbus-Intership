@@ -8,13 +8,13 @@
     name: flatpak
     state: present
   become: true
-  when: ansible_facts.distribution == 'Fedora'
+  when: ansible_distribution == 'Fedora'
 
 - name: Install flatpak package on Ubuntu
   apt:
     name: flatpak
     state: present
-  when: ansible_facts.distribution == 'Ubuntu'
+  when: ansible_distribution == 'Ubuntu'
 
 - name: Install dummy remote for user
   flatpak_remote:
@@ -53,7 +53,7 @@
     mode: '0755'
 
 - name: Start HTTP server
-  command: '{{ ansible_facts.python.executable }} {{ remote_tmp_dir }}/serve.py 127.0.0.1 8000 /tmp/flatpak/'
+  command: '{{ ansible_python.executable }} {{ remote_tmp_dir }}/serve.py 127.0.0.1 8000 /tmp/flatpak/'
   async: 120
   poll: 0
   register: webserver_status

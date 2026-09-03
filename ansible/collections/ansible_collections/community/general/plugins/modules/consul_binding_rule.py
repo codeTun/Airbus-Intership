@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2024, Florian Apolloner (@apollo13)
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: consul_binding_rule
@@ -16,10 +19,10 @@ description:
 author:
   - Florian Apolloner (@apollo13)
 extends_documentation_fragment:
-  - community.general._consul
-  - community.general._consul.actiongroup_consul
-  - community.general._consul.token
-  - community.general._attributes
+  - community.general.consul
+  - community.general.consul.actiongroup_consul
+  - community.general.consul.token
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -111,8 +114,7 @@ operation:
 
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._consul import (
+from ansible_collections.community.general.plugins.module_utils.consul import (
     AUTH_ARGUMENTS_SPEC,
     RequestError,
     _ConsulModule,
@@ -125,11 +127,13 @@ class ConsulBindingRuleModule(_ConsulModule):
     unique_identifiers = ["id"]
 
     def read_object(self):
-        url = f"acl/binding-rules?authmethod={self.params['auth_method']}"
+        url = "acl/binding-rules?authmethod={0}".format(self.params["auth_method"])
         try:
             results = self.get(url)
             for result in results:
-                if result.get("Description").startswith(f"{self.params['name']}: "):
+                if result.get("Description").startswith(
+                    "{0}: ".format(self.params["name"])
+                ):
                     return result
         except RequestError as e:
             if e.status == 404:
@@ -139,15 +143,15 @@ class ConsulBindingRuleModule(_ConsulModule):
             raise
 
     def module_to_obj(self, is_update):
-        obj = super().module_to_obj(is_update)
+        obj = super(ConsulBindingRuleModule, self).module_to_obj(is_update)
         del obj["Name"]
         return obj
 
     def prepare_object(self, existing, obj):
-        final = super().prepare_object(existing, obj)
+        final = super(ConsulBindingRuleModule, self).prepare_object(existing, obj)
         name = self.params["name"]
         description = final.pop("Description", "").split(": ", 1)[-1]
-        final["Description"] = f"{name}: {description}"
+        final["Description"] = "{0}: {1}".format(name, description)
         return final
 
 
@@ -156,7 +160,9 @@ _ARGUMENT_SPEC = {
     "description": dict(type="str"),
     "auth_method": dict(type="str", required=True),
     "selector": dict(type="str"),
-    "bind_type": dict(type="str", choices=["service", "node", "role", "templated-policy"]),
+    "bind_type": dict(
+        type="str", choices=["service", "node", "role", "templated-policy"]
+    ),
     "bind_name": dict(type="str"),
     "bind_vars": dict(type="dict"),
     "state": dict(default="present", choices=["present", "absent"]),

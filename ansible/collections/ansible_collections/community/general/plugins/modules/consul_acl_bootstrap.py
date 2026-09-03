@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2024, Florian Apolloner (@apollo13)
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: consul_acl_bootstrap
@@ -16,8 +19,8 @@ description:
 author:
   - Florian Apolloner (@apollo13)
 extends_documentation_fragment:
-  - community.general._consul
-  - community.general._attributes
+  - community.general.consul
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -67,8 +70,7 @@ result:
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._consul import (
+from ansible_collections.community.general.plugins.module_utils.consul import (
     AUTH_ARGUMENTS_SPEC,
     RequestError,
     _ConsulModule,

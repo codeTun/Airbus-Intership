@@ -4,7 +4,10 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: systemd_creds_encrypt
@@ -15,7 +18,7 @@ author:
   - Thomas Sjögren (@konstruktoid)
 version_added: '10.2.0'
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -30,15 +33,18 @@ options:
     description:
       - The credential name to embed in the encrypted credential data.
     type: str
+    required: false
   not_after:
     description:
       - The time when the credential shall not be used anymore.
       - Takes a timestamp specification in the format described in V(systemd.time(7\)).
     type: str
+    required: false
   pretty:
     description:
       - Pretty print the output so that it may be pasted directly into a unit file.
     type: bool
+    required: false
     default: false
   secret:
     description:
@@ -50,12 +56,14 @@ options:
       - The timestamp to embed into the encrypted credential.
       - Takes a timestamp specification in the format described in V(systemd.time(7\)).
     type: str
+    required: false
   user:
     description:
       - A user name or numeric UID to encrypt the credential for.
       - If set to the special string V(self) it sets the user to the user of the calling process.
       - Requires C(systemd) 256 or later.
     type: str
+    required: false
 notes:
   - C(systemd-creds) requires C(systemd) 250 or later.
 """
@@ -110,17 +118,17 @@ def main():
 
     encrypt_cmd = [cmd, "encrypt"]
     if name:
-        encrypt_cmd.append(f"--name={name}")
+        encrypt_cmd.append("--name=" + name)
     else:
         encrypt_cmd.append("--name=")
     if not_after:
-        encrypt_cmd.append(f"--not-after={not_after}")
+        encrypt_cmd.append("--not-after=" + not_after)
     if pretty:
         encrypt_cmd.append("--pretty")
     if timestamp:
-        encrypt_cmd.append(f"--timestamp={timestamp}")
+        encrypt_cmd.append("--timestamp=" + timestamp)
     if user:
-        encrypt_cmd.append(f"--uid={user}")
+        encrypt_cmd.append("--uid=" + user)
     encrypt_cmd.extend(["-", "-"])
 
     rc, stdout, stderr = module.run_command(encrypt_cmd, data=secret, binary_data=True)

@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017, Branko Majic <branko@majic.rs>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: dconf
@@ -15,24 +18,18 @@ description:
   - This module allows modifications and reading of C(dconf) database. The module is implemented as a wrapper around C(dconf)
     tool. Please see the dconf(1) man page for more details.
   - Since C(dconf) requires a running D-Bus session to change values, the module tries to detect an existing session and reuse
-    it, or run the tool using C(dbus-run-session). Both C(dbus-daemon) and C(dbus-broker) are supported.
+    it, or run the tool using C(dbus-run-session).
 requirements:
   - Optionally the C(gi.repository) Python library (usually included in the OS on hosts which have C(dconf)); this is to become
     a non-optional requirement in a future major release of community.general.
 notes:
-  - This module depends on C(psutil) Python library (version 4.0.0 and upwards), C(dconf), and either C(dbus-send) or C(busctl)
-    for D-Bus session validation, and C(dbus-run-session) as a fallback when no existing session is found.
-    Depending on distribution you are using, you may need to install additional packages to have these available.
-    Both the reference C(dbus-daemon) implementation and C(dbus-broker) are supported.
+  - This module depends on C(psutil) Python library (version 4.0.0 and upwards), C(dconf), C(dbus-send), and C(dbus-run-session)
+    binaries. Depending on distribution you are using, you may need to install additional packages to have these available.
   - This module uses the C(gi.repository) Python library when available for accurate comparison of values in C(dconf) to values
     specified in Ansible code. C(gi.repository) is likely to be present on most systems which have C(dconf) but may not be
     present everywhere. When it is missing, a simple string comparison between values is used, and there may be false positives,
-    that is, Ansible may think that a value is being changed when it is not. This fallback is to be removed in version 15.0.0
-    of this collection, at which point the module C(gi.repository) is going to be required.
-  - The library C(gi.repository) is usually provided by operating system packages (C(python3-gi) for Ubuntu/Debian,
-    C(python3-gobject) for Red Hat/Fedora, C(python-gobject) for Arch Linux, to mention a few).
-    It is available in PyPI as C(PyGObject) but it only provides bindings for system libraries, so using the system packages
-    is highly recommended over installing it with C(pip).
+    that is, Ansible may think that a value is being changed when it is not. This fallback is to be removed in a future version
+    of this module, at which point the module will stop working on hosts without C(gi.repository).
   - Detection of existing, running D-Bus session, required to change settings using C(dconf), is not 100% reliable due to
     implementation details of D-Bus daemon itself. This might lead to running applications not picking-up changes on-the-fly
     if options are changed using Ansible and C(dbus-run-session).
@@ -46,7 +43,7 @@ notes:
     application affected by the key, and then having a look at value set using commands C(dconf dump /path/to/dir/) or C(dconf
     read /path/to/key).
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -60,6 +57,7 @@ options:
       - A dconf key to modify or read from the dconf database.
   value:
     type: raw
+    required: false
     description:
       - Value to set for the specified dconf key. Value should be specified in GVariant format. Due to complexity of this
         format, it is best to have a look at existing values in the dconf database.
@@ -69,6 +67,7 @@ options:
         is why the type of this parameter is "raw").
   state:
     type: str
+    required: false
     default: present
     choices: ['read', 'present', 'absent']
     description:
@@ -135,13 +134,13 @@ from ansible.module_utils.common.respawn import (
     probe_interpreters_for_module,
     respawn_module,
 )
+from ansible.module_utils.common.text.converters import to_native
+from ansible_collections.community.general.plugins.module_utils import deps
 
-from ansible_collections.community.general.plugins.module_utils import _deps as deps
-
-glib_module_name = "gi.repository.GLib"
+glib_module_name = 'gi.repository.GLib'
 
 try:
-    from gi.repository.GLib import GError, Variant
+    from gi.repository.GLib import Variant, GError
 except ImportError:
     Variant = None
     GError = AttributeError
@@ -150,20 +149,13 @@ with deps.declare("psutil"):
     import psutil
 
 
-class DBusWrapper:
+class DBusWrapper(object):
     """
     Helper class that can be used for running a command with a working D-Bus
     session.
 
     If possible, command will be run against an existing D-Bus session,
     otherwise the session will be spawned via dbus-run-session.
-
-    Discovery order:
-    1. DBUS_SESSION_BUS_ADDRESS in the current process environment
-    2. /run/user/<uid>/bus  -- canonical socket for systemd and dbus-broker
-    3. Process scan for DBUS_SESSION_BUS_ADDRESS  -- legacy fallback
-
-    Validation uses C(dbus-send) if available, C(busctl) otherwise.
 
     Example usage:
 
@@ -172,31 +164,23 @@ class DBusWrapper:
     """
 
     def __init__(self, module):
+        """
+        Initialises an instance of the class.
+
+        :param module: Ansible module instance used to signal failures and run commands.
+        :type module: AnsibleModule
+        """
+
+        # Store passed-in arguments and set-up some defaults.
         self.module = module
+
+        # Try to extract existing D-Bus session address.
         self.dbus_session_bus_address = self._get_existing_dbus_session()
 
+        # If no existing D-Bus session was detected, check if dbus-run-session
+        # is available.
         if self.dbus_session_bus_address is None:
-            self.dbus_run_session_cmd = self.module.get_bin_path("dbus-run-session", required=True)
-
-    def _validate_address(self, address):
-        dbus_send = self.module.get_bin_path("dbus-send")
-        if dbus_send:
-            rc, dummy, dummy = self.module.run_command(
-                [dbus_send, f"--address={address}", "--type=signal", "/", "com.example.test"]
-            )
-            if rc == 0:
-                return True
-
-        busctl = self.module.get_bin_path("busctl")
-        if busctl:
-            rc, dummy, dummy = self.module.run_command([busctl, f"--address={address}", "list"])
-            if rc == 0:
-                return True
-
-        if not dbus_send and not busctl:
-            self.module.fail_json(msg="Neither dbus-send nor busctl is available. Please install one of them.")
-
-        return False
+            self.dbus_run_session_cmd = self.module.get_bin_path('dbus-run-session', required=True)
 
     def _get_existing_dbus_session(self):
         """
@@ -208,38 +192,25 @@ class DBusWrapper:
         # We'll be checking the processes of current user only.
         uid = os.getuid()
 
-        # Step 1: current process environment
-        address = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
-        if address:
-            self.module.debug(f"Trying D-Bus address from environment: {address}")
-            if self._validate_address(address):
-                self.module.debug(f"Using D-Bus session from environment: {address}")
-                return address
+        # Go through all the pids for this user, try to extract the D-Bus
+        # session bus address from environment, and ensure it is possible to
+        # connect to it.
+        self.module.debug("Trying to detect existing D-Bus user session for user: %d" % uid)
 
-        # Step 2: canonical systemd/dbus-broker socket path
-        canonical_path = f"/run/user/{uid}/bus"
-        if os.path.exists(canonical_path):
-            address = f"unix:path={canonical_path}"
-            self.module.debug(f"Trying canonical D-Bus socket: {canonical_path}")
-            if self._validate_address(address):
-                self.module.debug(f"Using canonical D-Bus socket: {canonical_path}")
-                return address
-
-        # Step 3: process scan (legacy fallback)
-        self.module.debug(f"Scanning processes for D-Bus session (uid={uid})")
         for pid in psutil.pids():
             try:
                 process = psutil.Process(pid)
                 process_real_uid, dummy, dummy = process.uids()
-                if process_real_uid == uid and "DBUS_SESSION_BUS_ADDRESS" in process.environ():
-                    dbus_session_bus_address_candidate = process.environ()["DBUS_SESSION_BUS_ADDRESS"]
-                    self.module.debug(
-                        f"Found D-Bus user session candidate at address: {dbus_session_bus_address_candidate}"
-                    )
-                    if self._validate_address(dbus_session_bus_address_candidate):
-                        self.module.debug(
-                            f"Verified D-Bus user session candidate as usable at address: {dbus_session_bus_address_candidate}"
-                        )
+                if process_real_uid == uid and 'DBUS_SESSION_BUS_ADDRESS' in process.environ():
+                    dbus_session_bus_address_candidate = process.environ()['DBUS_SESSION_BUS_ADDRESS']
+                    self.module.debug("Found D-Bus user session candidate at address: %s" % dbus_session_bus_address_candidate)
+                    dbus_send_cmd = self.module.get_bin_path('dbus-send', required=True)
+                    command = [dbus_send_cmd, '--address=%s' % dbus_session_bus_address_candidate, '--type=signal', '/', 'com.example.test']
+                    rc, dummy, dummy = self.module.run_command(command)
+
+                    if rc == 0:
+                        self.module.debug("Verified D-Bus user session candidate as usable at address: %s" % dbus_session_bus_address_candidate)
+
                         return dbus_session_bus_address_candidate
 
             # This can happen with things like SSH sessions etc.
@@ -250,6 +221,7 @@ class DBusWrapper:
                 pass
 
         self.module.debug("Failed to find running D-Bus user session, will use dbus-run-session")
+
         return None
 
     def run_command(self, command):
@@ -268,18 +240,18 @@ class DBusWrapper:
             self.module.debug("Using dbus-run-session wrapper for running commands.")
             command = [self.dbus_run_session_cmd] + command
             rc, out, err = self.module.run_command(command)
-            if rc == 127:
-                self.module.fail_json(
-                    msg=f"Failed to run passed-in command, dbus-run-session faced an internal error: {err}"
-                )
+
+            if self.dbus_session_bus_address is None and rc == 127:
+                self.module.fail_json(msg="Failed to run passed-in command, dbus-run-session faced an internal error: %s" % err)
         else:
-            extra_environment = {"DBUS_SESSION_BUS_ADDRESS": self.dbus_session_bus_address}
+            extra_environment = {'DBUS_SESSION_BUS_ADDRESS': self.dbus_session_bus_address}
             rc, out, err = self.module.run_command(command, environ_update=extra_environment)
 
         return rc, out, err
 
 
-class DconfPreference:
+class DconfPreference(object):
+
     def __init__(self, module, check_mode=False):
         """
         Initialises instance of the class.
@@ -294,7 +266,7 @@ class DconfPreference:
         self.module = module
         self.check_mode = check_mode
         # Check if dconf binary exists
-        self.dconf_bin = self.module.get_bin_path("dconf", required=True)
+        self.dconf_bin = self.module.get_bin_path('dconf', required=True)
 
     @staticmethod
     def variants_are_equal(canonical_value, user_value):
@@ -329,15 +301,17 @@ class DconfPreference:
         """
         command = [self.dconf_bin, "read", key]
 
-        rc, out, err = self.module.run_command(command, environ_update={"LANGUAGE": "C", "LC_ALL": "C"})
+        rc, out, err = self.module.run_command(command)
 
         if rc != 0:
-            self.module.fail_json(msg=f"dconf failed while reading the value with error: {err}", out=out, err=err)
+            self.module.fail_json(msg='dconf failed while reading the value with error: %s' % err,
+                                  out=out,
+                                  err=err)
 
-        if out == "":
+        if out == '':
             value = None
         else:
-            value = out.rstrip("\n")
+            value = out.rstrip('\n')
 
         return value
 
@@ -371,9 +345,9 @@ class DconfPreference:
         rc, out, err = dbus_wrapper.run_command(command)
 
         if rc != 0:
-            self.module.fail_json(
-                msg=f"dconf failed while writing key {key}, value {value} with error: {err}", out=out, err=err
-            )
+            self.module.fail_json(msg='dconf failed while writing key %s, value %s with error: %s' % (key, value, err),
+                                  out=out,
+                                  err=err)
 
         # Value was changed.
         return True
@@ -409,7 +383,9 @@ class DconfPreference:
         rc, out, err = dbus_wrapper.run_command(command)
 
         if rc != 0:
-            self.module.fail_json(msg=f"dconf failed while resetting the value with error: {err}", out=out, err=err)
+            self.module.fail_json(msg='dconf failed while resetting the value with error: %s' % err,
+                                  out=out,
+                                  err=err)
 
         # Value was changed.
         return True
@@ -419,14 +395,14 @@ def main():
     # Setup the Ansible module
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(default="present", choices=["present", "absent", "read"]),
-            key=dict(required=True, type="str", no_log=False),
+            state=dict(default='present', choices=['present', 'absent', 'read']),
+            key=dict(required=True, type='str', no_log=False),
             # Converted to str below after special handling of bool.
-            value=dict(type="raw"),
+            value=dict(type='raw'),
         ),
         supports_check_mode=True,
         required_if=[
-            ("state", "present", ["value"]),
+            ('state', 'present', ['value']),
         ],
     )
 
@@ -441,11 +417,15 @@ def main():
 
         if has_respawned():
             # This shouldn't be possible; short-circuit early if it happens.
-            module.fail_json(msg=f"{glib_module_name} must be installed and visible from {sys.executable}.")
+            module.fail_json(
+                msg="%s must be installed and visible from %s." %
+                (glib_module_name, sys.executable))
 
-        interpreters = ["/usr/bin/python3", "/usr/bin/python"]
+        interpreters = ['/usr/bin/python3', '/usr/bin/python2',
+                        '/usr/bin/python']
 
-        interpreter = probe_interpreters_for_module(interpreters, glib_module_name)
+        interpreter = probe_interpreters_for_module(
+            interpreters, glib_module_name)
 
         if interpreter:
             # Found the Python bindings; respawn this module under the
@@ -459,20 +439,18 @@ def main():
     # about converting strings that look like booleans into booleans. Convert
     # the boolean into a string of the type dconf will understand. Any type for
     # the value other than boolean is just converted into a string directly.
-    if module.params["value"] is not None:
-        if isinstance(module.params["value"], bool):
-            module.params["value"] = "true" if module.params["value"] else "false"
+    if module.params['value'] is not None:
+        if isinstance(module.params['value'], bool):
+            module.params['value'] = 'true' if module.params['value'] else 'false'
         else:
-            module.params["value"] = str(module.params["value"])
+            module.params['value'] = to_native(
+                module.params['value'], errors='surrogate_or_strict')
 
     if Variant is None:
-        module.deprecate(
-            "The gi.repository Python library is not available; "
-            "using string comparison to check value equality. This fallback "
-            "will be removed in community.general 15.0.0.",
-            version="15.0.0",
-            collection_name="community.general",
-        )
+        module.warn(
+            'WARNING: The gi.repository Python library is not available; '
+            'using string comparison to check value equality. This fallback '
+            'will be deprecated in a future version of community.general.')
 
     deps.validate(module)
 
@@ -480,16 +458,16 @@ def main():
     dconf = DconfPreference(module, module.check_mode)
 
     # Process based on different states.
-    if module.params["state"] == "read":
-        value = dconf.read(module.params["key"])
+    if module.params['state'] == 'read':
+        value = dconf.read(module.params['key'])
         module.exit_json(changed=False, value=value)
-    elif module.params["state"] == "present":
-        changed = dconf.write(module.params["key"], module.params["value"])
+    elif module.params['state'] == 'present':
+        changed = dconf.write(module.params['key'], module.params['value'])
         module.exit_json(changed=changed)
-    elif module.params["state"] == "absent":
-        changed = dconf.reset(module.params["key"])
+    elif module.params['state'] == 'absent':
+        changed = dconf.reset(module.params['key'])
         module.exit_json(changed=changed)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Alejandro Guirao <lekumberri@gmail.com>
 # Copyright (c) 2012-17 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: shelvefile
@@ -40,14 +42,13 @@ _list:
 """
 import shelve
 
-from ansible.errors import AnsibleAssertionError, AnsibleError
-from ansible.module_utils.common.text.converters import to_bytes, to_text
+from ansible.errors import AnsibleError, AnsibleAssertionError
 from ansible.plugins.lookup import LookupBase
-
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+from ansible.module_utils.common.text.converters import to_bytes, to_text
 
 
 class LookupModule(LookupBase):
+
     def read_shelve(self, shelve_filename, key):
         """
         Read the value of "key" from a shelve file
@@ -58,11 +59,8 @@ class LookupModule(LookupBase):
         return res
 
     def run(self, terms, variables=None, **kwargs):
-        # TODO: use new-style option parsing
         if not isinstance(terms, list):
             terms = [terms]
-
-        check_for_wrong_terms(self, direct=kwargs)
 
         ret = []
 
@@ -72,19 +70,19 @@ class LookupModule(LookupBase):
 
             try:
                 for param in params:
-                    name, value = param.split("=")
+                    name, value = param.split('=')
                     if name not in paramvals:
-                        raise AnsibleAssertionError(f"{name} not in paramvals")
+                        raise AnsibleAssertionError(f'{name} not in paramvals')
                     paramvals[name] = value
 
             except (ValueError, AssertionError) as e:
                 # In case "file" or "key" are not present
-                raise AnsibleError(e) from e
+                raise AnsibleError(e)
 
-            key = paramvals["key"]
+            key = paramvals['key']
 
             # Search also in the role/files directory and in the playbook directory
-            shelvefile = self.find_file_in_search_path(variables, "files", paramvals["file"])
+            shelvefile = self.find_file_in_search_path(variables, 'files', paramvals['file'])
 
             if shelvefile:
                 res = self.read_shelve(shelvefile, key)

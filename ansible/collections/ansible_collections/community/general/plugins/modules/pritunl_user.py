@@ -1,9 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Florian Dambrine <android.florian@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: pritunl_user
@@ -13,8 +16,8 @@ short_description: Manage Pritunl Users using the Pritunl API
 description:
   - A module to manage Pritunl users using the Pritunl API.
 extends_documentation_fragment:
-  - community.general._pritunl
-  - community.general._attributes
+  - community.general.pritunl
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -45,11 +48,13 @@ options:
       - Name of the user to create or delete from Pritunl.
   user_email:
     type: str
+    required: false
     default:
     description:
       - Email address associated with the user O(user_name).
   user_type:
     type: str
+    required: false
     default: client
     choices:
       - client
@@ -59,16 +64,19 @@ options:
   user_groups:
     type: list
     elements: str
+    required: false
     default:
     description:
       - List of groups associated with the user O(user_name).
   user_disabled:
     type: bool
+    required: false
     default:
     description:
       - Enable/Disable the user O(user_name).
   user_gravatar:
     type: bool
+    required: false
     default:
     description:
       - Enable/Disable Gravatar usage for the user O(user_name).
@@ -141,9 +149,9 @@ response:
 
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.common.dict_transformations import dict_merge
-
-from ansible_collections.community.general.plugins.module_utils._pritunl_api import (
+from ansible_collections.community.general.plugins.module_utils.net_tools.pritunl.api import (
     PritunlException,
     delete_pritunl_user,
     get_pritunl_settings,
@@ -178,7 +186,9 @@ def add_or_update_pritunl_user(module):
     )
 
     if len(org_obj_list) == 0:
-        module.fail_json(msg=f"Can not add user to organization '{org_name}' which does not exist")
+        module.fail_json(
+            msg="Can not add user to organization '%s' which does not exist" % org_name
+        )
 
     org_id = org_obj_list[0]["id"]
 
@@ -266,7 +276,10 @@ def remove_pritunl_user(module):
     )
 
     if len(org_obj_list) == 0:
-        module.fail_json(msg=f"Can not remove user '{user_name}' from a non existing organization '{org_name}'")
+        module.fail_json(
+            msg="Can not remove user '%s' from a non existing organization '%s'"
+            % (user_name, org_name)
+        )
 
     org_id = org_obj_list[0]["id"]
 
@@ -330,7 +343,7 @@ def main():
         elif state == "absent":
             remove_pritunl_user(module)
     except PritunlException as e:
-        module.fail_json(msg=f"{e}")
+        module.fail_json(msg=to_native(e))
 
 
 if __name__ == "__main__":

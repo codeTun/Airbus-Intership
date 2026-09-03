@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (C) 2020 Stanislav German-Evtushenko (@giner) <ginermail@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -38,7 +39,7 @@ _value:
 
 
 def dict_kv(value, key):
-    """Return a dictionary with a single key-value pair
+    '''Return a dictionary with a single key-value pair
 
     Example:
 
@@ -89,12 +90,14 @@ def dict_kv(value, key):
                 }
             ]
         }
-    """
+    '''
     return {key: value}
 
 
-class FilterModule:
-    """Query filter"""
+class FilterModule(object):
+    ''' Query filter '''
 
     def filters(self):
-        return {"dict_kv": dict_kv}
+        return {
+            'dict_kv': dict_kv
+        }

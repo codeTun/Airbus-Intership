@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2015, Marius Gedminas <marius@pov.lt>
 # Copyright (c) 2016, Matthew Gamble <git@matthewgamble.net>
@@ -6,7 +7,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: git_config
@@ -21,7 +24,7 @@ description:
     just C(user.email) in C(/etc/.git/config)). Solutions involving M(ansible.builtin.command) are cumbersome or do not work
     correctly in check mode.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -143,48 +146,46 @@ from ansible.module_utils.basic import AnsibleModule
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type="str", required=True),
-            repo=dict(type="path"),
-            file=dict(type="path"),
-            add_mode=dict(type="str", default="replace-all", choices=["add", "replace-all"]),
-            scope=dict(type="str", choices=["file", "local", "global", "system"]),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
+            name=dict(type='str', required=True),
+            repo=dict(type='path'),
+            file=dict(type='path'),
+            add_mode=dict(type='str', default='replace-all', choices=['add', 'replace-all']),
+            scope=dict(type='str', choices=['file', 'local', 'global', 'system']),
+            state=dict(type='str', default='present', choices=['present', 'absent']),
             value=dict(),
         ),
         required_if=[
-            ("scope", "local", ["repo"]),
-            ("scope", "file", ["file"]),
-            ("state", "present", ["value"]),
+            ('scope', 'local', ['repo']),
+            ('scope', 'file', ['file']),
+            ('state', 'present', ['value']),
         ],
         supports_check_mode=True,
     )
-    git_path = module.get_bin_path("git", True)
+    git_path = module.get_bin_path('git', True)
 
     params = module.params
     # We check error message for a pattern, so we need to make sure the messages appear in the form we're expecting.
     # Set the locale to C to ensure consistent messages.
-    module.run_command_environ_update = dict(LANGUAGE="C", LC_ALL="C")
+    module.run_command_environ_update = dict(LANG='C', LC_ALL='C', LC_MESSAGES='C', LC_CTYPE='C')
 
-    name = params["name"] or ""
-    unset = params["state"] == "absent"
-    new_value = params["value"] or ""
-    add_mode = params["add_mode"]
+    name = params['name'] or ''
+    unset = params['state'] == 'absent'
+    new_value = params['value'] or ''
+    add_mode = params['add_mode']
 
     if not unset and not new_value:
-        module.fail_json(
-            msg="If state=present, a value must be specified. Use the community.general.git_config_info module to read a config value."
-        )
+        module.fail_json(msg="If state=present, a value must be specified. Use the community.general.git_config_info module to read a config value.")
 
     scope = determine_scope(params)
     cwd = determine_cwd(scope, params)
 
     base_args = [git_path, "config", "--includes"]
 
-    if scope == "file":
-        base_args.append("-f")
-        base_args.append(params["file"])
+    if scope == 'file':
+        base_args.append('-f')
+        base_args.append(params['file'])
     elif scope:
-        base_args.append(f"--{scope}")
+        base_args.append("--" + scope)
 
     list_args = list(base_args)
 
@@ -195,12 +196,12 @@ def main():
 
     if rc >= 2:
         # If the return code is 1, it just means the option hasn't been set yet, which is fine.
-        module.fail_json(rc=rc, msg=err, cmd=" ".join(list_args))
+        module.fail_json(rc=rc, msg=err, cmd=' '.join(list_args))
 
     old_values = out.rstrip().splitlines()
 
     if unset and not out:
-        module.exit_json(changed=False, msg="no setting to unset")
+        module.exit_json(changed=False, msg='no setting to unset')
     elif new_value in old_values and (len(old_values) == 1 or add_mode == "add") and not unset:
         module.exit_json(changed=False, msg="")
 
@@ -211,7 +212,7 @@ def main():
         set_args.append("--unset-all")
         set_args.append(name)
     else:
-        set_args.append(f"--{add_mode}")
+        set_args.append("--" + add_mode)
         set_args.append(name)
         set_args.append(new_value)
 
@@ -228,37 +229,37 @@ def main():
         after_values = [new_value]
 
     module.exit_json(
-        msg="setting changed",
+        msg='setting changed',
         diff=dict(
-            before_header=" ".join(set_args),
+            before_header=' '.join(set_args),
             before=build_diff_value(old_values),
-            after_header=" ".join(set_args),
+            after_header=' '.join(set_args),
             after=build_diff_value(after_values),
         ),
-        changed=True,
+        changed=True
     )
 
 
 def determine_scope(params):
-    if params["scope"]:
-        return params["scope"]
-    return "system"
+    if params['scope']:
+        return params['scope']
+    return 'system'
 
 
 def build_diff_value(value):
     if not value:
         return "\n"
     if len(value) == 1:
-        return f"{value[0]}\n"
+        return value[0] + "\n"
     return value
 
 
 def determine_cwd(scope, params):
-    if scope == "local":
-        return params["repo"]
+    if scope == 'local':
+        return params['repo']
     # Run from root directory to avoid accidentally picking up any local config settings
     return "/"
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

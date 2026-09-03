@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright (c) 2021, Andrew Pantuso (@ajpantuso) <ajpantuso@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -51,10 +53,10 @@ from ansible.errors import AnsibleFilterError
 try:
     from ansible.errors import AnsibleTypeError
 except ImportError:
-    from ansible.errors import AnsibleFilterTypeError as AnsibleTypeError  # type: ignore
+    from ansible.errors import AnsibleFilterTypeError as AnsibleTypeError
 
 
-def unicode_normalize(data, form="NFC"):
+def unicode_normalize(data, form='NFC'):
     """Applies normalization to 'unicode' strings.
 
     Args:
@@ -67,16 +69,16 @@ def unicode_normalize(data, form="NFC"):
     """
 
     if not isinstance(data, str):
-        raise AnsibleTypeError(f"{type(data)} is not a valid input type")
+        raise AnsibleTypeError("%s is not a valid input type" % type(data))
 
-    if form not in ("NFC", "NFD", "NFKC", "NFKD"):
-        raise AnsibleFilterError(f"{form!r} is not a valid form")
+    if form not in ('NFC', 'NFD', 'NFKC', 'NFKD'):
+        raise AnsibleFilterError("%s is not a valid form" % form)
 
     return normalize(form, data)
 
 
-class FilterModule:
+class FilterModule(object):
     def filters(self):
         return {
-            "unicode_normalize": unicode_normalize,
+            'unicode_normalize': unicode_normalize,
         }

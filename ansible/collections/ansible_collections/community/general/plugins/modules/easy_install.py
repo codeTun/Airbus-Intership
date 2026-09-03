@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2012, Matt Wright <matt@nobien.net>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: easy_install
@@ -12,7 +15,7 @@ short_description: Installs Python libraries
 description:
   - Installs Python libraries, optionally in a C(virtualenv).
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -82,7 +85,6 @@ EXAMPLES = r"""
 import os
 import os.path
 import tempfile
-
 from ansible.module_utils.basic import AnsibleModule
 
 
@@ -95,15 +97,15 @@ def install_package(module, name, easy_install, executable_arguments):
 def _is_package_installed(module, name, easy_install, executable_arguments):
     # Copy and add to the arguments
     executable_arguments = executable_arguments[:]
-    executable_arguments.append("--dry-run")
+    executable_arguments.append('--dry-run')
     rc, out, err = install_package(module, name, easy_install, executable_arguments)
     if rc:
         module.fail_json(msg=err)
-    return "Downloading" not in out
+    return 'Downloading' not in out
 
 
 def _get_easy_install(module, env=None, executable=None):
-    candidate_easy_inst_basenames = ["easy_install"]
+    candidate_easy_inst_basenames = ['easy_install']
     easy_install = None
     if executable is not None:
         if os.path.isabs(executable):
@@ -115,7 +117,7 @@ def _get_easy_install(module, env=None, executable=None):
             opt_dirs = []
         else:
             # Try easy_install with the virtualenv directory first.
-            opt_dirs = [f"{env}/bin"]
+            opt_dirs = ['%s/bin' % env]
         for basename in candidate_easy_inst_basenames:
             easy_install = module.get_bin_path(basename, False, opt_dirs)
             if easy_install is not None:
@@ -131,38 +133,39 @@ def _get_easy_install(module, env=None, executable=None):
 def main():
     arg_spec = dict(
         name=dict(required=True),
-        state=dict(default="present", choices=["present", "latest"], type="str"),
+        state=dict(default='present',
+                   choices=['present', 'latest'],
+                   type='str'),
         virtualenv=dict(),
-        virtualenv_site_packages=dict(default=False, type="bool"),
-        virtualenv_command=dict(default="virtualenv"),
-        executable=dict(default="easy_install"),
+        virtualenv_site_packages=dict(default=False, type='bool'),
+        virtualenv_command=dict(default='virtualenv'),
+        executable=dict(default='easy_install'),
     )
 
     module = AnsibleModule(argument_spec=arg_spec, supports_check_mode=True)
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
-    name = module.params["name"]
-    env = module.params["virtualenv"]
-    executable = module.params["executable"]
-    site_packages = module.params["virtualenv_site_packages"]
-    virtualenv_command = module.params["virtualenv_command"]
+    name = module.params['name']
+    env = module.params['virtualenv']
+    executable = module.params['executable']
+    site_packages = module.params['virtualenv_site_packages']
+    virtualenv_command = module.params['virtualenv_command']
     executable_arguments = []
-    if module.params["state"] == "latest":
-        executable_arguments.append("--upgrade")
+    if module.params['state'] == 'latest':
+        executable_arguments.append('--upgrade')
 
     rc = 0
-    err = ""
-    out = ""
+    err = ''
+    out = ''
 
     if env:
         virtualenv = module.get_bin_path(virtualenv_command, True)
 
-        if not os.path.exists(os.path.join(env, "bin", "activate")):
+        if not os.path.exists(os.path.join(env, 'bin', 'activate')):
             if module.check_mode:
                 module.exit_json(changed=True)
-            command = f"{virtualenv} {env}"
+            command = '%s %s' % (virtualenv, env)
             if site_packages:
-                command += " --system-site-packages"
+                command += ' --system-site-packages'
             cwd = tempfile.gettempdir()
             rc_venv, out_venv, err_venv = module.run_command(command, cwd=cwd)
 
@@ -190,8 +193,9 @@ def main():
     if rc != 0:
         module.fail_json(msg=err, cmd=cmd)
 
-    module.exit_json(changed=changed, binary=easy_install, name=name, virtualenv=env)
+    module.exit_json(changed=changed, binary=easy_install,
+                     name=name, virtualenv=env)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

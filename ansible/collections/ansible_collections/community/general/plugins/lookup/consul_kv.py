@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Steve Gargan <steve.gargan@gmail.com>
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 author: Unknown (!UNKNOWN)
@@ -15,7 +18,7 @@ description:
 requirements:
   - 'py-consul python library U(https://github.com/criteo/py-consul?tab=readme-ov-file#installation)'
 options:
-  _terms:
+  _raw:
     description: List of key(s) to retrieve.
     type: list
     elements: string
@@ -57,24 +60,13 @@ options:
       - If you use E(ANSIBLE_CONSUL_URL) this value is used from there.
   validate_certs:
     default: true
-    description:
-      - Whether to verify the TLS connection or not.
-      - Instead of setting this to V(false), please consider using O(ca_path) instead.
+    description: Whether to verify the TLS connection or not.
     type: bool
     env:
       - name: ANSIBLE_CONSUL_VALIDATE_CERTS
     ini:
       - section: lookup_consul
         key: validate_certs
-  ca_path:
-    description: The CA bundle to use for HTTPS connections.
-    type: str
-    version_added: "12.6.0"
-    env:
-      - name: ANSIBLE_CONSUL_CA_PATH
-    ini:
-      - section: lookup_consul
-        key: ca_path
   client_cert:
     description: The client cert to verify the TLS connection.
     type: str
@@ -94,16 +86,6 @@ options:
     ini:
       - section: lookup_consul
         key: url
-  empty_value:
-    description:
-      - Controls what is returned when a Consul value is null.
-    type: str
-    default: 'textual_none'
-    choices:
-      textual_none: Return the string V(None). This is the legacy behavior.
-      python_none: Return a Python V(null)/V(None) value.
-      empty_string: Return an empty string.
-    version_added: 13.1.0
 """
 
 EXAMPLES = r"""
@@ -132,42 +114,33 @@ _raw:
 
 from urllib.parse import urlparse
 
-from ansible.errors import AnsibleAssertionError, AnsibleError
-from ansible.module_utils.common.text.converters import to_text
+from ansible.errors import AnsibleError, AnsibleAssertionError
 from ansible.plugins.lookup import LookupBase
-
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+from ansible.module_utils.common.text.converters import to_text
 
 try:
     import consul
 
     HAS_CONSUL = True
-except ImportError:
+except ImportError as e:
     HAS_CONSUL = False
 
 
-_EMPTY_VALUE_MAP = {
-    "textual_none": "None",
-    "python_none": None,
-    "empty_string": "",
-}
-
-
 class LookupModule(LookupBase):
+
     def run(self, terms, variables=None, **kwargs):
+
         if not HAS_CONSUL:
             raise AnsibleError(
-                "py-consul is required for consul_kv lookup. see https://github.com/criteo/py-consul?tab=readme-ov-file#installation"
-            )
+                'py-consul is required for consul_kv lookup. see https://github.com/criteo/py-consul?tab=readme-ov-file#installation')
 
         # get options
         self.set_options(direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
-        scheme = self.get_option("scheme")
-        host = self.get_option("host")
-        port = self.get_option("port")
-        url = self.get_option("url")
+        scheme = self.get_option('scheme')
+        host = self.get_option('host')
+        port = self.get_option('port')
+        url = self.get_option('url')
         if url is not None:
             u = urlparse(url)
             if u.scheme:
@@ -176,60 +149,53 @@ class LookupModule(LookupBase):
             if u.port is not None:
                 port = u.port
 
-        validate_certs = self.get_option("validate_certs")
-        ca_path = self.get_option("ca_path")
-        client_cert = self.get_option("client_cert")
+        validate_certs = self.get_option('validate_certs')
+        client_cert = self.get_option('client_cert')
 
-        verify = (ca_path or validate_certs) if validate_certs else False
-
-        empty_value = _EMPTY_VALUE_MAP[self.get_option("empty_value")]
         values = []
         try:
             for term in terms:
                 params = self.parse_params(term)
-                consul_api = consul.Consul(host=host, port=port, scheme=scheme, verify=verify, cert=client_cert)
+                consul_api = consul.Consul(host=host, port=port, scheme=scheme, verify=validate_certs, cert=client_cert)
 
-                results = consul_api.kv.get(
-                    params["key"],
-                    token=params["token"],
-                    index=params["index"],
-                    recurse=params["recurse"],
-                    dc=params["datacenter"],
-                )
+                results = consul_api.kv.get(params['key'],
+                                            token=params['token'],
+                                            index=params['index'],
+                                            recurse=params['recurse'],
+                                            dc=params['datacenter'])
                 if results[1]:
                     # responds with a single or list of result maps
                     if isinstance(results[1], list):
                         for r in results[1]:
-                            v = r["Value"]
-                            values.append(to_text(v) if v is not None else empty_value)
+                            values.append(to_text(r['Value']))
                     else:
-                        v = results[1]["Value"]
-                        values.append(to_text(v) if v is not None else empty_value)
+                        values.append(to_text(results[1]['Value']))
         except Exception as e:
-            raise AnsibleError(f"Error locating '{term}' in kv store. Error was {e}") from e
+            raise AnsibleError(
+                f"Error locating '{term}' in kv store. Error was {e}")
 
         return values
 
     def parse_params(self, term):
-        params = term.split(" ")
+        params = term.split(' ')
 
         paramvals = {
-            "key": params[0],
-            "token": self.get_option("token"),
-            "recurse": self.get_option("recurse"),
-            "index": self.get_option("index"),
-            "datacenter": self.get_option("datacenter"),
+            'key': params[0],
+            'token': self.get_option('token'),
+            'recurse': self.get_option('recurse'),
+            'index': self.get_option('index'),
+            'datacenter': self.get_option('datacenter')
         }
 
         # parameters specified?
         try:
             for param in params[1:]:
                 if param and len(param) > 0:
-                    name, value = param.split("=")
+                    name, value = param.split('=')
                     if name not in paramvals:
                         raise AnsibleAssertionError(f"{name} not a valid consul lookup parameter")
                     paramvals[name] = value
         except (ValueError, AssertionError) as e:
-            raise AnsibleError(e) from e
+            raise AnsibleError(e)
 
         return paramvals

@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (C) 2019 Huawei
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 ###############################################################################
 # Documentation
@@ -47,9 +49,10 @@ options:
       - Specifies the target IP address. The value can be an available IP address in the subnet. If it is not specified, the
         system automatically assigns an IP address. Cannot be changed after creating the private IP.
     type: str
+    required: false
 extends_documentation_fragment:
-  - community.general._hwc
-  - community.general._attributes
+  - community.general.hwc
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -87,24 +90,18 @@ ip_address:
   returned: success
 """
 
-from ansible_collections.community.general.plugins.module_utils._hwc_utils import (
-    Config,
-    HwcClientException,
-    HwcModule,
-    are_different_dicts,
-    build_path,
-    get_region,
-    is_empty_value,
-    navigate_value,
-)
+from ansible_collections.community.general.plugins.module_utils.hwc_utils import (
+    Config, HwcClientException, HwcModule, are_different_dicts, build_path,
+    get_region, is_empty_value, navigate_value)
 
 
 def build_module():
     return HwcModule(
         argument_spec=dict(
-            state=dict(default="present", choices=["present", "absent"], type="str"),
-            subnet_id=dict(type="str", required=True),
-            ip_address=dict(type="str"),
+            state=dict(default='present', choices=['present', 'absent'],
+                       type='str'),
+            subnet_id=dict(type='str', required=True),
+            ip_address=dict(type='str')
         ),
         supports_check_mode=True,
     )
@@ -118,20 +115,21 @@ def main():
 
     try:
         resource = None
-        if module.params["id"]:
+        if module.params['id']:
             resource = True
         else:
             v = search_resource(config)
             if len(v) > 1:
-                raise Exception(f"Found more than one resource({', '.join([navigate_value(i, ['id']) for i in v])})")
+                raise Exception("Found more than one resource(%s)" % ", ".join([
+                                navigate_value(i, ["id"]) for i in v]))
 
             if len(v) == 1:
                 resource = v[0]
-                module.params["id"] = navigate_value(resource, ["id"])
+                module.params['id'] = navigate_value(resource, ["id"])
 
         result = {}
         changed = False
-        if module.params["state"] == "present":
+        if module.params['state'] == 'present':
             if resource is None:
                 if not module.check_mode:
                     create(config)
@@ -141,11 +139,11 @@ def main():
             expect = user_input_parameters(module)
             if are_different_dicts(expect, current):
                 raise Exception(
-                    f"Cannot change option from ({current}) to ({expect})of an existing resource.({module.params.get('id')})"
-                )
+                    "Cannot change option from (%s) to (%s)of an"
+                    " existing resource.(%s)" % (current, expect, module.params.get('id')))
 
             result = read_resource(config)
-            result["id"] = module.params.get("id")
+            result['id'] = module.params.get('id')
         else:
             if resource:
                 if not module.check_mode:
@@ -156,7 +154,7 @@ def main():
         module.fail_json(msg=str(ex))
 
     else:
-        result["changed"] = changed
+        result['changed'] = changed
         module.exit_json(**result)
 
 
@@ -174,7 +172,8 @@ def create(config):
 
     params = build_create_parameters(opts)
     r = send_create_request(module, params, client)
-    module.params["id"] = navigate_value(r, ["privateips", "id"], {"privateips": 0})
+    module.params['id'] = navigate_value(r, ["privateips", "id"],
+                                         {"privateips": 0})
 
 
 def delete(config):
@@ -211,7 +210,7 @@ def search_resource(config):
     link = build_path(module, "subnets/{subnet_id}/privateips") + query_link
 
     result = []
-    p = {"marker": ""}
+    p = {'marker': ''}
     while True:
         url = link.format(**p)
         r = send_list_request(module, client, url)
@@ -226,7 +225,7 @@ def search_resource(config):
         if len(result) > 1:
             break
 
-        p["marker"] = r[-1].get("id")
+        p['marker'] = r[-1].get('id')
 
     return result
 
@@ -255,7 +254,8 @@ def send_create_request(module, params, client):
     try:
         r = client.post(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_private_ip): error running api(create), error: {ex}"
+        msg = ("module(hwc_vpc_private_ip): error running "
+               "api(create), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -267,7 +267,8 @@ def send_delete_request(module, params, client):
     try:
         r = client.delete(url, params)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_private_ip): error running api(delete), error: {ex}"
+        msg = ("module(hwc_vpc_private_ip): error running "
+               "api(delete), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return r
@@ -280,7 +281,8 @@ def send_read_request(module, client):
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_private_ip): error running api(read), error: {ex}"
+        msg = ("module(hwc_vpc_private_ip): error running "
+               "api(read), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["privateip"], None)
@@ -311,11 +313,13 @@ def update_properties(module, response, array_index, exclude_output=False):
 
 
 def send_list_request(module, client, url):
+
     r = None
     try:
         r = client.get(url)
     except HwcClientException as ex:
-        msg = f"module(hwc_vpc_private_ip): error running api(list), error: {ex}"
+        msg = ("module(hwc_vpc_private_ip): error running "
+               "api(list), error: %s" % str(ex))
         module.fail_json(msg=msg)
 
     return navigate_value(r, ["privateips"], None)
@@ -347,5 +351,5 @@ def fill_list_resp_body(body):
     return result
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

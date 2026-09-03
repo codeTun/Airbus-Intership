@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2013, Raul Melo
 # Written by Raul Melo <raulmelo@gmail.com>
@@ -7,7 +8,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: swdepot
@@ -17,7 +20,7 @@ description:
 notes: []
 author: "Raul Melo (@melodous)"
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -67,15 +70,14 @@ from ansible.module_utils.basic import AnsibleModule
 
 
 def compare_package(version1, version2):
-    """Compare version packages.
-    Return values:
-    -1 first minor
-    0 equal
-    1 first greater"""
+    """ Compare version packages.
+        Return values:
+        -1 first minor
+        0 equal
+        1 first greater """
 
     def normalize(v):
-        return [int(x) for x in re.sub(r"(\.0+)*$", "", v).split(".")]
-
+        return [int(x) for x in re.sub(r'(\.0+)*$', '', v).split(".")]
     normalized_version1 = normalize(version1)
     normalized_version2 = normalize(version2)
     if normalized_version1 == normalized_version2:
@@ -88,15 +90,15 @@ def compare_package(version1, version2):
 
 
 def query_package(module, name, depot=None):
-    """Returns whether a package is installed or not and version."""
+    """ Returns whether a package is installed or not and version. """
 
-    cmd_list = ["/usr/sbin/swlist", "-a", "revision", "-l", "product"]
+    cmd_list = ['/usr/sbin/swlist', '-a', 'revision', '-l', 'product']
     if depot:
-        cmd_list.extend(["-s", depot])
+        cmd_list.extend(['-s', depot])
     cmd_list.append(name)
     rc, stdout, stderr = module.run_command(cmd_list)
     if rc == 0:
-        stdout = "".join(line for line in stdout.splitlines(True) if name in line)
+        stdout = ''.join(line for line in stdout.splitlines(True) if name in line)
         version = re.sub(r"\s\s+|\t", " ", stdout).strip().split()[1]
     else:
         version = None
@@ -105,9 +107,9 @@ def query_package(module, name, depot=None):
 
 
 def remove_package(module, name):
-    """Uninstall package if installed."""
+    """ Uninstall package if installed. """
 
-    cmd_remove = "/usr/sbin/swremove"
+    cmd_remove = '/usr/sbin/swremove'
     rc, stdout, stderr = module.run_command([cmd_remove, name])
 
     if rc == 0:
@@ -117,9 +119,9 @@ def remove_package(module, name):
 
 
 def install_package(module, depot, name):
-    """Install package if not already installed"""
+    """ Install package if not already installed """
 
-    cmd_install = ["/usr/sbin/swinstall", "-x", "mount_all_filesystems=false"]
+    cmd_install = ['/usr/sbin/swinstall', '-x', 'mount_all_filesystems=false']
     rc, stdout, stderr = module.run_command(cmd_install + ["-s", depot, name])
     if rc == 0:
         return rc, stdout
@@ -130,21 +132,20 @@ def install_package(module, depot, name):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(aliases=["pkg"], required=True),
-            state=dict(choices=["present", "absent", "latest"], required=True),
-            depot=dict(),
+            name=dict(aliases=['pkg'], required=True),
+            state=dict(choices=['present', 'absent', 'latest'], required=True),
+            depot=dict()
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
-    name = module.params["name"]
-    state = module.params["state"]
-    depot = module.params["depot"]
+    name = module.params['name']
+    state = module.params['state']
+    depot = module.params['depot']
 
     changed = False
     msg = "No changed"
     rc = 0
-    if (state == "present" or state == "latest") and depot is None:
+    if (state == 'present' or state == 'latest') and depot is None:
         output = "depot parameter is mandatory in present or latest task"
         module.fail_json(name=name, msg=output, rc=rc)
 
@@ -157,7 +158,7 @@ def main():
     else:
         installed = False
 
-    if (state == "present" or state == "latest") and installed is False:
+    if (state == 'present' or state == 'latest') and installed is False:
         if module.check_mode:
             module.exit_json(changed=True)
         rc, output = install_package(module, depot, name)
@@ -169,7 +170,7 @@ def main():
         else:
             module.fail_json(name=name, msg=output, rc=rc)
 
-    elif state == "latest" and installed is True:
+    elif state == 'latest' and installed is True:
         # Check depot version
         rc, version_depot = query_package(module, name, depot)
 
@@ -181,17 +182,17 @@ def main():
                 rc, output = install_package(module, depot, name)
 
                 if not rc:
-                    msg = f"Package upgraded, Before {version_installed} Now {version_depot}"
+                    msg = "Package upgraded, Before " + version_installed + " Now " + version_depot
                     changed = True
 
                 else:
                     module.fail_json(name=name, msg=output, rc=rc)
 
         else:
-            output = f"Software package not in repository {depot}"
+            output = "Software package not in repository " + depot
             module.fail_json(name=name, msg=output, rc=rc)
 
-    elif state == "absent" and installed is True:
+    elif state == 'absent' and installed is True:
         if module.check_mode:
             module.exit_json(changed=True)
         rc, output = remove_package(module, name)
@@ -207,5 +208,5 @@ def main():
     module.exit_json(changed=changed, name=name, state=state, msg=msg)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

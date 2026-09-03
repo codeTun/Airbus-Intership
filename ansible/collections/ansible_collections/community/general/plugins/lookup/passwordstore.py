@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Patrick Deelman <patrick@patrickdeelman.nl>
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 name: passwordstore
@@ -25,10 +28,6 @@ options:
       - If O(backend=gopass), then the default is the C(path) field in C(~/.config/gopass/config.yml), falling back to V(~/.local/share/gopass/stores/root)
         if C(path) is not defined in the gopass config.
     type: path
-    ini:
-      - section: passwordstore_lookup
-        key: directory
-        version_added: 13.2.0
     vars:
       - name: passwordstore
     env:
@@ -243,60 +242,81 @@ _raw:
   elements: str
 """
 
+from contextlib import contextmanager
 import os
 import re
 import subprocess
 import time
-from contextlib import contextmanager
-
 import yaml
-from ansible import constants as C
-from ansible.errors import AnsibleAssertionError, AnsibleError
+
+from ansible.errors import AnsibleError, AnsibleAssertionError
 from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
 from ansible.module_utils.parsing.convert_bool import boolean
-from ansible.plugins.lookup import LookupBase
 from ansible.utils.display import Display
 from ansible.utils.encrypt import random_password
+from ansible.plugins.lookup import LookupBase
+from ansible import constants as C
 
 from ansible_collections.community.general.plugins.module_utils._filelock import FileLock
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
 
 display = Display()
 
 
-def run_backend_cmd(cmd, *, input=None, env=None):
-    result = subprocess.run(
-        cmd,
-        check=False,
-        capture_output=True,
-        input=to_bytes(input, errors="surrogate_or_strict") if input else None,
-        env=env,
-    )
-    b_out, b_err = result.stdout, result.stderr
-    retcode = result.returncode
-    if retcode == 0 and (
-        b"encryption failed: Unusable public key" in b_out or b"encryption failed: Unusable public key" in b_err
-    ):
+# backhacked check_output with input for python 2.7
+# http://stackoverflow.com/questions/10103551/passing-data-to-subprocess-check-output
+# note: contains special logic for calling 'pass', so not a drop-in replacement for check_output
+def check_output2(*popenargs, **kwargs):
+    if 'stdout' in kwargs:
+        raise ValueError('stdout argument not allowed, it will be overridden.')
+    if 'stderr' in kwargs:
+        raise ValueError('stderr argument not allowed, it will be overridden.')
+    if 'input' in kwargs:
+        if 'stdin' in kwargs:
+            raise ValueError('stdin and input arguments may not both be used.')
+        b_inputdata = to_bytes(kwargs['input'], errors='surrogate_or_strict')
+        del kwargs['input']
+        kwargs['stdin'] = subprocess.PIPE
+    else:
+        b_inputdata = None
+    process = subprocess.Popen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+    try:
+        b_out, b_err = process.communicate(b_inputdata)
+    except Exception:
+        process.kill()
+        process.wait()
+        raise
+    retcode = process.poll()
+    if retcode == 0 and (b'encryption failed: Unusable public key' in b_out or
+                         b'encryption failed: Unusable public key' in b_err):
         retcode = 78  # os.EX_CONFIG
     if retcode != 0:
-        raise subprocess.CalledProcessError(retcode, cmd, to_native(b_out + b_err, errors="surrogate_or_strict"))
+        cmd = kwargs.get("args")
+        if cmd is None:
+            cmd = popenargs[0]
+        raise subprocess.CalledProcessError(
+            retcode,
+            cmd,
+            to_native(b_out + b_err, errors='surrogate_or_strict')
+        )
     return b_out
 
 
 class LookupModule(LookupBase):
     def __init__(self, loader=None, templar=None, **kwargs):
-        super().__init__(loader, templar, **kwargs)
+
+        super(LookupModule, self).__init__(loader, templar, **kwargs)
         self.realpass = None
 
     def is_real_pass(self):
         if self.realpass is None:
             try:
                 passoutput = to_text(
-                    run_backend_cmd([self.pass_cmd, "--version"], env=self.env), errors="surrogate_or_strict"
+                    check_output2([self.pass_cmd, "--version"], env=self.env),
+                    errors='surrogate_or_strict'
                 )
-                self.realpass = "pass: the standard unix password manager" in passoutput
-            except subprocess.CalledProcessError as e:
-                raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
+                self.realpass = 'pass: the standard unix password manager' in passoutput
+            except (subprocess.CalledProcessError) as e:
+                raise AnsibleError(f'exit code {e.returncode} while running {e.cmd}. Error output: {e.output}')
 
         return self.realpass
 
@@ -311,96 +331,96 @@ class LookupModule(LookupBase):
             # next parse the optional parameters in keyvalue pairs
             try:
                 for param in params[1:]:
-                    name, value = param.split("=", 1)
+                    name, value = param.split('=', 1)
                     if name not in self.paramvals:
-                        raise AnsibleAssertionError(f"{name} not in paramvals")
+                        raise AnsibleAssertionError(f'{name} not in paramvals')
                     self.paramvals[name] = value
             except (ValueError, AssertionError) as e:
-                raise AnsibleError(e) from e
+                raise AnsibleError(e)
             # check and convert values
             try:
-                for key in ["create", "returnall", "overwrite", "backup", "nosymbols"]:
+                for key in ['create', 'returnall', 'overwrite', 'backup', 'nosymbols']:
                     if not isinstance(self.paramvals[key], bool):
                         self.paramvals[key] = boolean(self.paramvals[key])
             except (ValueError, AssertionError) as e:
-                raise AnsibleError(e) from e
-            if self.paramvals["missing"] not in ["error", "warn", "create", "empty"]:
+                raise AnsibleError(e)
+            if self.paramvals['missing'] not in ['error', 'warn', 'create', 'empty']:
                 raise AnsibleError(f"{self.paramvals['missing']} is not a valid option for missing")
-            if not isinstance(self.paramvals["length"], int):
-                if self.paramvals["length"].isdigit():
-                    self.paramvals["length"] = int(self.paramvals["length"])
+            if not isinstance(self.paramvals['length'], int):
+                if self.paramvals['length'].isdigit():
+                    self.paramvals['length'] = int(self.paramvals['length'])
                 else:
                     raise AnsibleError(f"{self.paramvals['length']} is not a correct value for length")
 
-            if self.paramvals["create"]:
-                self.paramvals["missing"] = "create"
+            if self.paramvals['create']:
+                self.paramvals['missing'] = 'create'
 
             # Collect pass environment variables from the plugin's parameters.
             self.env = os.environ.copy()
-            self.env["LANGUAGE"] = "C"  # make sure to get errors in English as required by run_backend_cmd
+            self.env['LANGUAGE'] = 'C'  # make sure to get errors in English as required by check_output2
 
-            if self.backend == "gopass":
-                self.env["GOPASS_NO_REMINDER"] = "YES"
-            elif os.path.isdir(self.paramvals["directory"]):
+            if self.backend == 'gopass':
+                self.env['GOPASS_NO_REMINDER'] = "YES"
+            elif os.path.isdir(self.paramvals['directory']):
                 # Set PASSWORD_STORE_DIR
-                self.env["PASSWORD_STORE_DIR"] = self.paramvals["directory"]
+                self.env['PASSWORD_STORE_DIR'] = self.paramvals['directory']
             elif self.is_real_pass():
                 raise AnsibleError(f"Passwordstore directory '{self.paramvals['directory']}' does not exist")
 
             # Set PASSWORD_STORE_UMASK if umask is set
-            if self.paramvals.get("umask") is not None:
-                if len(self.paramvals["umask"]) != 3:
-                    raise AnsibleError("Passwordstore umask must have a length of 3.")
-                elif int(self.paramvals["umask"][0]) > 3:
-                    raise AnsibleError("Passwordstore umask not allowed (password not user readable).")
+            if self.paramvals.get('umask') is not None:
+                if len(self.paramvals['umask']) != 3:
+                    raise AnsibleError('Passwordstore umask must have a length of 3.')
+                elif int(self.paramvals['umask'][0]) > 3:
+                    raise AnsibleError('Passwordstore umask not allowed (password not user readable).')
                 else:
-                    self.env["PASSWORD_STORE_UMASK"] = self.paramvals["umask"]
+                    self.env['PASSWORD_STORE_UMASK'] = self.paramvals['umask']
 
     def check_pass(self):
         try:
             self.passoutput = to_text(
-                run_backend_cmd([self.pass_cmd, "show"] + [self.passname], env=self.env), errors="surrogate_or_strict"
+                check_output2([self.pass_cmd, 'show'] +
+                              [self.passname], env=self.env),
+                errors='surrogate_or_strict'
             ).splitlines()
             self.password = self.passoutput[0]
             self.passdict = {}
             try:
-                values = yaml.safe_load("\n".join(self.passoutput[1:]))
+                values = yaml.safe_load('\n'.join(self.passoutput[1:]))
                 for key, item in values.items():
                     self.passdict[key] = item
             except (yaml.YAMLError, AttributeError):
                 for line in self.passoutput[1:]:
-                    if ":" in line:
-                        name, value = line.split(":", 1)
+                    if ':' in line:
+                        name, value = line.split(':', 1)
                         self.passdict[name.strip()] = value.strip()
-            if (
-                self.backend == "gopass"
-                or os.path.isfile(os.path.join(self.paramvals["directory"], f"{self.passname}.gpg"))
-                or not self.is_real_pass()
-            ):
+            if (self.backend == 'gopass' or
+                    os.path.isfile(os.path.join(self.paramvals['directory'], f"{self.passname}.gpg"))
+                    or not self.is_real_pass()):
                 # When using real pass, only accept password as found if there is a .gpg file for it (might be a tree node otherwise)
                 return True
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError) as e:
             # 'not in password store' is the expected error if a password wasn't found
-            if "not in the password store" not in e.output:
-                raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
+            if 'not in the password store' not in e.output:
+                raise AnsibleError(f'exit code {e.returncode} while running {e.cmd}. Error output: {e.output}')
 
-        if self.paramvals["missing"] == "error":
-            raise AnsibleError(f"passwordstore: passname {self.passname} not found and missing=error is set")
-        elif self.paramvals["missing"] == "warn":
-            display.warning(f"passwordstore: passname {self.passname} not found")
+        if self.paramvals['missing'] == 'error':
+            raise AnsibleError(f'passwordstore: passname {self.passname} not found and missing=error is set')
+        elif self.paramvals['missing'] == 'warn':
+            display.warning(f'passwordstore: passname {self.passname} not found')
 
         return False
 
     def get_newpass(self):
-        if self.paramvals["nosymbols"]:
+        if self.paramvals['nosymbols']:
             chars = C.DEFAULT_PASSWORD_CHARS[:62]
         else:
             chars = C.DEFAULT_PASSWORD_CHARS
 
-        if self.paramvals["userpass"]:
-            newpass = self.paramvals["userpass"]
+        if self.paramvals['userpass']:
+            newpass = self.paramvals['userpass']
         else:
-            newpass = random_password(length=self.paramvals["length"], chars=chars)
+            newpass = random_password(length=self.paramvals['length'], chars=chars)
         return newpass
 
     def update_password(self):
@@ -411,6 +431,7 @@ class LookupModule(LookupBase):
         subkey = self.paramvals["subkey"]
 
         if subkey != "password":
+
             msg_lines = []
             subkey_exists = False
             subkey_line = f"{subkey}: {newpass}"
@@ -428,25 +449,26 @@ class LookupModule(LookupBase):
                 msg_lines.insert(2, subkey_line)
 
             if self.paramvals["timestamp"] and self.paramvals["backup"] and oldpass and oldpass != newpass:
-                msg_lines.append(f"lookup_pass: old subkey '{subkey}' password was {oldpass} (Updated on {datetime})\n")
+                msg_lines.append(
+                    f"lookup_pass: old subkey '{subkey}' password was {oldpass} (Updated on {datetime})\n"
+                )
 
             msg = os.linesep.join(msg_lines)
 
         else:
             msg = newpass
 
-            if self.paramvals["preserve"] or self.paramvals["timestamp"]:
-                msg += "\n"
-                if self.paramvals["preserve"] and self.passoutput[1:]:
-                    msg += "\n".join(self.passoutput[1:])
-                    msg += "\n"
-                if self.paramvals["timestamp"] and self.paramvals["backup"]:
+            if self.paramvals['preserve'] or self.paramvals['timestamp']:
+                msg += '\n'
+                if self.paramvals['preserve'] and self.passoutput[1:]:
+                    msg += '\n'.join(self.passoutput[1:]) + '\n'
+                if self.paramvals['timestamp'] and self.paramvals['backup']:
                     msg += f"lookup_pass: old password was {self.password} (Updated on {datetime})\n"
 
         try:
-            run_backend_cmd([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
-        except subprocess.CalledProcessError as e:
-            raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
+            check_output2([self.pass_cmd, 'insert', '-f', '-m', self.passname], input=msg, env=self.env)
+        except (subprocess.CalledProcessError) as e:
+            raise AnsibleError(f'exit code {e.returncode} while running {e.cmd}. Error output: {e.output}')
         return newpass
 
     def generate_password(self):
@@ -461,24 +483,24 @@ class LookupModule(LookupBase):
         else:
             msg = newpass
 
-        if self.paramvals["timestamp"]:
+        if self.paramvals['timestamp']:
             msg += f"\nlookup_pass: First generated by ansible on {datetime}\n"
 
         try:
-            run_backend_cmd([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
-        except subprocess.CalledProcessError as e:
-            raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
+            check_output2([self.pass_cmd, 'insert', '-f', '-m', self.passname], input=msg, env=self.env)
+        except (subprocess.CalledProcessError) as e:
+            raise AnsibleError(f'exit code {e.returncode} while running {e.cmd}. Error output: {e.output}')
 
         return newpass
 
     def get_passresult(self):
-        if self.paramvals["returnall"]:
+        if self.paramvals['returnall']:
             return os.linesep.join(self.passoutput)
-        if self.paramvals["subkey"] == "password":
+        if self.paramvals['subkey'] == 'password':
             return self.password
         else:
-            if self.paramvals["subkey"] in self.passdict:
-                return self.passdict[self.paramvals["subkey"]]
+            if self.paramvals['subkey'] in self.passdict:
+                return self.passdict[self.paramvals['subkey']]
             else:
                 if self.paramvals["missing_subkey"] == "error":
                     raise AnsibleError(
@@ -494,10 +516,10 @@ class LookupModule(LookupBase):
 
     @contextmanager
     def opt_lock(self, type):
-        if self.get_option("lock") == type:
-            tmpdir = os.environ.get("TMPDIR", "/tmp")
-            user = os.environ.get("USER")
-            lockfile = os.path.join(tmpdir, f".{user}.passwordstore.lock")
+        if self.get_option('lock') == type:
+            tmpdir = os.environ.get('TMPDIR', '/tmp')
+            user = os.environ.get('USER')
+            lockfile = os.path.join(tmpdir, f'.{user}.passwordstore.lock')
             with FileLock().lock_file(lockfile, tmpdir, self.lock_timeout):
                 self.locked = type
                 yield
@@ -506,71 +528,68 @@ class LookupModule(LookupBase):
             yield
 
     def setup(self, variables):
-        self.backend = self.get_option("backend")
+        self.backend = self.get_option('backend')
         self.pass_cmd = self.backend  # pass and gopass are commands as well
         self.locked = None
-        timeout = self.get_option("locktimeout")
-        if not re.match("^[0-9]+[smh]$", timeout):
+        timeout = self.get_option('locktimeout')
+        if not re.match('^[0-9]+[smh]$', timeout):
             raise AnsibleError(f"{timeout} is not a correct value for locktimeout")
         unit_to_seconds = {"s": 1, "m": 60, "h": 3600}
         self.lock_timeout = int(timeout[:-1]) * unit_to_seconds[timeout[-1]]
 
-        directory = self.get_option("directory")
+        directory = self.get_option('directory')
         if directory is None:
-            if self.backend == "gopass":
+            if self.backend == 'gopass':
                 try:
-                    with open(os.path.expanduser("~/.config/gopass/config.yml")) as f:
-                        directory = yaml.safe_load(f)["path"]
+                    with open(os.path.expanduser('~/.config/gopass/config.yml')) as f:
+                        directory = yaml.safe_load(f)['path']
                 except (FileNotFoundError, KeyError, yaml.YAMLError):
-                    directory = os.path.expanduser("~/.local/share/gopass/stores/root")
+                    directory = os.path.expanduser('~/.local/share/gopass/stores/root')
             else:
-                directory = os.path.expanduser("~/.password-store")
+                directory = os.path.expanduser('~/.password-store')
 
         self.paramvals = {
-            "subkey": self.get_option("subkey"),
-            "directory": directory,
-            "create": self.get_option("create"),
-            "returnall": self.get_option("returnall"),
-            "overwrite": self.get_option("overwrite"),
-            "nosymbols": self.get_option("nosymbols"),
-            "userpass": self.get_option("userpass") or "",
-            "length": self.get_option("length"),
-            "backup": self.get_option("backup"),
-            "missing": self.get_option("missing"),
-            "umask": self.get_option("umask"),
-            "timestamp": self.get_option("timestamp"),
-            "preserve": self.get_option("preserve"),
+            'subkey': self.get_option('subkey'),
+            'directory': directory,
+            'create': self.get_option('create'),
+            'returnall': self.get_option('returnall'),
+            'overwrite': self.get_option('overwrite'),
+            'nosymbols': self.get_option('nosymbols'),
+            'userpass': self.get_option('userpass') or '',
+            'length': self.get_option('length'),
+            'backup': self.get_option('backup'),
+            'missing': self.get_option('missing'),
+            'umask': self.get_option('umask'),
+            'timestamp': self.get_option('timestamp'),
+            'preserve': self.get_option('preserve'),
             "missing_subkey": self.get_option("missing_subkey"),
         }
 
     def run(self, terms, variables, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
         self.setup(variables)
         result = []
 
         for term in terms:
-            self.parse_params(term)  # parse the input into paramvals
-            with self.opt_lock("readwrite"):
-                if self.check_pass():  # password file exists
-                    if self.paramvals["overwrite"]:  # if "overwrite", always update password
-                        with self.opt_lock("write"):
+            self.parse_params(term)   # parse the input into paramvals
+            with self.opt_lock('readwrite'):
+                if self.check_pass():     # password file exists
+                    if self.paramvals['overwrite']:  # if "overwrite", always update password
+                        with self.opt_lock('write'):
                             result.append(self.update_password())
                     elif (
                         self.paramvals["subkey"] != "password"
                         and not self.passdict.get(self.paramvals["subkey"])
                         and self.paramvals["missing"] == "create"
                     ):  # target is a subkey, this subkey is not in passdict BUT missing == create
-                        with self.opt_lock("write"):
+                        with self.opt_lock('write'):
                             result.append(self.update_password())
                     else:
                         result.append(self.get_passresult())
                 else:  # password does not exist
-                    if self.paramvals["missing"] == "create":
-                        with self.opt_lock("write"):
-                            if (
-                                self.locked == "write" and self.check_pass()
-                            ):  # lookup password again if under write lock
+                    if self.paramvals['missing'] == 'create':
+                        with self.opt_lock('write'):
+                            if self.locked == 'write' and self.check_pass():  # lookup password again if under write lock
                                 result.append(self.get_passresult())
                             else:
                                 result.append(self.generate_password())

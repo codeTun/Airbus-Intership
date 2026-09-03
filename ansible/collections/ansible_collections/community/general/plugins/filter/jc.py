@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Filipe Niero Felisbino <filipenf@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -74,13 +75,11 @@ _value:
   type: any
 """
 
-import importlib
-
 from ansible.errors import AnsibleError, AnsibleFilterError
+import importlib
 
 try:
     import jc
-
     HAS_LIB = True
 except ImportError:
     HAS_LIB = False
@@ -135,28 +134,26 @@ def jc_filter(data, parser, quiet=True, raw=False):
     """
 
     if not HAS_LIB:
-        raise AnsibleError(
-            'You need to install "jc" as a Python library on the Ansible controller prior to running jc filter'
-        )
+        raise AnsibleError('You need to install "jc" as a Python library on the Ansible controller prior to running jc filter')
 
     try:
         # new API (jc v1.18.0 and higher) allows use of plugin parsers
-        if hasattr(jc, "parse"):
+        if hasattr(jc, 'parse'):
             return jc.parse(parser, data, quiet=quiet, raw=raw)
 
         # old API (jc v1.17.7 and lower)
         else:
-            jc_parser = importlib.import_module(f"jc.parsers.{parser}")
+            jc_parser = importlib.import_module(f'jc.parsers.{parser}')
             return jc_parser.parse(data, quiet=quiet, raw=raw)
 
     except Exception as e:
-        raise AnsibleFilterError(f"Error in jc filter plugin: {e}") from e
+        raise AnsibleFilterError(f'Error in jc filter plugin: {e}')
 
 
-class FilterModule:
-    """Query filter"""
+class FilterModule(object):
+    ''' Query filter '''
 
     def filters(self):
         return {
-            "jc": jc_filter,
+            'jc': jc_filter,
         }

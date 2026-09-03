@@ -1,10 +1,12 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Scott Buchanan <sbuchanan@ri.pn>
 # Copyright (c) 2016, Andrew Zenk <azenk@umn.edu> (lastpass.py used as starting point)
 # Copyright (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: onepassword_raw
@@ -12,6 +14,8 @@ author:
   - Scott Buchanan (@scottsb)
   - Andrew Zenk (@azenk)
   - Sam Doran (@samdoran)
+requirements:
+  - C(op) 1Password command line utility
 short_description: Fetch an entire item from 1Password
 description:
   - P(community.general.onepassword_raw#lookup) wraps C(op) command line utility to fetch an entire item from 1Password.
@@ -28,8 +32,8 @@ options:
   service_account_token:
     version_added: 7.1.0
 extends_documentation_fragment:
-  - community.general._onepassword
-  - community.general._onepassword.lookup
+  - community.general.onepassword
+  - community.general.onepassword.lookup
 """
 
 EXAMPLES = r"""
@@ -52,16 +56,14 @@ _raw:
 
 import json
 
-from ansible.plugins.lookup import LookupBase
-
 from ansible_collections.community.general.plugins.lookup.onepassword import OnePass
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+from ansible.plugins.lookup import LookupBase
 
 
 class LookupModule(LookupBase):
+
     def run(self, terms, variables=None, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
         vault = self.get_option("vault")
         subdomain = self.get_option("subdomain")

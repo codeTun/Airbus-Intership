@@ -2,8 +2,6 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
-
 DOCUMENTATION = r"""
 name: accumulate
 short_description: Produce a list of accumulated sums of the input list contents
@@ -43,21 +41,23 @@ EXAMPLES = r"""
     # Produces ['a', 'ab', 'abc']
 """
 
-from collections.abc import Sequence
 from itertools import accumulate
+from collections.abc import Sequence
 
 from ansible.errors import AnsibleFilterError
 
 
 def list_accumulate(sequence):
     if not isinstance(sequence, Sequence):
-        raise AnsibleFilterError(f"Invalid value type ({type(sequence)}) for accumulate ({sequence!r})")
+        raise AnsibleFilterError('Invalid value type (%s) for accumulate (%r)' %
+                                 (type(sequence), sequence))
 
     return accumulate(sequence)
 
 
-class FilterModule:
+class FilterModule(object):
+
     def filters(self):
         return {
-            "accumulate": list_accumulate,
+            'accumulate': list_accumulate,
         }

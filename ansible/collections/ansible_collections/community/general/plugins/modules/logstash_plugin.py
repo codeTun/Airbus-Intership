@@ -1,9 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Loic Blot <loic.blot@unix-experience.fr>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: logstash_plugin
@@ -12,7 +15,7 @@ description:
   - Manages Logstash plugins.
 author: Loic Blot (@nerzhul)
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -39,10 +42,6 @@ options:
     type: str
     description:
       - Proxy host to use during plugin installation.
-      - Can be specified as a hostname (for example, V(myproxy.example.com)) or as a URL (for example, V(http://myproxy.example.com)).
-        When specified without a scheme, V(http://) is assumed.
-      - Sets the O(proxy_host):O(proxy_port) combination as the E(http_proxy) and E(https_proxy) environment variables
-        when running the C(logstash-plugin) command.
   proxy_port:
     type: str
     description:
@@ -80,7 +79,11 @@ EXAMPLES = r"""
 
 from ansible.module_utils.basic import AnsibleModule
 
-PACKAGE_STATE_MAP = dict(present="install", absent="remove")
+
+PACKAGE_STATE_MAP = dict(
+    present="install",
+    absent="remove"
+)
 
 
 def is_plugin_present(module, plugin_bin, plugin_name):
@@ -92,7 +95,7 @@ def is_plugin_present(module, plugin_bin, plugin_name):
 def parse_error(string):
     reason = "reason: "
     try:
-        return string[string.index(reason) + len(reason) :].strip()
+        return string[string.index(reason) + len(reason):].strip()
     except ValueError:
         return string
 
@@ -103,24 +106,21 @@ def install_plugin(module, plugin_bin, plugin_name, version, proxy_host, proxy_p
     if version:
         cmd_args.extend(["--version", version])
 
-    cmd_args.append(plugin_name)
-
-    environ_update = {}
     if proxy_host and proxy_port:
-        scheme = proxy_host if "://" in proxy_host else f"http://{proxy_host}"
-        proxy_url = f"{scheme}:{proxy_port}"
-        environ_update = {"http_proxy": proxy_url, "https_proxy": proxy_url}
+        cmd_args.extend(["-DproxyHost=%s" % proxy_host, "-DproxyPort=%s" % proxy_port])
+
+    cmd_args.append(plugin_name)
 
     cmd = " ".join(cmd_args)
 
     if module.check_mode:
         rc, out, err = 0, "check mode", ""
     else:
-        rc, out, err = module.run_command(cmd_args, environ_update=environ_update)
+        rc, out, err = module.run_command(cmd_args)
 
     if rc != 0:
         reason = parse_error(out)
-        module.fail_json(msg=reason, stderr=err)
+        module.fail_json(msg=reason)
 
     return True, cmd, out, err
 
@@ -137,7 +137,7 @@ def remove_plugin(module, plugin_bin, plugin_name):
 
     if rc != 0:
         reason = parse_error(out)
-        module.fail_json(msg=reason, stderr=err)
+        module.fail_json(msg=reason)
 
     return True, cmd, out, err
 
@@ -150,11 +150,10 @@ def main():
             plugin_bin=dict(default="/usr/share/logstash/bin/logstash-plugin", type="path"),
             proxy_host=dict(),
             proxy_port=dict(),
-            version=dict(),
+            version=dict()
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     name = module.params["name"]
     state = module.params["state"]
@@ -177,5 +176,5 @@ def main():
     module.exit_json(changed=changed, cmd=cmd, name=name, state=state, stdout=out, stderr=err)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

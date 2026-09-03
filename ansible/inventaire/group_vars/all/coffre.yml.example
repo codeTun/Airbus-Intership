@@ -1,0 +1,30 @@
+---
+# Copier en coffre.yml, dans CE repertoire, puis chiffrer :
+#     ansible-vault encrypt inventaire/group_vars/all/coffre.yml
+#
+# L'emplacement importe : Ansible ne charge d'un repertoire group_vars que les
+# fichiers portant le nom d'un groupe. Pose a plat sous group_vars/, un fichier
+# nomme coffre.yml n'est jamais lu, et les variables restent indefinies sans le
+# moindre message.
+#
+# Le fichier chiffre peut etre versionne sans risque. Le mot de passe du
+# coffre, lui, ne l'est jamais.
+
+coffre_pointeuses_mot_de_passe: a-remplacer
+
+# Doit reprendre exactement la valeur de admin_mot_de_passe_windows du fichier
+# infrastructure/terraform.tfvars. Terraform s'en sert pour creer le compte,
+# Ansible pour ouvrir une session complete sur les machines Windows, seule
+# facon de deverrouiller DPAPI et donc d'installer SQL Server.
+coffre_windows_admin_mot_de_passe: a-remplacer
+coffre_supervision_mot_de_passe: a-remplacer
+coffre_paloalto_utilisateur: admin
+coffre_paloalto_mot_de_passe: a-remplacer
+coffre_fortinet_cle_api: a-remplacer
+
+# Jitsi Meet. Les deux premiers authentifient les conteneurs entre eux, le
+# dernier ouvre les salles. Generer des chaines distinctes :
+#     openssl rand -hex 24
+coffre_visio_jicofo_auth: a-remplacer
+coffre_visio_jvb_auth: a-remplacer
+coffre_visio_animateur_mot_de_passe: a-remplacer

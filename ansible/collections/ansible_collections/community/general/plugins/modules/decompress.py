@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2024, Stanislav Shamilov <shamilovstas@protonmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: decompress
@@ -16,7 +19,7 @@ description:
   - Source file can be deleted after decompression.
 extends_documentation_fragment:
   - ansible.builtin.files
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -49,7 +52,8 @@ options:
     type: bool
     default: false
 requirements:
-  - Requires C(lzma) (standard library of Python 3) if using C(xz) format.
+  - Requires C(lzma) (standard library of Python 3) or L(backports.lzma, https://pypi.org/project/backports.lzma/) (Python
+    2) if using C(xz) format.
 author:
   - Stanislav Shamilov (@shamilovstas)
 """
@@ -92,13 +96,16 @@ import os
 import shutil
 import tempfile
 
-from ansible.module_utils.common.text.converters import to_bytes
-
-from ansible_collections.community.general.plugins.module_utils import _deps as deps
-from ansible_collections.community.general.plugins.module_utils._mh.module_helper import ModuleHelper
+from ansible.module_utils import six
+from ansible_collections.community.general.plugins.module_utils.mh.module_helper import ModuleHelper
+from ansible.module_utils.common.text.converters import to_native, to_bytes
+from ansible_collections.community.general.plugins.module_utils import deps
 
 with deps.declare("lzma"):
-    import lzma
+    if six.PY3:
+        import lzma
+    else:
+        from backports import lzma
 
 
 def lzma_decompress(src):
@@ -106,7 +113,10 @@ def lzma_decompress(src):
 
 
 def bz2_decompress(src):
-    return bz2.open(src, "rb")
+    if six.PY3:
+        return bz2.open(src, "rb")
+    else:
+        return bz2.BZ2File(src, "rb")
 
 
 def gzip_decompress(src):
@@ -120,17 +130,18 @@ def decompress(b_src, b_dest, handler):
 
 
 class Decompress(ModuleHelper):
-    output_params = "dest"
+    destination_filename_template = "%s_decompressed"
+    output_params = 'dest'
 
     module = dict(
         argument_spec=dict(
-            src=dict(type="path", required=True),
-            dest=dict(type="path"),
-            format=dict(type="str", default="gz", choices=["gz", "bz2", "xz"]),
-            remove=dict(type="bool", default=False),
+            src=dict(type='path', required=True),
+            dest=dict(type='path'),
+            format=dict(type='str', default='gz', choices=['gz', 'bz2', 'xz']),
+            remove=dict(type='bool', default=False)
         ),
         add_file_common_args=True,
-        supports_check_mode=True,
+        supports_check_mode=True
     )
 
     def __init_module__(self):
@@ -141,31 +152,31 @@ class Decompress(ModuleHelper):
         self.configure()
 
     def configure(self):
-        b_dest = to_bytes(self.vars.dest, errors="surrogate_or_strict")
-        b_src = to_bytes(self.vars.src, errors="surrogate_or_strict")
+        b_dest = to_bytes(self.vars.dest, errors='surrogate_or_strict')
+        b_src = to_bytes(self.vars.src, errors='surrogate_or_strict')
         if not os.path.exists(b_src):
             if self.vars.remove and os.path.exists(b_dest):
                 self.module.exit_json(changed=False)
             else:
-                self.do_raise(msg=f"Path does not exist: '{b_src}'")
+                self.do_raise(msg="Path does not exist: '%s'" % b_src)
         if os.path.isdir(b_src):
-            self.do_raise(msg=f"Cannot decompress directory '{b_src}'")
+            self.do_raise(msg="Cannot decompress directory '%s'" % b_src)
         if os.path.isdir(b_dest):
-            self.do_raise(msg=f"Destination is a directory, cannot decompress: '{b_dest}'")
+            self.do_raise(msg="Destination is a directory, cannot decompress: '%s'" % b_dest)
 
     def __run__(self):
-        b_dest = to_bytes(self.vars.dest, errors="surrogate_or_strict")
-        b_src = to_bytes(self.vars.src, errors="surrogate_or_strict")
+        b_dest = to_bytes(self.vars.dest, errors='surrogate_or_strict')
+        b_src = to_bytes(self.vars.src, errors='surrogate_or_strict')
 
         file_args = self.module.load_file_common_arguments(self.module.params, path=self.vars.dest)
         handler = self.handlers[self.vars.format]
         try:
             tempfd, temppath = tempfile.mkstemp(dir=self.module.tmpdir)
             self.module.add_cleanup_file(temppath)
-            b_temppath = to_bytes(temppath, errors="surrogate_or_strict")
+            b_temppath = to_bytes(temppath, errors='surrogate_or_strict')
             decompress(b_src, b_temppath, handler)
         except OSError as e:
-            self.do_raise(msg=f"Unable to create temporary file '{e}'")
+            self.do_raise(msg="Unable to create temporary file '%s'" % to_native(e))
 
         if os.path.exists(b_dest):
             self.changed = not filecmp.cmp(b_temppath, b_dest, shallow=False)
@@ -176,7 +187,7 @@ class Decompress(ModuleHelper):
             try:
                 self.module.atomic_move(b_temppath, b_dest)
             except OSError:
-                self.do_raise(msg=f"Unable to move temporary file '{b_temppath}' to '{self.vars.dest}'")
+                self.do_raise(msg="Unable to move temporary file '%s' to '%s'" % (b_temppath, self.vars.dest))
 
         if self.vars.remove and not self.check_mode:
             os.remove(b_src)
@@ -184,11 +195,11 @@ class Decompress(ModuleHelper):
 
     def get_destination_filename(self):
         src = self.vars.src
-        fmt_extension = f".{self.vars.format}"
+        fmt_extension = ".%s" % self.vars.format
         if src.endswith(fmt_extension) and len(src) > len(fmt_extension):
-            filename = src[: -len(fmt_extension)]
+            filename = src[:-len(fmt_extension)]
         else:
-            filename = f"{src}_decompressed"
+            filename = Decompress.destination_filename_template % src
         return filename
 
 
@@ -196,5 +207,5 @@ def main():
     Decompress.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2018, Bojan Vitnik <bvitnik@mainstream.rs>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: xenserver_guest_info
@@ -41,9 +43,9 @@ options:
       - It is required if name is not unique.
     type: str
 extends_documentation_fragment:
-  - community.general._xenserver.documentation
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.xenserver.documentation
+  - community.general.attributes
+  - community.general.attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -76,9 +78,7 @@ instance:
           "size": 42949672960,
           "sr": "Local storage",
           "sr_uuid": "0af1245e-bdb0-ba33-1446-57a962ec4075",
-          "uuid": "3f98b388-b2c0-4355-9a01-15c0e61b5a76",
-          "vbd_userdevice": "0",
-          "vdi_type": "vhd"
+          "vbd_userdevice": "0"
         },
         {
           "name": "testvm_11-1",
@@ -87,9 +87,7 @@ instance:
           "size": 42949672960,
           "sr": "Local storage",
           "sr_uuid": "0af1245e-bdb0-ba33-1446-57a962ec4075",
-          "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-          "vbd_userdevice": "1",
-          "vdi_type": "vhd"
+          "vbd_userdevice": "1"
         }
       ],
       "domid": "56",
@@ -153,14 +151,8 @@ instance:
 
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._xenserver import (
-    XenServerObject,
-    gather_vm_facts,
-    gather_vm_params,
-    get_object_ref,
-    xenserver_common_argument_spec,
-)
+from ansible_collections.community.general.plugins.module_utils.xenserver import (xenserver_common_argument_spec, XenServerObject, get_object_ref,
+                                                                                  gather_vm_params, gather_vm_facts)
 
 
 class XenServerVM(XenServerObject):
@@ -178,16 +170,9 @@ class XenServerVM(XenServerObject):
         Args:
             module: Reference to AnsibleModule object.
         """
-        super().__init__(module)
+        super(XenServerVM, self).__init__(module)
 
-        self.vm_ref = get_object_ref(
-            self.module,
-            self.module.params["name"],
-            self.module.params["uuid"],
-            obj_type="VM",
-            fail=True,
-            msg_prefix="VM search: ",
-        )
+        self.vm_ref = get_object_ref(self.module, self.module.params['name'], self.module.params['uuid'], obj_type="VM", fail=True, msg_prefix="VM search: ")
         self.gather_params()
 
     def gather_params(self):
@@ -202,31 +187,30 @@ class XenServerVM(XenServerObject):
 def main():
     argument_spec = xenserver_common_argument_spec()
     argument_spec.update(
-        name=dict(type="str", aliases=["name_label"]),
-        uuid=dict(type="str"),
+        name=dict(type='str', aliases=['name_label']),
+        uuid=dict(type='str'),
     )
 
-    module = AnsibleModule(
-        argument_spec=argument_spec,
-        supports_check_mode=True,
-        required_one_of=[
-            ["name", "uuid"],
-        ],
-    )
+    module = AnsibleModule(argument_spec=argument_spec,
+                           supports_check_mode=True,
+                           required_one_of=[
+                               ['name', 'uuid'],
+                           ],
+                           )
 
-    result = {"failed": False, "changed": False}
+    result = {'failed': False, 'changed': False}
 
     # Module will exit with an error message if no VM is found.
     vm = XenServerVM(module)
 
     # Gather facts.
-    result["instance"] = vm.gather_facts()
+    result['instance'] = vm.gather_facts()
 
-    if result["failed"]:
+    if result['failed']:
         module.fail_json(**result)
     else:
         module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

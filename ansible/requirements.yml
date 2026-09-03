@@ -1,17 +1,22 @@
 ---
 # Collections necessaires. Installation : make collections
+# Les bornes hautes ne sont pas de la prudence excessive : une collection
+# publiee apres l'ansible-core installe peut en exiger un plus recent et rendre
+# le depot inutilisable sans qu'aucun fichier du projet n'ait change.
+# ansible-core vient du depot signe d'Ubuntu 24.04, version 2.16.3.
 collections:
   - name: ansible.posix
-    version: ">=1.5.0"
+    version: ">=1.5.0,<3.0.0"
   - name: ansible.windows
-    version: ">=2.0.0"
+    version: ">=2.0.0,<4.0.0"
   - name: community.windows
-    version: ">=2.0.0"
+    version: ">=2.0.0,<4.0.0"
+  # La 12 exige ansible-core 2.17, la 13 exige la 2.18.
   - name: community.general
-    version: ">=8.0.0"
+    version: ">=8.0.0,<12.0.0"
   - name: community.postgresql
-    version: ">=3.0.0"
+    version: ">=3.0.0,<5.0.0"
   - name: fortinet.fortios
-    version: ">=2.3.0"
+    version: ">=2.3.0,<3.0.0"
   - name: paloaltonetworks.panos
-    version: ">=2.19.0"
+    version: ">=2.19.0,<4.0.0"

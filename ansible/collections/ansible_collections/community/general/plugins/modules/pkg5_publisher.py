@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright 2014 Peter Oliver <ansible@mavit.org.uk>
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: pkg5_publisher
@@ -15,7 +18,7 @@ description:
   - IPS packages are the native packages in Solaris 11 and higher.
   - This module configures which publishers a client downloads IPS packages from.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -74,34 +77,33 @@ from ansible.module_utils.basic import AnsibleModule
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(required=True, aliases=["publisher"]),
-            state=dict(default="present", choices=["present", "absent"]),
-            sticky=dict(type="bool"),
-            enabled=dict(type="bool"),
+            name=dict(required=True, aliases=['publisher']),
+            state=dict(default='present', choices=['present', 'absent']),
+            sticky=dict(type='bool'),
+            enabled=dict(type='bool'),
             # search_after=dict(),
             # search_before=dict(),
-            origin=dict(type="list", elements="str"),
-            mirror=dict(type="list", elements="str"),
+            origin=dict(type='list', elements='str'),
+            mirror=dict(type='list', elements='str'),
         )
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
-    for option in ["origin", "mirror"]:
-        if module.params[option] == [""]:
+    for option in ['origin', 'mirror']:
+        if module.params[option] == ['']:
             module.params[option] = []
 
-    if module.params["state"] == "present":
+    if module.params['state'] == 'present':
         modify_publisher(module, module.params)
     else:
-        unset_publisher(module, module.params["name"])
+        unset_publisher(module, module.params['name'])
 
 
 def modify_publisher(module, params):
-    name = params["name"]
+    name = params['name']
     existing = get_publishers(module)
 
     if name in existing:
-        for option in ["origin", "mirror", "sticky", "enabled"]:
+        for option in ['origin', 'mirror', 'sticky', 'enabled']:
             if params[option] is not None:
                 if params[option] != existing[name][option]:
                     return set_publisher(module, params)
@@ -112,32 +114,35 @@ def modify_publisher(module, params):
 
 
 def set_publisher(module, params):
-    name = params["name"]
+    name = params['name']
     args = []
 
-    if params["origin"] is not None:
-        args.append("--remove-origin=*")
-        args.extend([f"--add-origin={u}" for u in params["origin"]])
-    if params["mirror"] is not None:
-        args.append("--remove-mirror=*")
-        args.extend([f"--add-mirror={u}" for u in params["mirror"]])
+    if params['origin'] is not None:
+        args.append('--remove-origin=*')
+        args.extend(['--add-origin=' + u for u in params['origin']])
+    if params['mirror'] is not None:
+        args.append('--remove-mirror=*')
+        args.extend(['--add-mirror=' + u for u in params['mirror']])
 
-    if params["sticky"] is not None and params["sticky"]:
-        args.append("--sticky")
-    elif params["sticky"] is not None:
-        args.append("--non-sticky")
+    if params['sticky'] is not None and params['sticky']:
+        args.append('--sticky')
+    elif params['sticky'] is not None:
+        args.append('--non-sticky')
 
-    if params["enabled"] is not None and params["enabled"]:
-        args.append("--enable")
-    elif params["enabled"] is not None:
-        args.append("--disable")
+    if params['enabled'] is not None and params['enabled']:
+        args.append('--enable')
+    elif params['enabled'] is not None:
+        args.append('--disable')
 
-    rc, out, err = module.run_command(["pkg", "set-publisher"] + args + [name], check_rc=True)
+    rc, out, err = module.run_command(
+        ["pkg", "set-publisher"] + args + [name],
+        check_rc=True
+    )
     response = {
-        "rc": rc,
-        "results": [out],
-        "msg": err,
-        "changed": True,
+        'rc': rc,
+        'results': [out],
+        'msg': err,
+        'changed': True,
     }
     if rc != 0:
         module.fail_json(**response)
@@ -148,12 +153,15 @@ def unset_publisher(module, publisher):
     if publisher not in get_publishers(module):
         module.exit_json()
 
-    rc, out, err = module.run_command(["pkg", "unset-publisher", publisher], check_rc=True)
+    rc, out, err = module.run_command(
+        ["pkg", "unset-publisher", publisher],
+        check_rc=True
+    )
     response = {
-        "rc": rc,
-        "results": [out],
-        "msg": err,
-        "changed": True,
+        'rc': rc,
+        'results': [out],
+        'msg': err,
+        'changed': True,
     }
     if rc != 0:
         module.fail_json(**response)
@@ -169,21 +177,21 @@ def get_publishers(module):
     publishers = {}
     for line in lines:
         values = dict(zip(keys, map(unstringify, line.split("\t"))))
-        name = values["publisher"]
+        name = values['publisher']
 
         if name not in publishers:
-            publishers[name] = {k: values[k] for k in ["sticky", "enabled"]}
-            publishers[name]["origin"] = []
-            publishers[name]["mirror"] = []
+            publishers[name] = {k: values[k] for k in ['sticky', 'enabled']}
+            publishers[name]['origin'] = []
+            publishers[name]['mirror'] = []
 
-        if values["type"] is not None:
-            publishers[name][values["type"]].append(values["uri"])
+        if values['type'] is not None:
+            publishers[name][values['type']].append(values['uri'])
 
     return publishers
 
 
 def unstringify(val):
-    if val == "-" or val == "":
+    if val == "-" or val == '':
         return None
     elif val == "true":
         return True
@@ -193,5 +201,5 @@ def unstringify(val):
         return val
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

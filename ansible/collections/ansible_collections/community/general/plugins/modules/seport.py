@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2014, Dan Keder <dan.keder@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: seport
@@ -12,7 +14,7 @@ short_description: Manages SELinux network port type definitions
 description:
   - Manages SELinux network port type definitions.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -29,10 +31,9 @@ options:
   proto:
     description:
       - Protocol for the specified port.
-      - Support for V(dccp) and V(sctp) has been added in community.general 12.4.0.
     type: str
     required: true
-    choices: [tcp, udp, dccp, sctp]
+    choices: [tcp, udp]
   setype:
     description:
       - SELinux type for the specified port.
@@ -115,7 +116,6 @@ import traceback
 SELINUX_IMP_ERR = None
 try:
     import selinux
-
     HAVE_SELINUX = True
 except ImportError:
     SELINUX_IMP_ERR = traceback.format_exc()
@@ -124,13 +124,13 @@ except ImportError:
 SEOBJECT_IMP_ERR = None
 try:
     import seobject
-
     HAVE_SEOBJECT = True
 except ImportError:
     SEOBJECT_IMP_ERR = traceback.format_exc()
     HAVE_SEOBJECT = False
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible.module_utils.common.text.converters import to_native
 
 
 def get_runtime_status(ignore_selinux_state=False):
@@ -138,7 +138,7 @@ def get_runtime_status(ignore_selinux_state=False):
 
 
 def semanage_port_get_ports(seport, setype, proto, local):
-    """Get the list of ports that have the specified type definition.
+    """ Get the list of ports that have the specified type definition.
 
     :param community.general.seport: Instance of seobject.portRecords
 
@@ -146,7 +146,7 @@ def semanage_port_get_ports(seport, setype, proto, local):
     :param setype: SELinux type.
 
     :type proto: str
-    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
+    :param proto: Protocol ('tcp' or 'udp')
 
     :rtype: list
     :return: List of ports that have the specified SELinux type.
@@ -158,26 +158,8 @@ def semanage_port_get_ports(seport, setype, proto, local):
         return []
 
 
-def _parse_port_range(port):
-    """Return (low, high) integers for a port or port range string."""
-    parts = str(port).split("-", 1)
-    low = int(parts[0])
-    high = int(parts[1]) if len(parts) == 2 else low
-    return low, high
-
-
-def _port_is_covered(port, existing_ports):
-    """Return True if port (or range) is fully covered by an existing port entry."""
-    req_low, req_high = _parse_port_range(port)
-    for entry in existing_ports:
-        entry_low, entry_high = _parse_port_range(entry)
-        if entry_low <= req_low and req_high <= entry_high:
-            return True
-    return False
-
-
 def semanage_port_get_type(seport, port, proto):
-    """Get the SELinux type of the specified port.
+    """ Get the SELinux type of the specified port.
 
     :param community.general.seport: Instance of seobject.portRecords
 
@@ -185,13 +167,13 @@ def semanage_port_get_type(seport, port, proto):
     :param port: Port or port range (example: "8080", "8080-9090")
 
     :type proto: str
-    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
+    :param proto: Protocol ('tcp' or 'udp')
 
     :rtype: tuple
     :return: Tuple containing the SELinux type and MLS/MCS level, or None if not found.
     """
     if isinstance(port, str):
-        ports = port.split("-", 1)
+        ports = port.split('-', 1)
         if len(ports) == 1:
             ports.extend(ports)
     else:
@@ -203,8 +185,8 @@ def semanage_port_get_type(seport, port, proto):
     return records.get(key)
 
 
-def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", sestore="", local=False):
-    """Add SELinux port type definition to the policy.
+def semanage_port_add(module, ports, proto, setype, do_reload, serange='s0', sestore='', local=False):
+    """ Add SELinux port type definition to the policy.
 
     :type module: AnsibleModule
     :param module: Ansible module
@@ -213,7 +195,7 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
     :param ports: List of ports and port ranges to add (e.g. ["8080", "8080-9090"])
 
     :type proto: str
-    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
+    :param proto: Protocol ('tcp' or 'udp')
 
     :type setype: str
     :param setype: SELinux type
@@ -236,7 +218,7 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
         seport.set_reload(do_reload)
         ports_by_type = semanage_port_get_ports(seport, setype, proto, local)
         for port in ports:
-            if _port_is_covered(port, ports_by_type):
+            if port in ports_by_type:
                 continue
 
             change = True
@@ -248,19 +230,14 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
             else:
                 seport.modify(port, proto, serange, setype)
 
-    except FileNotFoundError as e:
-        module.fail_json(
-            msg=f"Failed to modify SELinux port policy, possibly due to a port overlap with an existing range: {e}\n",
-            exception=traceback.format_exc(),
-        )
-    except (ValueError, OSError, KeyError, RuntimeError) as e:
-        module.fail_json(msg=f"{e.__class__.__name__}: {e}\n", exception=traceback.format_exc())
+    except (ValueError, IOError, KeyError, OSError, RuntimeError) as e:
+        module.fail_json(msg="%s: %s\n" % (e.__class__.__name__, to_native(e)), exception=traceback.format_exc())
 
     return change
 
 
-def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local=False):
-    """Delete SELinux port type definition from the policy.
+def semanage_port_del(module, ports, proto, setype, do_reload, sestore='', local=False):
+    """ Delete SELinux port type definition from the policy.
 
     :type module: AnsibleModule
     :param module: Ansible module
@@ -269,7 +246,7 @@ def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local
     :param ports: List of ports and port ranges to delete (e.g. ["8080", "8080-9090"])
 
     :type proto: str
-    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
+    :param proto: Protocol ('tcp' or 'udp')
 
     :type setype: str
     :param setype: SELinux type.
@@ -294,13 +271,8 @@ def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local
                 if not module.check_mode:
                     seport.delete(port, proto)
 
-    except FileNotFoundError as e:
-        module.fail_json(
-            msg=f"Failed to modify SELinux port policy, possibly due to a port overlap with an existing range: {e}\n",
-            exception=traceback.format_exc(),
-        )
-    except (ValueError, OSError, KeyError, RuntimeError) as e:
-        module.fail_json(msg=f"{e.__class__.__name__}: {e}\n", exception=traceback.format_exc())
+    except (ValueError, IOError, KeyError, OSError, RuntimeError) as e:
+        module.fail_json(msg="%s: %s\n" % (e.__class__.__name__, to_native(e)), exception=traceback.format_exc())
 
     return change
 
@@ -308,13 +280,13 @@ def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            ignore_selinux_state=dict(type="bool", default=False),
-            ports=dict(type="list", elements="str", required=True),
-            proto=dict(type="str", required=True, choices=["tcp", "udp", "dccp", "sctp"]),
-            setype=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
-            reload=dict(type="bool", default=True),
-            local=dict(type="bool", default=False),
+            ignore_selinux_state=dict(type='bool', default=False),
+            ports=dict(type='list', elements='str', required=True),
+            proto=dict(type='str', required=True, choices=['tcp', 'udp']),
+            setype=dict(type='str', required=True),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
+            reload=dict(type='bool', default=True),
+            local=dict(type='bool', default=False)
         ),
         supports_check_mode=True,
     )
@@ -325,34 +297,34 @@ def main():
     if not HAVE_SEOBJECT:
         module.fail_json(msg=missing_required_lib("policycoreutils-python"), exception=SEOBJECT_IMP_ERR)
 
-    ignore_selinux_state = module.params["ignore_selinux_state"]
+    ignore_selinux_state = module.params['ignore_selinux_state']
 
     if not get_runtime_status(ignore_selinux_state):
         module.fail_json(msg="SELinux is disabled on this host.")
 
-    ports = module.params["ports"]
-    proto = module.params["proto"]
-    setype = module.params["setype"]
-    state = module.params["state"]
-    do_reload = module.params["reload"]
-    local = module.params["local"]
+    ports = module.params['ports']
+    proto = module.params['proto']
+    setype = module.params['setype']
+    state = module.params['state']
+    do_reload = module.params['reload']
+    local = module.params['local']
 
     result = {
-        "ports": ports,
-        "proto": proto,
-        "setype": setype,
-        "state": state,
+        'ports': ports,
+        'proto': proto,
+        'setype': setype,
+        'state': state,
     }
 
-    if state == "present":
-        result["changed"] = semanage_port_add(module, ports, proto, setype, do_reload, local=local)
-    elif state == "absent":
-        result["changed"] = semanage_port_del(module, ports, proto, setype, do_reload, local=local)
+    if state == 'present':
+        result['changed'] = semanage_port_add(module, ports, proto, setype, do_reload, local=local)
+    elif state == 'absent':
+        result['changed'] = semanage_port_del(module, ports, proto, setype, do_reload, local=local)
     else:
-        module.fail_json(msg=f'Invalid value of argument "state": {state}')
+        module.fail_json(msg='Invalid value of argument "state": {0}'.format(state))
 
     module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

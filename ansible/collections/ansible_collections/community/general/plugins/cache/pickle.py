@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Brian Coca
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -42,7 +43,10 @@ options:
     type: float
 """
 
-import pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from ansible.plugins.cache import BaseFileCacheModule
 
@@ -51,15 +55,14 @@ class CacheModule(BaseFileCacheModule):
     """
     A caching module backed by pickle files.
     """
-
     _persistent = False  # prevent unnecessary JSON serialization and key munging
 
     def _load(self, filepath):
         # Pickle is a binary format
-        with open(filepath, "rb") as f:
-            return pickle.load(f, encoding="bytes")
+        with open(filepath, 'rb') as f:
+            return pickle.load(f, encoding='bytes')
 
     def _dump(self, value, filepath):
-        with open(filepath, "wb") as f:
+        with open(filepath, 'wb') as f:
             # Use pickle protocol 2 which is compatible with Python 2.3+.
             pickle.dump(value, f, protocol=2)

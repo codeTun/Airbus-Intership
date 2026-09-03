@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2022, James Livulpi
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: homectl
@@ -15,13 +17,12 @@ version_added: 4.4.0
 description:
   - Manages a user's home directory managed by systemd-homed.
 notes:
-  - This module uses L(passlib, https://pypi.org/project/passlib/) for password hashing when available,
-    falling back to the Python C(crypt) module or L(legacycrypt, https://pypi.org/project/legacycrypt/).
+  - This module requires the deprecated L(crypt Python module, https://docs.python.org/3.12/library/crypt.html) library which
+    was removed from Python 3.13. For Python 3.13 or newer, you need to install L(legacycrypt, https://pypi.org/project/legacycrypt/).
 requirements:
-  - passlib (Python library, recommended), or legacycrypt on Python 3.13 or newer
-  - It requires no dependency on Python 3.12 and earlier, but then it relies on the deprecated standard library C(crypt).
+  - legacycrypt (on Python 3.13 or newer)
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -269,62 +270,74 @@ data:
 """
 
 import json
-
-from ansible.module_utils.basic import AnsibleModule, jsonify
+import traceback
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible.module_utils.basic import jsonify
 from ansible.module_utils.common.text.formatters import human_to_bytes
 
-from ansible_collections.community.general.plugins.module_utils import _deps as deps
+try:
+    import crypt
+except ImportError:
+    HAS_CRYPT = False
+    CRYPT_IMPORT_ERROR = traceback.format_exc()
+else:
+    HAS_CRYPT = True
+    CRYPT_IMPORT_ERROR = None
 
-with deps.declare("crypt_context"):
-    from ansible_collections.community.general.plugins.module_utils._crypt import CryptContext, has_crypt_context
+try:
+    import legacycrypt
+    if not HAS_CRYPT:
+        crypt = legacycrypt
+except ImportError:
+    HAS_LEGACYCRYPT = False
+    LEGACYCRYPT_IMPORT_ERROR = traceback.format_exc()
+else:
+    HAS_LEGACYCRYPT = True
+    LEGACYCRYPT_IMPORT_ERROR = None
 
-    if not has_crypt_context:
-        raise ImportError("Failed to import any of: passlib, crypt, legacycrypt")
 
-
-class Homectl:
-    def __init__(self, module, crypt_context):
+class Homectl(object):
+    def __init__(self, module):
         self.module = module
-        self.crypt_context = crypt_context
-        self.state = module.params["state"]
-        self.name = module.params["name"]
-        self.password = module.params["password"]
-        self.storage = module.params["storage"]
-        self.disksize = module.params["disksize"]
-        self.resize = module.params["resize"]
-        self.realname = module.params["realname"]
-        self.realm = module.params["realm"]
-        self.email = module.params["email"]
-        self.location = module.params["location"]
-        self.iconname = module.params["iconname"]
-        self.homedir = module.params["homedir"]
-        self.imagepath = module.params["imagepath"]
-        self.uid = module.params["uid"]
-        self.gid = module.params["gid"]
-        self.umask = module.params["umask"]
-        self.memberof = module.params["memberof"]
-        self.skeleton = module.params["skeleton"]
-        self.shell = module.params["shell"]
-        self.environment = module.params["environment"]
-        self.timezone = module.params["timezone"]
-        self.locked = module.params["locked"]
-        self.passwordhint = module.params["passwordhint"]
-        self.sshkeys = module.params["sshkeys"]
-        self.language = module.params["language"]
-        self.notbefore = module.params["notbefore"]
-        self.notafter = module.params["notafter"]
-        self.mountopts = module.params["mountopts"]
+        self.state = module.params['state']
+        self.name = module.params['name']
+        self.password = module.params['password']
+        self.storage = module.params['storage']
+        self.disksize = module.params['disksize']
+        self.resize = module.params['resize']
+        self.realname = module.params['realname']
+        self.realm = module.params['realm']
+        self.email = module.params['email']
+        self.location = module.params['location']
+        self.iconname = module.params['iconname']
+        self.homedir = module.params['homedir']
+        self.imagepath = module.params['imagepath']
+        self.uid = module.params['uid']
+        self.gid = module.params['gid']
+        self.umask = module.params['umask']
+        self.memberof = module.params['memberof']
+        self.skeleton = module.params['skeleton']
+        self.shell = module.params['shell']
+        self.environment = module.params['environment']
+        self.timezone = module.params['timezone']
+        self.locked = module.params['locked']
+        self.passwordhint = module.params['passwordhint']
+        self.sshkeys = module.params['sshkeys']
+        self.language = module.params['language']
+        self.notbefore = module.params['notbefore']
+        self.notafter = module.params['notafter']
+        self.mountopts = module.params['mountopts']
 
         self.result = {}
 
     # Cannot run homectl commands if service is not active
     def homed_service_active(self):
         is_active = True
-        cmd = ["systemctl", "show", "systemd-homed.service", "-p", "ActiveState"]
+        cmd = ['systemctl', 'show', 'systemd-homed.service', '-p', 'ActiveState']
         rc, show_service_stdout, stderr = self.module.run_command(cmd)
         if rc == 0:
-            state = show_service_stdout.rsplit("=")[1]
-            if state.strip() != "active":
+            state = show_service_stdout.rsplit('=')[1]
+            if state.strip() != 'active':
                 is_active = False
         return is_active
 
@@ -336,51 +349,55 @@ class Homectl:
         if rc == 0:
             exists = True
             # User exists now compare password given with current hashed password stored in the user metadata.
-            if self.state != "absent":  # Don't need checking on remove user
-                stored_pwhash = json.loads(stdout)["privileged"]["hashedPassword"][0]
+            if self.state != 'absent':  # Don't need checking on remove user
+                stored_pwhash = json.loads(stdout)['privileged']['hashedPassword'][0]
                 if self._check_password(stored_pwhash):
                     valid_pw = True
         return exists, valid_pw
 
     def create_user(self):
         record = self.create_json_record(create=True)
-        cmd = [self.module.get_bin_path("homectl", True)]
-        cmd.append("create")
-        cmd.append("--identity=-")  # Read the user record from standard input.
+        cmd = [self.module.get_bin_path('homectl', True)]
+        cmd.append('create')
+        cmd.append('--identity=-')  # Read the user record from standard input.
         return self.module.run_command(cmd, data=record)
 
     def _hash_password(self, password):
-        return self.crypt_context.hash(password, scheme="sha512_crypt", rounds=10000)
+        method = crypt.METHOD_SHA512
+        salt = crypt.mksalt(method, rounds=10000)
+        pw_hash = crypt.crypt(password, salt)
+        return pw_hash
 
     def _check_password(self, pwhash):
-        return self.crypt_context.verify(self.password, pwhash)
+        hash = crypt.crypt(self.password, pwhash)
+        return pwhash == hash
 
     def remove_user(self):
-        cmd = [self.module.get_bin_path("homectl", True)]
-        cmd.append("remove")
+        cmd = [self.module.get_bin_path('homectl', True)]
+        cmd.append('remove')
         cmd.append(self.name)
         return self.module.run_command(cmd)
 
     def prepare_modify_user_command(self):
         record = self.create_json_record()
-        cmd = [self.module.get_bin_path("homectl", True)]
-        cmd.append("update")
+        cmd = [self.module.get_bin_path('homectl', True)]
+        cmd.append('update')
         cmd.append(self.name)
-        cmd.append("--identity=-")  # Read the user record from standard input.
+        cmd.append('--identity=-')  # Read the user record from standard input.
         # Resize disksize now resize = true
         # This is not valid in user record (json) and requires it to be passed on command.
         if self.disksize and self.resize:
-            cmd.append("--and-resize")
-            cmd.append("true")
-            self.result["changed"] = True
+            cmd.append('--and-resize')
+            cmd.append('true')
+            self.result['changed'] = True
         return cmd, record
 
     def get_user_metadata(self):
-        cmd = [self.module.get_bin_path("homectl", True)]
-        cmd.append("inspect")
+        cmd = [self.module.get_bin_path('homectl', True)]
+        cmd.append('inspect')
         cmd.append(self.name)
-        cmd.append("-j")
-        cmd.append("--no-pager")
+        cmd.append('-j')
+        cmd.append('--no-pager')
         rc, stdout, stderr = self.module.run_command(cmd)
         return rc, stdout, stderr
 
@@ -388,172 +405,172 @@ class Homectl:
     def create_json_record(self, create=False):
         record = {}
         user_metadata = {}
-        self.result["changed"] = False
+        self.result['changed'] = False
         # Get the current user record if not creating a new user record.
         if not create:
             rc, user_metadata, stderr = self.get_user_metadata()
             user_metadata = json.loads(user_metadata)
             # Remove elements that are not meant to be updated from record.
             # These are always part of the record when a user exists.
-            user_metadata.pop("signature", None)
-            user_metadata.pop("binding", None)
-            user_metadata.pop("status", None)
+            user_metadata.pop('signature', None)
+            user_metadata.pop('binding', None)
+            user_metadata.pop('status', None)
             # Let last change Usec be updated by homed when command runs.
-            user_metadata.pop("lastChangeUSec", None)
+            user_metadata.pop('lastChangeUSec', None)
             # Now only change fields that are called on leaving what's currently in the record intact.
             record = user_metadata
 
-        record["userName"] = self.name
-        record["secret"] = {"password": [self.password]}
+        record['userName'] = self.name
+        record['secret'] = {'password': [self.password]}
 
         if create:
             password_hash = self._hash_password(self.password)
-            record["privileged"] = {"hashedPassword": [password_hash]}
-            self.result["changed"] = True
+            record['privileged'] = {'hashedPassword': [password_hash]}
+            self.result['changed'] = True
 
         if self.uid and self.gid and create:
-            record["uid"] = self.uid
-            record["gid"] = self.gid
-            self.result["changed"] = True
+            record['uid'] = self.uid
+            record['gid'] = self.gid
+            self.result['changed'] = True
 
         if self.memberof:
-            member_list = list(self.memberof.split(","))
-            if member_list != record.get("memberOf", [None]):
-                record["memberOf"] = member_list
-                self.result["changed"] = True
+            member_list = list(self.memberof.split(','))
+            if member_list != record.get('memberOf', [None]):
+                record['memberOf'] = member_list
+                self.result['changed'] = True
 
         if self.realname:
-            if self.realname != record.get("realName"):
-                record["realName"] = self.realname
-                self.result["changed"] = True
+            if self.realname != record.get('realName'):
+                record['realName'] = self.realname
+                self.result['changed'] = True
 
         # Cannot update storage unless were creating a new user.
         # See 'Fields in the binding section' at https://systemd.io/USER_RECORD/
         if self.storage and create:
-            record["storage"] = self.storage
-            self.result["changed"] = True
+            record['storage'] = self.storage
+            self.result['changed'] = True
 
         # Cannot update homedir unless were creating a new user.
         # See 'Fields in the binding section' at https://systemd.io/USER_RECORD/
         if self.homedir and create:
-            record["homeDirectory"] = self.homedir
-            self.result["changed"] = True
+            record['homeDirectory'] = self.homedir
+            self.result['changed'] = True
 
         # Cannot update imagepath unless were creating a new user.
         # See 'Fields in the binding section' at https://systemd.io/USER_RECORD/
         if self.imagepath and create:
-            record["imagePath"] = self.imagepath
-            self.result["changed"] = True
+            record['imagePath'] = self.imagepath
+            self.result['changed'] = True
 
         if self.disksize:
             # convert human readable to bytes
-            if self.disksize != record.get("diskSize"):
-                record["diskSize"] = human_to_bytes(self.disksize)
-                self.result["changed"] = True
+            if self.disksize != record.get('diskSize'):
+                record['diskSize'] = human_to_bytes(self.disksize)
+                self.result['changed'] = True
 
         if self.realm:
-            if self.realm != record.get("realm"):
-                record["realm"] = self.realm
-                self.result["changed"] = True
+            if self.realm != record.get('realm'):
+                record['realm'] = self.realm
+                self.result['changed'] = True
 
         if self.email:
-            if self.email != record.get("emailAddress"):
-                record["emailAddress"] = self.email
-                self.result["changed"] = True
+            if self.email != record.get('emailAddress'):
+                record['emailAddress'] = self.email
+                self.result['changed'] = True
 
         if self.location:
-            if self.location != record.get("location"):
-                record["location"] = self.location
-                self.result["changed"] = True
+            if self.location != record.get('location'):
+                record['location'] = self.location
+                self.result['changed'] = True
 
         if self.iconname:
-            if self.iconname != record.get("iconName"):
-                record["iconName"] = self.iconname
-                self.result["changed"] = True
+            if self.iconname != record.get('iconName'):
+                record['iconName'] = self.iconname
+                self.result['changed'] = True
 
         if self.skeleton:
-            if self.skeleton != record.get("skeletonDirectory"):
-                record["skeletonDirectory"] = self.skeleton
-                self.result["changed"] = True
+            if self.skeleton != record.get('skeletonDirectory'):
+                record['skeletonDirectory'] = self.skeleton
+                self.result['changed'] = True
 
         if self.shell:
-            if self.shell != record.get("shell"):
-                record["shell"] = self.shell
-                self.result["changed"] = True
+            if self.shell != record.get('shell'):
+                record['shell'] = self.shell
+                self.result['changed'] = True
 
         if self.umask:
-            if self.umask != record.get("umask"):
-                record["umask"] = self.umask
-                self.result["changed"] = True
+            if self.umask != record.get('umask'):
+                record['umask'] = self.umask
+                self.result['changed'] = True
 
         if self.environment:
-            if self.environment != record.get("environment", [None]):
-                record["environment"] = list(self.environment.split(","))
-                self.result["changed"] = True
+            if self.environment != record.get('environment', [None]):
+                record['environment'] = list(self.environment.split(','))
+                self.result['changed'] = True
 
         if self.timezone:
-            if self.timezone != record.get("timeZone"):
-                record["timeZone"] = self.timezone
-                self.result["changed"] = True
+            if self.timezone != record.get('timeZone'):
+                record['timeZone'] = self.timezone
+                self.result['changed'] = True
 
         if self.locked:
-            if self.locked != record.get("locked"):
-                record["locked"] = self.locked
-                self.result["changed"] = True
+            if self.locked != record.get('locked'):
+                record['locked'] = self.locked
+                self.result['changed'] = True
 
         if self.passwordhint:
-            if self.passwordhint != record.get("privileged", {}).get("passwordHint"):
-                record["privileged"]["passwordHint"] = self.passwordhint
-                self.result["changed"] = True
+            if self.passwordhint != record.get('privileged', {}).get('passwordHint'):
+                record['privileged']['passwordHint'] = self.passwordhint
+                self.result['changed'] = True
 
         if self.sshkeys:
-            if self.sshkeys != record.get("privileged", {}).get("sshAuthorizedKeys"):
-                record["privileged"]["sshAuthorizedKeys"] = list(self.sshkeys.split(","))
-                self.result["changed"] = True
+            if self.sshkeys != record.get('privileged', {}).get('sshAuthorizedKeys'):
+                record['privileged']['sshAuthorizedKeys'] = list(self.sshkeys.split(','))
+                self.result['changed'] = True
 
         if self.language:
-            if self.locked != record.get("preferredLanguage"):
-                record["preferredLanguage"] = self.language
-                self.result["changed"] = True
+            if self.locked != record.get('preferredLanguage'):
+                record['preferredLanguage'] = self.language
+                self.result['changed'] = True
 
         if self.notbefore:
-            if self.locked != record.get("notBeforeUSec"):
-                record["notBeforeUSec"] = self.notbefore
-                self.result["changed"] = True
+            if self.locked != record.get('notBeforeUSec'):
+                record['notBeforeUSec'] = self.notbefore
+                self.result['changed'] = True
 
         if self.notafter:
-            if self.locked != record.get("notAfterUSec"):
-                record["notAfterUSec"] = self.notafter
-                self.result["changed"] = True
+            if self.locked != record.get('notAfterUSec'):
+                record['notAfterUSec'] = self.notafter
+                self.result['changed'] = True
 
         if self.mountopts:
-            opts = list(self.mountopts.split(","))
-            if "nosuid" in opts:
-                if record.get("mountNoSuid") is not True:
-                    record["mountNoSuid"] = True
-                    self.result["changed"] = True
+            opts = list(self.mountopts.split(','))
+            if 'nosuid' in opts:
+                if record.get('mountNoSuid') is not True:
+                    record['mountNoSuid'] = True
+                    self.result['changed'] = True
             else:
-                if record.get("mountNoSuid") is not False:
-                    record["mountNoSuid"] = False
-                    self.result["changed"] = True
+                if record.get('mountNoSuid') is not False:
+                    record['mountNoSuid'] = False
+                    self.result['changed'] = True
 
-            if "nodev" in opts:
-                if record.get("mountNoDevices") is not True:
-                    record["mountNoDevices"] = True
-                    self.result["changed"] = True
+            if 'nodev' in opts:
+                if record.get('mountNoDevices') is not True:
+                    record['mountNoDevices'] = True
+                    self.result['changed'] = True
             else:
-                if record.get("mountNoDevices") is not False:
-                    record["mountNoDevices"] = False
-                    self.result["changed"] = True
+                if record.get('mountNoDevices') is not False:
+                    record['mountNoDevices'] = False
+                    self.result['changed'] = True
 
-            if "noexec" in opts:
-                if record.get("mountNoExecute") is not True:
-                    record["mountNoExecute"] = True
-                    self.result["changed"] = True
+            if 'noexec' in opts:
+                if record.get('mountNoExecute') is not True:
+                    record['mountNoExecute'] = True
+                    self.result['changed'] = True
             else:
-                if record.get("mountNoExecute") is not False:
-                    record["mountNoExecute"] = False
-                    self.result["changed"] = True
+                if record.get('mountNoExecute') is not False:
+                    record['mountNoExecute'] = False
+                    self.result['changed'] = True
 
         return jsonify(record)
 
@@ -561,55 +578,58 @@ class Homectl:
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(type="str", default="present", choices=["absent", "present"]),
-            name=dict(type="str", required=True, aliases=["user", "username"]),
-            password=dict(type="str", no_log=True),
-            storage=dict(type="str", choices=["classic", "luks", "directory", "subvolume", "fscrypt", "cifs"]),
-            disksize=dict(type="str"),
-            resize=dict(type="bool", default=False),
-            realname=dict(type="str", aliases=["comment"]),
-            realm=dict(type="str"),
-            email=dict(type="str"),
-            location=dict(type="str"),
-            iconname=dict(type="str"),
-            homedir=dict(type="path"),
-            imagepath=dict(type="path"),
-            uid=dict(type="int"),
-            gid=dict(type="int"),
-            umask=dict(type="int"),
-            environment=dict(type="str", aliases=["setenv"]),
-            timezone=dict(type="str"),
-            memberof=dict(type="str", aliases=["groups"]),
-            skeleton=dict(type="path", aliases=["skel"]),
-            shell=dict(type="str"),
-            locked=dict(type="bool"),
-            passwordhint=dict(type="str", no_log=True),
-            sshkeys=dict(type="str", no_log=True),
-            language=dict(type="str"),
-            notbefore=dict(type="int"),
-            notafter=dict(type="int"),
-            mountopts=dict(type="str"),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
+            name=dict(type='str', required=True, aliases=['user', 'username']),
+            password=dict(type='str', no_log=True),
+            storage=dict(type='str', choices=['classic', 'luks', 'directory', 'subvolume', 'fscrypt', 'cifs']),
+            disksize=dict(type='str'),
+            resize=dict(type='bool', default=False),
+            realname=dict(type='str', aliases=['comment']),
+            realm=dict(type='str'),
+            email=dict(type='str'),
+            location=dict(type='str'),
+            iconname=dict(type='str'),
+            homedir=dict(type='path'),
+            imagepath=dict(type='path'),
+            uid=dict(type='int'),
+            gid=dict(type='int'),
+            umask=dict(type='int'),
+            environment=dict(type='str', aliases=['setenv']),
+            timezone=dict(type='str'),
+            memberof=dict(type='str', aliases=['groups']),
+            skeleton=dict(type='path', aliases=['skel']),
+            shell=dict(type='str'),
+            locked=dict(type='bool'),
+            passwordhint=dict(type='str', no_log=True),
+            sshkeys=dict(type='str', no_log=True),
+            language=dict(type='str'),
+            notbefore=dict(type='int'),
+            notafter=dict(type='int'),
+            mountopts=dict(type='str'),
         ),
         supports_check_mode=True,
+
         required_if=[
-            ("state", "present", ["password"]),
-            ("resize", True, ["disksize"]),
-        ],
+            ('state', 'present', ['password']),
+            ('resize', True, ['disksize']),
+        ]
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
-    deps.validate(module)
+    if not HAS_CRYPT and not HAS_LEGACYCRYPT:
+        module.fail_json(
+            msg=missing_required_lib('crypt (part of standard library up to Python 3.12) or legacycrypt (PyPI)'),
+            exception=CRYPT_IMPORT_ERROR,
+        )
 
-    crypt_context = CryptContext(schemes=["sha512_crypt", "sha256_crypt", "md5_crypt", "des_crypt"])
-    homectl = Homectl(module, crypt_context)
-    homectl.result["state"] = homectl.state
+    homectl = Homectl(module)
+    homectl.result['state'] = homectl.state
 
     # First we need to make sure homed service is active
     if not homectl.homed_service_active():
-        module.fail_json(msg="systemd-homed.service is not active")
+        module.fail_json(msg='systemd-homed.service is not active')
 
     # handle removing user
-    if homectl.state == "absent":
+    if homectl.state == 'absent':
         user_exists, valid_pwhash = homectl.user_exists()
         if user_exists:
             if module.check_mode:
@@ -617,15 +637,15 @@ def main():
             rc, stdout, stderr = homectl.remove_user()
             if rc != 0:
                 module.fail_json(name=homectl.name, msg=stderr, rc=rc)
-            homectl.result["changed"] = True
-            homectl.result["rc"] = rc
-            homectl.result["msg"] = f"User {homectl.name} removed!"
+            homectl.result['changed'] = True
+            homectl.result['rc'] = rc
+            homectl.result['msg'] = 'User %s removed!' % homectl.name
         else:
-            homectl.result["changed"] = False
-            homectl.result["msg"] = "User does not exist!"
+            homectl.result['changed'] = False
+            homectl.result['msg'] = 'User does not exist!'
 
     # Handle adding a user
-    if homectl.state == "present":
+    if homectl.state == 'present':
         user_exists, valid_pwhash = homectl.user_exists()
         if not user_exists:
             if module.check_mode:
@@ -634,35 +654,35 @@ def main():
             if rc != 0:
                 module.fail_json(name=homectl.name, msg=stderr, rc=rc)
             rc, user_metadata, stderr = homectl.get_user_metadata()
-            homectl.result["data"] = json.loads(user_metadata)
-            homectl.result["rc"] = rc
-            homectl.result["msg"] = f"User {homectl.name} created!"
+            homectl.result['data'] = json.loads(user_metadata)
+            homectl.result['rc'] = rc
+            homectl.result['msg'] = 'User %s created!' % homectl.name
         else:
             if valid_pwhash:
                 # Run this to see if changed would be True or False which is useful for check_mode
                 cmd, record = homectl.prepare_modify_user_command()
             else:
                 # User gave wrong password fail with message
-                homectl.result["changed"] = False
-                homectl.result["msg"] = "User exists but password is incorrect!"
+                homectl.result['changed'] = False
+                homectl.result['msg'] = 'User exists but password is incorrect!'
                 module.fail_json(**homectl.result)
 
             if module.check_mode:
                 module.exit_json(**homectl.result)
 
             # Now actually modify the user if changed was set to true at any point.
-            if homectl.result["changed"]:
+            if homectl.result['changed']:
                 rc, stdout, stderr = module.run_command(cmd, data=record)
                 if rc != 0:
                     module.fail_json(name=homectl.name, msg=stderr, rc=rc, changed=False)
             rc, user_metadata, stderr = homectl.get_user_metadata()
-            homectl.result["data"] = json.loads(user_metadata)
-            homectl.result["rc"] = rc
-            if homectl.result["changed"]:
-                homectl.result["msg"] = f"User {homectl.name} modified"
+            homectl.result['data'] = json.loads(user_metadata)
+            homectl.result['rc'] = rc
+            if homectl.result['changed']:
+                homectl.result['msg'] = 'User %s modified' % homectl.name
 
     module.exit_json(**homectl.result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

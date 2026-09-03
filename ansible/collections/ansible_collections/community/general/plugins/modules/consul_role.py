@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2022, Håkon Lerring
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: consul_role
@@ -16,10 +19,10 @@ description:
 author:
   - Håkon Lerring (@Hakon)
 extends_documentation_fragment:
-  - community.general._consul
-  - community.general._consul.token
-  - community.general._consul.actiongroup_consul
-  - community.general._attributes
+  - community.general.consul
+  - community.general.consul.token
+  - community.general.consul.actiongroup_consul
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -201,8 +204,7 @@ operation:
 """
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._consul import (
+from ansible_collections.community.general.plugins.module_utils.consul import (
     AUTH_ARGUMENTS_SPEC,
     OPERATION_READ,
     _ConsulModule,
@@ -217,7 +219,7 @@ class ConsulRoleModule(_ConsulModule):
     def endpoint_url(self, operation, identifier=None):
         if operation == OPERATION_READ:
             return [self.api_endpoint, "name", self.params["name"]]
-        return super().endpoint_url(operation, identifier)
+        return super(ConsulRoleModule, self).endpoint_url(operation, identifier)
 
 
 NAME_ID_SPEC = dict(

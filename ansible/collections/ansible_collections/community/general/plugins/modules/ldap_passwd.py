@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017-2018, Keller Fuchs <kellerfuchs@hashbang.sh>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: ldap_passwd
@@ -27,8 +30,8 @@ options:
       - The (plaintext) password to be set for O(dn).
     type: str
 extends_documentation_fragment:
-  - community.general._ldap.documentation
-  - community.general._attributes
+  - community.general.ldap.documentation
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -59,12 +62,7 @@ modlist:
 import traceback
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-
-from ansible_collections.community.general.plugins.module_utils._ldap import (
-    LdapGeneric,
-    gen_specs,
-    ldap_required_together,
-)
+from ansible_collections.community.general.plugins.module_utils.ldap import LdapGeneric, gen_specs, ldap_required_together
 
 LDAP_IMP_ERR = None
 try:
@@ -81,7 +79,7 @@ class LdapPasswd(LdapGeneric):
         LdapGeneric.__init__(self, module)
 
         # Shortcuts
-        self.passwd = self.module.params["passwd"]
+        self.passwd = self.module.params['passwd']
 
     def passwd_check(self):
         try:
@@ -129,7 +127,8 @@ def main():
     )
 
     if not HAS_LDAP:
-        module.fail_json(msg=missing_required_lib("python-ldap"), exception=LDAP_IMP_ERR)
+        module.fail_json(msg=missing_required_lib('python-ldap'),
+                         exception=LDAP_IMP_ERR)
 
     ldap = LdapPasswd(module)
 
@@ -139,5 +138,5 @@ def main():
     module.exit_json(changed=ldap.passwd_set())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

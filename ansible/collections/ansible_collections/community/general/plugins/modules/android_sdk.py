@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2024, Stanislav Shamilov <shamilovstas@protonmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: android_sdk
@@ -15,7 +18,7 @@ description:
   - Allows installation of packages to a non-default SDK root directory.
 author: Stanislav Shamilov (@shamilovstas)
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -132,32 +135,32 @@ removed:
   sample: ["build-tools;34.0.0", "platform-tools"]
 """
 
-from ansible_collections.community.general.plugins.module_utils._android_sdkmanager import AndroidSdkManager, Package
-from ansible_collections.community.general.plugins.module_utils._mh.module_helper import StateModuleHelper
+from ansible_collections.community.general.plugins.module_utils.mh.module_helper import StateModuleHelper
+from ansible_collections.community.general.plugins.module_utils.android_sdkmanager import Package, AndroidSdkManager
 
 
 class AndroidSdk(StateModuleHelper):
     module = dict(
         argument_spec=dict(
-            state=dict(type="str", default="present", choices=["present", "absent", "latest"]),
-            package=dict(type="list", elements="str", aliases=["pkg", "name"]),
-            sdk_root=dict(type="path"),
-            channel=dict(type="str", default="stable", choices=["stable", "beta", "dev", "canary"]),
-            accept_licenses=dict(type="bool", default=False),
+            state=dict(type='str', default='present', choices=['present', 'absent', 'latest']),
+            package=dict(type='list', elements='str', aliases=['pkg', 'name']),
+            sdk_root=dict(type='path'),
+            channel=dict(type='str', default='stable', choices=['stable', 'beta', 'dev', 'canary']),
+            accept_licenses=dict(type='bool', default=False)
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
 
     def __init_module__(self):
         self.sdkmanager = AndroidSdkManager(self.module)
-        self.vars.set("installed", [], change=True)
-        self.vars.set("removed", [], change=True)
+        self.vars.set('installed', [], change=True)
+        self.vars.set('removed', [], change=True)
 
     def _parse_packages(self):
         arg_pkgs = set(self.vars.package)
         if len(arg_pkgs) < len(self.vars.package):
             self.do_raise("Packages may not repeat")
-        return {Package(p) for p in arg_pkgs}
+        return set(Package(p) for p in arg_pkgs)
 
     def state_present(self):
         packages = self._parse_packages()
@@ -168,7 +171,7 @@ class AndroidSdk(StateModuleHelper):
         if not self.check_mode:
             rc, stdout, stderr = self.sdkmanager.apply_packages_changes(pending_installation, self.vars.accept_licenses)
             if rc != 0:
-                self.do_raise(f"Could not install packages: {stderr}")
+                self.do_raise("Could not install packages: %s" % stderr)
 
     def state_absent(self):
         packages = self._parse_packages()
@@ -178,7 +181,7 @@ class AndroidSdk(StateModuleHelper):
         if not self.check_mode:
             rc, stdout, stderr = self.sdkmanager.apply_packages_changes(to_be_deleted)
             if rc != 0:
-                self.do_raise(f"Could not uninstall packages: {stderr}")
+                self.do_raise("Could not uninstall packages: %s" % stderr)
 
     def state_latest(self):
         packages = self._parse_packages()
@@ -191,7 +194,7 @@ class AndroidSdk(StateModuleHelper):
         if not self.check_mode:
             rc, stdout, stderr = self.sdkmanager.apply_packages_changes(to_be_installed, self.vars.accept_licenses)
             if rc != 0:
-                self.do_raise(f"Could not install packages: {stderr}")
+                self.do_raise("Could not install packages: %s" % stderr)
 
     @staticmethod
     def _map_packages_to_names(packages):
@@ -202,5 +205,5 @@ def main():
     AndroidSdk.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

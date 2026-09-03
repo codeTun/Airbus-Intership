@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Scaleway Serverless function namespace info module
 #
@@ -6,7 +7,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: scaleway_function_namespace_info
@@ -16,10 +19,10 @@ author: Guillaume MARTINEZ (@Lunik)
 description:
   - This module return information about a function namespace on Scaleway account.
 extends_documentation_fragment:
-  - community.general._scaleway
-  - community.general._attributes
-  - community.general._scaleway.actiongroup_scaleway
-  - community.general._attributes.info_module
+  - community.general.scaleway
+  - community.general.attributes
+  - community.general.scaleway.actiongroup_scaleway
+  - community.general.attributes.info_module
 
 attributes:
   action_group:
@@ -81,13 +84,10 @@ function_namespace:
     status: pending
 """
 
-from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._scaleway import (
-    SCALEWAY_REGIONS,
-    Scaleway,
-    scaleway_argument_spec,
+from ansible_collections.community.general.plugins.module_utils.scaleway import (
+    SCALEWAY_REGIONS, scaleway_argument_spec, Scaleway,
 )
+from ansible.module_utils.basic import AnsibleModule
 
 
 def info_strategy(api, wished_fn):
@@ -95,15 +95,18 @@ def info_strategy(api, wished_fn):
     fn_lookup = {fn["name"]: fn for fn in fn_list}
 
     if wished_fn["name"] not in fn_lookup:
-        msg = f"Error during function namespace lookup: Unable to find function namespace named '{wished_fn['name']}' in project '{wished_fn['project_id']}'"
+        msg = "Error during function namespace lookup: Unable to find function namespace named '%s' in project '%s'" % (wished_fn["name"],
+                                                                                                                        wished_fn["project_id"])
 
         api.module.fail_json(msg=msg)
 
     target_fn = fn_lookup[wished_fn["name"]]
 
-    response = api.get(path=f"{api.api_path}/{target_fn['id']}")
+    response = api.get(path=api.api_path + "/%s" % target_fn["id"])
     if not response.ok:
-        msg = f"Error during function namespace lookup: {response.info['msg']}: '{response.json['message']}' ({response.json})"
+        msg = "Error during function namespace lookup: %s: '%s' (%s)" % (response.info['msg'],
+                                                                         response.json['message'],
+                                                                         response.json)
         api.module.fail_json(msg=msg)
 
     return response.json
@@ -111,10 +114,13 @@ def info_strategy(api, wished_fn):
 
 def core(module):
     region = module.params["region"]
-    wished_function_namespace = {"project_id": module.params["project_id"], "name": module.params["name"]}
+    wished_function_namespace = {
+        "project_id": module.params["project_id"],
+        "name": module.params["name"]
+    }
 
     api = Scaleway(module=module)
-    api.api_path = f"functions/v1beta1/regions/{region}/namespaces"
+    api.api_path = "functions/v1beta1/regions/%s/namespaces" % region
 
     summary = info_strategy(api=api, wished_fn=wished_function_namespace)
 
@@ -123,13 +129,11 @@ def core(module):
 
 def main():
     argument_spec = scaleway_argument_spec()
-    argument_spec.update(
-        dict(
-            project_id=dict(type="str", required=True),
-            region=dict(type="str", required=True, choices=SCALEWAY_REGIONS),
-            name=dict(type="str", required=True),
-        )
-    )
+    argument_spec.update(dict(
+        project_id=dict(type='str', required=True),
+        region=dict(type='str', required=True, choices=SCALEWAY_REGIONS),
+        name=dict(type='str', required=True)
+    ))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -138,5 +142,5 @@ def main():
     core(module)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

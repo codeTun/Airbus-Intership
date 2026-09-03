@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2021, Roberto Moreda <moreda@allenta.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: dnf_versionlock
@@ -14,7 +16,7 @@ description:
     for packages and excludes all other versions of those packages. This allows you to for example protect packages from being
     updated by newer versions. The state of the plugin that reflects locking of packages is the C(locklist).
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: partial
@@ -33,6 +35,7 @@ options:
         command.
       - This parameter is mutually exclusive with O(state=clean).
     type: list
+    required: false
     elements: str
     default: []
   raw:
@@ -57,6 +60,8 @@ notes:
   - In an ideal world, the C(versionlock) plugin would have a dry-run option to know for sure what is going to happen. So
     far we have to work with a best guess as close as possible to the behaviour inferred from its code.
   - For most of cases where you want to lock and unlock specific versions of a package, this works fairly well.
+  - Does not work with C(dnf5).
+  - This module requires Python 3.6 or greater to run, which should not be a problem for most systems that use C(dnf).
 requirements:
   - dnf
   - dnf-plugin-versionlock
@@ -125,11 +130,10 @@ specs_todelete:
   sample: ["bind"]
 """
 
+from ansible.module_utils.basic import AnsibleModule
 import fnmatch
 import os
 import re
-
-from ansible.module_utils.basic import AnsibleModule
 
 DNF_BIN = "/usr/bin/dnf"
 VERSIONLOCK_CONF = "/etc/dnf/plugins/versionlock.conf"
@@ -138,7 +142,7 @@ NEVRA_RE = re.compile(r"^(?P<name>.+)-(?P<epoch>\d+):(?P<version>.+)-(?P<release
 
 
 def do_versionlock(module, command, patterns=None, raw=False):
-    patterns = patterns if patterns else []
+    patterns = [] if not patterns else patterns
     raw_parameter = ["--raw"] if raw else []
     # Call dnf versionlock using a just one full NEVR package-name-spec each
     # time because multiple package-name-spec and globs are not well supported.
@@ -157,34 +161,37 @@ def do_versionlock(module, command, patterns=None, raw=False):
         outs = []
         for p in patterns:
             rc, out, err = module.run_command(
-                [DNF_BIN, "-q", "versionlock", command] + raw_parameter + [p], check_rc=True
-            )
+                [DNF_BIN, "-q", "versionlock", command] + raw_parameter + [p],
+                check_rc=True)
             outs.append(out)
         out = "\n".join(outs)
     else:
-        rc, out, err = module.run_command([DNF_BIN, "-q", "versionlock", command], check_rc=True)
+        rc, out, err = module.run_command(
+            [DNF_BIN, "-q", "versionlock", command], check_rc=True)
     return out
 
 
 # This is equivalent to the _match function of the versionlock plugin.
 def match(entry, pattern):
-    entry = entry.lstrip("!")
+    entry = entry.lstrip('!')
     if entry == pattern:
         return True
     m = NEVRA_RE.match(entry)
     if not m:
         return False
-
+    # indexing a match object with [] is a Python 3.6+ construct
     for name in (
-        f"{m['name']}",
-        f"{m['name']}.{m['arch']}",
-        f"{m['name']}-{m['version']}",
-        f"{m['name']}-{m['version']}-{m['release']}",
-        f"{m['name']}-{m['epoch']}:{m['version']}",
-        f"{m['name']}-{m['version']}-{m['release']}.{m['arch']}",
-        f"{m['name']}-{m['epoch']}:{m['version']}-{m['release']}",
-        f"{m['epoch']}:{m['name']}-{m['version']}-{m['release']}.{m['arch']}",
-        f"{m['name']}-{m['epoch']}:{m['version']}-{m['release']}.{m['arch']}",
+        '%s' % m["name"],
+        '%s.%s' % (m["name"], m["arch"]),
+        '%s-%s' % (m["name"], m["version"]),
+        '%s-%s-%s' % (m["name"], m["version"], m["release"]),
+        '%s-%s:%s' % (m["name"], m["epoch"], m["version"]),
+        '%s-%s-%s.%s' % (m["name"], m["version"], m["release"], m["arch"]),
+        '%s-%s:%s-%s' % (m["name"], m["epoch"], m["version"], m["release"]),
+        '%s:%s-%s-%s.%s' % (m["epoch"], m["name"], m["version"], m["release"],
+                            m["arch"]),
+        '%s-%s:%s-%s.%s' % (m["name"], m["epoch"], m["version"], m["release"],
+                            m["arch"])
     ):
         if fnmatch.fnmatch(name, pattern):
             return True
@@ -194,16 +201,22 @@ def match(entry, pattern):
 def get_packages(module, patterns, only_installed=False):
     packages_available_map_name_evrs = {}
     rc, out, err = module.run_command(
-        [DNF_BIN, "-q", "repoquery"] + (["--installed"] if only_installed else []) + patterns, check_rc=True
-    )
+        [DNF_BIN, "-q", "repoquery"] +
+        (["--installed"] if only_installed else []) +
+        patterns,
+        check_rc=True)
 
     for p in out.split():
         # Extract the NEVRA pattern.
         m = NEVRA_RE.match(p)
         if not m:
-            module.fail_json(msg=f"failed to parse nevra for {p}", rc=rc, out=out, err=err)
+            module.fail_json(
+                msg="failed to parse nevra for %s" % p,
+                rc=rc, out=out, err=err)
 
-        evr = f"{m['epoch']}:{m['version']}-{m['release']}"
+        evr = "%s:%s-%s" % (m["epoch"],
+                            m["version"],
+                            m["release"])
 
         packages_available_map_name_evrs.setdefault(m["name"], set())
         packages_available_map_name_evrs[m["name"]].add(evr)
@@ -234,7 +247,7 @@ def get_package_list(module, package_mgr="dnf"):
                 dummy, name = line.split(":", 1)
                 name = name.strip()
                 pkg_name = get_packages(module, patterns=[name])
-                package_name = f"{name}-{pkg_name[name].pop()}.*"
+                package_name = "%s-%s.*" % (name, pkg_name[name].pop())
                 if package_name and package_name not in package_list:
                     package_list.append(package_name)
             if line.startswith("evr"):
@@ -252,11 +265,11 @@ def main():
         argument_spec=dict(
             name=dict(type="list", elements="str", default=[]),
             raw=dict(type="bool", default=False),
-            state=dict(type="str", default="present", choices=["present", "absent", "excluded", "clean"]),
+            state=dict(type="str", default="present",
+                       choices=["present", "absent", "excluded", "clean"]),
         ),
         supports_check_mode=True,
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     patterns = module.params["name"]
     raw = module.params["raw"]
@@ -266,7 +279,7 @@ def main():
 
     # Check module pre-requisites.
     global DNF_BIN
-    DNF_BIN = module.get_bin_path("dnf", True)
+    DNF_BIN = module.get_bin_path('dnf', True)
     package_mgr = get_package_mgr()
     if package_mgr == "dnf" and not os.path.exists(VERSIONLOCK_CONF):
         module.fail_json(msg="plugin versionlock is required")
@@ -275,7 +288,7 @@ def main():
     if state == "clean" and patterns:
         module.fail_json(msg="clean state is incompatible with a name list")
     if state != "clean" and not patterns:
-        module.fail_json(msg=f"name list is required for {state} state")
+        module.fail_json(msg="name list is required for %s state" % state)
 
     locklist_pre = get_package_list(module, package_mgr=package_mgr)
 
@@ -283,17 +296,23 @@ def main():
     specs_todelete = []
 
     if state in ["present", "excluded"]:
+
         if raw:
             # Add raw patterns as specs to add.
             for p in patterns:
-                if (p if state == "present" else f"!{p}") not in locklist_pre:
+                if (p if state == "present" else "!" + p) not in locklist_pre:
                     specs_toadd.append(p)
         else:
             # Get available packages that match the patterns.
-            packages_map_name_evrs = get_packages(module, patterns)
+            packages_map_name_evrs = get_packages(
+                module,
+                patterns)
 
             # Get installed packages that match the patterns.
-            packages_installed_map_name_evrs = get_packages(module, patterns, only_installed=True)
+            packages_installed_map_name_evrs = get_packages(
+                module,
+                patterns,
+                only_installed=True)
 
             # Obtain the list of package specs that require an entry in the
             # locklist. This list is composed by:
@@ -303,9 +322,9 @@ def main():
             packages_map_name_evrs.update(packages_installed_map_name_evrs)
             for name in packages_map_name_evrs:
                 for evr in packages_map_name_evrs[name]:
-                    locklist_entry = f"{name}-{evr}.*"
+                    locklist_entry = "%s-%s.*" % (name, evr)
 
-                    if (locklist_entry if state == "present" else f"!{locklist_entry}") not in locklist_pre:
+                    if (locklist_entry if state == "present" else "!%s" % locklist_entry) not in locklist_pre:
                         specs_toadd.append(locklist_entry)
 
         if specs_toadd and not module.check_mode:
@@ -313,6 +332,7 @@ def main():
             msg = do_versionlock(module, cmd, patterns=specs_toadd, raw=raw)
 
     elif state == "absent":
+
         if raw:
             # Add raw patterns as specs to delete.
             for p in patterns:
@@ -327,7 +347,8 @@ def main():
                         specs_todelete.append(p)
 
         if specs_todelete and not module.check_mode:
-            msg = do_versionlock(module, "delete", patterns=specs_todelete, raw=raw)
+            msg = do_versionlock(
+                module, "delete", patterns=specs_todelete, raw=raw)
 
     elif state == "clean":
         specs_todelete = locklist_pre
@@ -343,7 +364,7 @@ def main():
         "msg": msg,
         "locklist_pre": locklist_pre,
         "specs_toadd": specs_toadd,
-        "specs_todelete": specs_todelete,
+        "specs_todelete": specs_todelete
     }
     if not module.check_mode:
         response["locklist_post"] = get_package_list(module, package_mgr=package_mgr)

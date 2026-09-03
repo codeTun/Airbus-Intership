@@ -10,9 +10,9 @@
 
 - name: Install lxml (FreeBSD)
   package:
-    name: 'py{{ ansible_facts.python.version.major }}{{ ansible_facts.python.version.minor }}-lxml'
+    name: 'py{{ ansible_python.version.major }}{{ ansible_python.version.minor }}-lxml'
     state: present
-  when: ansible_facts.os_family == "FreeBSD"
+  when: ansible_os_family == "FreeBSD"
 
 - name: Install requirements (RHEL 8)
   package:
@@ -21,14 +21,14 @@
       - libxslt-devel
       - python3-lxml
     state: present
-  when: ansible_facts.distribution == "RedHat" and ansible_facts.distribution_major_version == "8"
+  when: ansible_distribution == "RedHat" and ansible_distribution_major_version == "8"
 
 # Needed for MacOSX !
 - name: Install lxml
   pip:
     name: lxml
     state: present
-#  when: ansible_facts.os_family == "Darwin"
+#  when: ansible_os_family == "Darwin"
 
 - name: Get lxml version
   command: "{{ ansible_python_interpreter }} -c 'from lxml import etree; print(\".\".join(str(v) for v in etree.LXML_VERSION))'"
@@ -66,7 +66,6 @@
     - include_tasks: test-set-children-elements-value.yml
     - include_tasks: test-set-element-value.yml
     - include_tasks: test-set-element-value-empty.yml
-    - include_tasks: test-set-element-value-predicate.yml
     - include_tasks: test-pretty-print.yml
     - include_tasks: test-pretty-print-only.yml
     - include_tasks: test-add-namespaced-children-elements.yml
@@ -76,10 +75,8 @@
     - include_tasks: test-set-namespaced-element-value.yml
     - include_tasks: test-set-namespaced-children-elements.yml
     - include_tasks: test-get-element-content.yml
-    - include_tasks: test-print-match.yml
     - include_tasks: test-xmlstring.yml
     - include_tasks: test-children-elements-xml.yml
-    - include_tasks: test-preserve-doctype.yml
 
     # Unicode tests
     - include_tasks: test-add-children-elements-unicode.yml

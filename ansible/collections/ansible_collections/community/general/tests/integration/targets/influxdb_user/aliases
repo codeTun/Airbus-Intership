@@ -5,6 +5,7 @@
 azp/posix/1
 destructive
 disabled
+skip/osx
 skip/macos
 skip/freebsd
 skip/rhel

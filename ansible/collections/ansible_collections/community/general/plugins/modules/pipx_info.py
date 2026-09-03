@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2021, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: pipx_info
@@ -13,9 +16,9 @@ version_added: 5.6.0
 description:
   - Retrieve details about Python applications installed in isolated virtualenvs using pipx.
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
-  - community.general._pipx
+  - community.general.attributes
+  - community.general.attributes.info_module
+  - community.general.pipx
 options:
   name:
     description:
@@ -130,22 +133,20 @@ version:
   version_added: 10.1.0
 """
 
-from ansible_collections.community.general.plugins.module_utils._module_helper import ModuleHelper
-from ansible_collections.community.general.plugins.module_utils._pipx import (
-    make_process_dict,
-    pipx_common_argspec,
-    pipx_runner,
-)
-from ansible_collections.community.general.plugins.module_utils._version import LooseVersion
+from ansible_collections.community.general.plugins.module_utils.module_helper import ModuleHelper
+from ansible_collections.community.general.plugins.module_utils.pipx import pipx_runner, pipx_common_argspec, make_process_dict
+from ansible_collections.community.general.plugins.module_utils.version import LooseVersion
+
+from ansible.module_utils.facts.compat import ansible_facts
 
 
 class PipXInfo(ModuleHelper):
-    output_params = ["name"]
+    output_params = ['name']
     argument_spec = dict(
-        name=dict(type="str"),
-        include_deps=dict(type="bool", default=False),
-        include_injected=dict(type="bool", default=False),
-        include_raw=dict(type="bool", default=False),
+        name=dict(type='str'),
+        include_deps=dict(type='bool', default=False),
+        include_injected=dict(type='bool', default=False),
+        include_raw=dict(type='bool', default=False),
     )
     argument_spec.update(pipx_common_argspec)
     module = dict(
@@ -154,7 +155,12 @@ class PipXInfo(ModuleHelper):
     )
 
     def __init_module__(self):
-        self.runner = pipx_runner(self.module, self.vars.executable)
+        if self.vars.executable:
+            self.command = [self.vars.executable]
+        else:
+            facts = ansible_facts(self.module, gather_subset=['python'])
+            self.command = [facts['python']['executable'], '-m', 'pipx']
+        self.runner = pipx_runner(self.module, self.command)
         with self.runner("version") as ctx:
             rc, out, err = ctx.run()
             self.vars.version = out.strip()
@@ -164,13 +170,17 @@ class PipXInfo(ModuleHelper):
 
     def __run__(self):
         output_process = make_process_dict(self.vars.include_injected, self.vars.include_deps)
-        with self.runner("_list global", output_process=output_process) as ctx:
+        with self.runner('_list global', output_process=output_process) as ctx:
             applications, raw_data = ctx.run()
             if self.vars.include_raw:
                 self.vars.raw_output = raw_data
 
             if self.vars.name:
-                self.vars.application = [v for k, v in applications.items() if k == self.vars.name]
+                self.vars.application = [
+                    v
+                    for k, v in applications.items()
+                    if k == self.vars.name
+                ]
             else:
                 self.vars.application = list(applications.values())
             self._capture_results(ctx)
@@ -185,5 +195,5 @@ def main():
     PipXInfo.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

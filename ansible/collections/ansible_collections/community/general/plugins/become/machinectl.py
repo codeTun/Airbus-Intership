@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -92,18 +93,20 @@ EXAMPLES = r"""
 
 from re import compile as re_compile
 
-from ansible.module_utils.common.text.converters import to_bytes
 from ansible.plugins.become import BecomeBase
+from ansible.module_utils.common.text.converters import to_bytes
 
-ansi_color_codes = re_compile(to_bytes(r"\x1B\[[0-9;]+m"))
+
+ansi_color_codes = re_compile(to_bytes(r'\x1B\[[0-9;]+m'))
 
 
 class BecomeModule(BecomeBase):
-    name = "community.general.machinectl"
 
-    prompt = "Password: "
-    fail = ("==== AUTHENTICATION FAILED ====",)
-    success = ("==== AUTHENTICATION COMPLETE ====",)
+    name = 'community.general.machinectl'
+
+    prompt = 'Password: '
+    fail = ('==== AUTHENTICATION FAILED ====',)
+    success = ('==== AUTHENTICATION COMPLETE ====',)
     require_tty = True  # see https://github.com/ansible-collections/community.general/issues/6932
 
     # See https://github.com/ansible/ansible/issues/81254,
@@ -115,19 +118,16 @@ class BecomeModule(BecomeBase):
         return ansi_color_codes.sub(b"", line)
 
     def build_become_command(self, cmd, shell):
-        super().build_become_command(cmd, shell)
+        super(BecomeModule, self).build_become_command(cmd, shell)
 
         if not cmd:
             return cmd
 
-        become = self.get_option("become_exe")
+        become = self.get_option('become_exe')
 
-        flags = self.get_option("become_flags")
-        user = self.get_option("become_user")
-        # SYSTEMD_COLORS=0 stops machinectl from appending ANSI reset
-        # sequences (ESC[0m, ESC[J) after the child exits, which would
-        # otherwise land after the module JSON and break result parsing.
-        return f"SYSTEMD_COLORS=0 {become} -q shell {flags} {user}@ {self._build_success_command(cmd, shell)}"
+        flags = self.get_option('become_flags')
+        user = self.get_option('become_user')
+        return f'{become} -q shell {flags} {user}@ {self._build_success_command(cmd, shell)}'
 
     def check_success(self, b_output):
         b_output = self.remove_ansi_codes(b_output)

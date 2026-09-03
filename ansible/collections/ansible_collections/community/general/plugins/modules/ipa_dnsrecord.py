@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Abhijeet Kasurde (akasurde@redhat.com)
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: ipa_dnsrecord
@@ -34,6 +36,7 @@ options:
       - The type of DNS record name.
       - Support for V(NS) was added in comunity.general 8.2.0.
       - Support for V(SSHFP) was added in community.general 9.1.0.
+    required: false
     default: 'A'
     choices: ['A', 'AAAA', 'A6', 'CNAME', 'DNAME', 'MX', 'NS', 'PTR', 'SRV', 'TXT', 'SSHFP']
     type: str
@@ -73,30 +76,18 @@ options:
     description:
       - Set the TTL for the record.
       - Applies only when adding a new or changing the value of O(record_value) or O(record_values).
+    required: false
     type: int
-  exclusive:
-    description:
-      - Whether the provided record value(s) should be the only ones for that record type and record name.
-      - When O(state=present) and V(true), the specified O(record_value) or O(record_values) will
-        replace all existing records of the same type and name.
-      - When O(state=present) and V(false), the specified values will be added to any existing records
-        of the same type and name, preserving values not listed.
-      - When O(state=absent) and V(true), all existing records of the same type and name will be removed,
-        regardless of the specified O(record_value) or O(record_values).
-      - When O(state=absent) and V(false), only the specified values will be removed from the record,
-        preserving other existing values.
-    type: bool
-    default: true
-    version_added: 12.6.0
   state:
     description: State to ensure.
+    required: false
     default: present
     choices: ["absent", "present"]
     type: str
 extends_documentation_fragment:
-  - community.general._ipa.documentation
-  - community.general._ipa.connection_notes
-  - community.general._attributes
+  - community.general.ipa.documentation
+  - community.general.ipa.connection_notes
+  - community.general.attributes
 """
 
 EXAMPLES = r"""
@@ -163,17 +154,6 @@ EXAMPLES = r"""
       - '1 mailserver-01.example.com'
       - '2 mailserver-02.example.com'
 
-- name: Ensure an SRV record is added without replacing existing ones
-  community.general.ipa_dnsrecord:
-    ipa_host: spider.example.com
-    ipa_pass: Passw0rd!
-    state: present
-    zone_name: example.com
-    record_name: _etcd-server-ssl._tcp.cloud.example.com.
-    record_type: 'SRV'
-    record_value: '0 10 2380 etcd-0.cloud.example.com.'
-    exclusive: false
-
 - name: Ensure that dns record is removed
   community.general.ipa_dnsrecord:
     name: host01
@@ -220,112 +200,92 @@ dnsrecord:
 import traceback
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.community.general.plugins.module_utils.ipa import IPAClient, ipa_argument_spec
 from ansible.module_utils.common.text.converters import to_native
-
-from ansible_collections.community.general.plugins.module_utils._ipa import IPAClient, ipa_argument_spec
 
 
 class DNSRecordIPAClient(IPAClient):
     def __init__(self, module, host, port, protocol):
-        super().__init__(module, host, port, protocol)
+        super(DNSRecordIPAClient, self).__init__(module, host, port, protocol)
 
     def dnsrecord_find(self, zone_name, record_name):
-        if record_name == "@":
-            method = "dnsrecord_show"
+        if record_name == '@':
+            return self._post_json(method='dnsrecord_show', name=zone_name, item={'idnsname': record_name, 'all': True})
         else:
-            method = "dnsrecord_find"
-        result = self._post_json(method=method, name=zone_name, item={"idnsname": record_name, "all": True})
-        if "dnsttl" in result:
-            result["dnsttl"] = [int(v) for v in result["dnsttl"]]
-        return result
+            return self._post_json(method='dnsrecord_find', name=zone_name, item={'idnsname': record_name, 'all': True})
 
     def dnsrecord_add(self, zone_name=None, record_name=None, details=None):
         item = dict(idnsname=record_name)
 
-        if details.get("record_ttl"):
-            item.update(dnsttl=details["record_ttl"])
+        if details.get('record_ttl'):
+            item.update(dnsttl=details['record_ttl'])
 
-        for value in details["record_values"]:
-            if details["record_type"] == "A":
+        for value in details['record_values']:
+            if details['record_type'] == 'A':
                 item.update(a_part_ip_address=value)
-            elif details["record_type"] == "AAAA":
+            elif details['record_type'] == 'AAAA':
                 item.update(aaaa_part_ip_address=value)
-            elif details["record_type"] == "A6":
+            elif details['record_type'] == 'A6':
                 item.update(a6_part_data=value)
-            elif details["record_type"] == "CNAME":
+            elif details['record_type'] == 'CNAME':
                 item.update(cname_part_hostname=value)
-            elif details["record_type"] == "DNAME":
+            elif details['record_type'] == 'DNAME':
                 item.update(dname_part_target=value)
-            elif details["record_type"] == "NS":
+            elif details['record_type'] == 'NS':
                 item.update(ns_part_hostname=value)
-            elif details["record_type"] == "PTR":
+            elif details['record_type'] == 'PTR':
                 item.update(ptr_part_hostname=value)
-            elif details["record_type"] == "TXT":
+            elif details['record_type'] == 'TXT':
                 item.update(txtrecord=value)
-            elif details["record_type"] == "SRV":
+            elif details['record_type'] == 'SRV':
                 item.update(srvrecord=value)
-            elif details["record_type"] == "MX":
+            elif details['record_type'] == 'MX':
                 item.update(mxrecord=value)
-            elif details["record_type"] == "SSHFP":
+            elif details['record_type'] == 'SSHFP':
                 item.update(sshfprecord=value)
 
-            self._post_json(method="dnsrecord_add", name=zone_name, item=item)
+            self._post_json(method='dnsrecord_add', name=zone_name, item=item)
 
     def dnsrecord_mod(self, zone_name=None, record_name=None, details=None):
         item = get_dnsrecord_dict(details)
         item.update(idnsname=record_name)
-        if details.get("record_ttl"):
-            item.update(dnsttl=details["record_ttl"])
-        return self._post_json(method="dnsrecord_mod", name=zone_name, item=item)
+        if details.get('record_ttl'):
+            item.update(dnsttl=details['record_ttl'])
+        return self._post_json(method='dnsrecord_mod', name=zone_name, item=item)
 
     def dnsrecord_del(self, zone_name=None, record_name=None, details=None):
         item = get_dnsrecord_dict(details)
         item.update(idnsname=record_name)
-        return self._post_json(method="dnsrecord_del", name=zone_name, item=item)
-
-
-RECORD_TYPE_KEY = {
-    "A": "arecord",
-    "AAAA": "aaaarecord",
-    "A6": "a6record",
-    "CNAME": "cnamerecord",
-    "DNAME": "dnamerecord",
-    "NS": "nsrecord",
-    "PTR": "ptrrecord",
-    "TXT": "txtrecord",
-    "SRV": "srvrecord",
-    "MX": "mxrecord",
-    "SSHFP": "sshfprecord",
-}
+        return self._post_json(method='dnsrecord_del', name=zone_name, item=item)
 
 
 def get_dnsrecord_dict(details=None):
     module_dnsrecord = dict()
-    if details["record_type"] == "A" and details["record_values"]:
-        module_dnsrecord.update(arecord=details["record_values"])
-    elif details["record_type"] == "AAAA" and details["record_values"]:
-        module_dnsrecord.update(aaaarecord=details["record_values"])
-    elif details["record_type"] == "A6" and details["record_values"]:
-        module_dnsrecord.update(a6record=details["record_values"])
-    elif details["record_type"] == "CNAME" and details["record_values"]:
-        module_dnsrecord.update(cnamerecord=details["record_values"])
-    elif details["record_type"] == "DNAME" and details["record_values"]:
-        module_dnsrecord.update(dnamerecord=details["record_values"])
-    elif details["record_type"] == "NS" and details["record_values"]:
-        module_dnsrecord.update(nsrecord=details["record_values"])
-    elif details["record_type"] == "PTR" and details["record_values"]:
-        module_dnsrecord.update(ptrrecord=details["record_values"])
-    elif details["record_type"] == "TXT" and details["record_values"]:
-        module_dnsrecord.update(txtrecord=details["record_values"])
-    elif details["record_type"] == "SRV" and details["record_values"]:
-        module_dnsrecord.update(srvrecord=details["record_values"])
-    elif details["record_type"] == "MX" and details["record_values"]:
-        module_dnsrecord.update(mxrecord=details["record_values"])
-    elif details["record_type"] == "SSHFP" and details["record_values"]:
-        module_dnsrecord.update(sshfprecord=details["record_values"])
+    if details['record_type'] == 'A' and details['record_values']:
+        module_dnsrecord.update(arecord=details['record_values'])
+    elif details['record_type'] == 'AAAA' and details['record_values']:
+        module_dnsrecord.update(aaaarecord=details['record_values'])
+    elif details['record_type'] == 'A6' and details['record_values']:
+        module_dnsrecord.update(a6record=details['record_values'])
+    elif details['record_type'] == 'CNAME' and details['record_values']:
+        module_dnsrecord.update(cnamerecord=details['record_values'])
+    elif details['record_type'] == 'DNAME' and details['record_values']:
+        module_dnsrecord.update(dnamerecord=details['record_values'])
+    elif details['record_type'] == 'NS' and details['record_values']:
+        module_dnsrecord.update(nsrecord=details['record_values'])
+    elif details['record_type'] == 'PTR' and details['record_values']:
+        module_dnsrecord.update(ptrrecord=details['record_values'])
+    elif details['record_type'] == 'TXT' and details['record_values']:
+        module_dnsrecord.update(txtrecord=details['record_values'])
+    elif details['record_type'] == 'SRV' and details['record_values']:
+        module_dnsrecord.update(srvrecord=details['record_values'])
+    elif details['record_type'] == 'MX' and details['record_values']:
+        module_dnsrecord.update(mxrecord=details['record_values'])
+    elif details['record_type'] == 'SSHFP' and details['record_values']:
+        module_dnsrecord.update(sshfprecord=details['record_values'])
 
-    if details.get("record_ttl"):
-        module_dnsrecord.update(dnsttl=details["record_ttl"])
+    if details.get('record_ttl'):
+        module_dnsrecord.update(dnsttl=details['record_ttl'])
 
     return module_dnsrecord
 
@@ -336,104 +296,91 @@ def get_dnsrecord_diff(client, ipa_dnsrecord, module_dnsrecord):
 
 
 def ensure(module, client):
-    zone_name = module.params["zone_name"]
-    record_name = module.params["record_name"]
-    record_ttl = module.params.get("record_ttl")
-    state = module.params["state"]
-    exclusive = module.params["exclusive"]
+    zone_name = module.params['zone_name']
+    record_name = module.params['record_name']
+    record_ttl = module.params.get('record_ttl')
+    state = module.params['state']
 
     ipa_dnsrecord = client.dnsrecord_find(zone_name, record_name)
 
-    record_values = module.params["record_values"]
-    if module.params["record_value"] is not None:
-        record_values = [module.params["record_value"]]
+    record_values = module.params['record_values']
+    if module.params['record_value'] is not None:
+        record_values = [module.params['record_value']]
 
     module_dnsrecord = dict(
-        record_type=module.params["record_type"],
+        record_type=module.params['record_type'],
         record_values=record_values,
-        record_ttl=to_native(record_ttl, nonstring="passthru"),
+        record_ttl=to_native(record_ttl, nonstring='passthru'),
     )
 
     # ttl is not required to change records
-    if module_dnsrecord["record_ttl"] is None:
-        module_dnsrecord.pop("record_ttl")
+    if module_dnsrecord['record_ttl'] is None:
+        module_dnsrecord.pop('record_ttl')
 
     changed = False
-    if state == "present":
+    if state == 'present':
         if not ipa_dnsrecord:
             changed = True
             if not module.check_mode:
-                client.dnsrecord_add(zone_name=zone_name, record_name=record_name, details=module_dnsrecord)
-        elif exclusive:
+                client.dnsrecord_add(zone_name=zone_name,
+                                     record_name=record_name,
+                                     details=module_dnsrecord)
+        else:
             diff = get_dnsrecord_diff(client, ipa_dnsrecord, module_dnsrecord)
             if len(diff) > 0:
                 changed = True
                 if not module.check_mode:
-                    client.dnsrecord_mod(zone_name=zone_name, record_name=record_name, details=module_dnsrecord)
-        else:
-            record_key = RECORD_TYPE_KEY.get(module_dnsrecord["record_type"])
-            current_values = ipa_dnsrecord.get(record_key, []) if record_key else []
-            missing_values = [v for v in record_values if v not in current_values]
-            if missing_values:
-                changed = True
-                if not module.check_mode:
-                    add_details = dict(module_dnsrecord, record_values=missing_values)
-                    client.dnsrecord_add(zone_name=zone_name, record_name=record_name, details=add_details)
+                    client.dnsrecord_mod(zone_name=zone_name,
+                                         record_name=record_name,
+                                         details=module_dnsrecord)
     else:
-        record_key = RECORD_TYPE_KEY.get(module_dnsrecord["record_type"])
-        current_values = ipa_dnsrecord.get(record_key, []) if (ipa_dnsrecord and record_key) else []
-        if exclusive:
-            if current_values:
-                changed = True
-                if not module.check_mode:
-                    del_details = dict(module_dnsrecord, record_values=current_values)
-                    client.dnsrecord_del(zone_name=zone_name, record_name=record_name, details=del_details)
-        else:
-            values_to_remove = [v for v in record_values if v in current_values]
-            if values_to_remove:
-                changed = True
-                if not module.check_mode:
-                    del_details = dict(module_dnsrecord, record_values=values_to_remove)
-                    client.dnsrecord_del(zone_name=zone_name, record_name=record_name, details=del_details)
+        if ipa_dnsrecord:
+            changed = True
+            if not module.check_mode:
+                client.dnsrecord_del(zone_name=zone_name,
+                                     record_name=record_name,
+                                     details=module_dnsrecord)
 
     return changed, client.dnsrecord_find(zone_name, record_name)
 
 
 def main():
-    record_types = ["A", "AAAA", "A6", "CNAME", "DNAME", "NS", "PTR", "TXT", "SRV", "MX", "SSHFP"]
+    record_types = ['A', 'AAAA', 'A6', 'CNAME', 'DNAME', 'NS', 'PTR', 'TXT', 'SRV', 'MX', 'SSHFP']
     argument_spec = ipa_argument_spec()
     argument_spec.update(
-        zone_name=dict(type="str", required=True),
-        record_name=dict(type="str", aliases=["name"], required=True),
-        record_type=dict(type="str", default="A", choices=record_types),
-        record_value=dict(type="str"),
-        record_values=dict(type="list", elements="str"),
-        state=dict(type="str", default="present", choices=["present", "absent"]),
-        record_ttl=dict(type="int"),
-        exclusive=dict(type="bool", default=True),
+        zone_name=dict(type='str', required=True),
+        record_name=dict(type='str', aliases=['name'], required=True),
+        record_type=dict(type='str', default='A', choices=record_types),
+        record_value=dict(type='str'),
+        record_values=dict(type='list', elements='str'),
+        state=dict(type='str', default='present', choices=['present', 'absent']),
+        record_ttl=dict(type='int'),
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        mutually_exclusive=[["record_value", "record_values"]],
-        required_one_of=[["record_value", "record_values"]],
-        supports_check_mode=True,
+        mutually_exclusive=[['record_value', 'record_values']],
+        required_one_of=[['record_value', 'record_values']],
+        supports_check_mode=True
     )
 
     client = DNSRecordIPAClient(
         module=module,
-        host=module.params["ipa_host"],
-        port=module.params["ipa_port"],
-        protocol=module.params["ipa_prot"],
+        host=module.params['ipa_host'],
+        port=module.params['ipa_port'],
+        protocol=module.params['ipa_prot']
     )
 
     try:
-        client.login(username=module.params["ipa_user"], password=module.params["ipa_pass"])
+        client.login(
+            username=module.params['ipa_user'],
+            password=module.params['ipa_pass']
+        )
         changed, record = ensure(module, client)
         module.exit_json(changed=changed, record=record)
     except Exception as e:
-        module.fail_json(msg=f"{e}", exception=traceback.format_exc())
+        module.fail_json(msg=to_native(e), exception=traceback.format_exc())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

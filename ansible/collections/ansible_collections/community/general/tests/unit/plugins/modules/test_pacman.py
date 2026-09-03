@@ -2,19 +2,19 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
 
-import typing as t
-from unittest import mock
+__metaclass__ = type
 
-import pytest
+
 from ansible.module_utils import basic
+from ansible_collections.community.internal_test_tools.tests.unit.compat import mock
 from ansible_collections.community.internal_test_tools.tests.unit.plugins.modules.utils import (
     AnsibleExitJson,
     AnsibleFailJson,
+    set_module_args,
     exit_json,
     fail_json,
-    set_module_args,
 )
 
 from ansible_collections.community.general.plugins.modules import pacman
@@ -22,6 +22,8 @@ from ansible_collections.community.general.plugins.modules.pacman import (
     Package,
     VersionTuple,
 )
+
+import pytest
 
 
 def get_bin_path(self, arg, required=False):
@@ -44,7 +46,9 @@ valid_inventory = {
         "sed": "4.8-1",
         "sqlite": "3.36.0-1",
     },
-    "installed_groups": {"base-devel": {"gawk", "grep", "file", "findutils", "pacman", "sed", "gzip", "gettext"}},
+    "installed_groups": {
+        "base-devel": set(["gawk", "grep", "file", "findutils", "pacman", "sed", "gzip", "gettext"])
+    },
     "available_pkgs": {
         "acl": "2.3.1-1",
         "amd-ucode": "20211027.1d00989-1",
@@ -61,33 +65,35 @@ valid_inventory = {
         "sudo": "1.9.8.p2-3",
     },
     "available_groups": {
-        "base-devel": {
-            "libtool",
-            "gawk",
-            "which",
-            "texinfo",
-            "fakeroot",
-            "grep",
-            "findutils",
-            "autoconf",
-            "gzip",
-            "pkgconf",
-            "flex",
-            "patch",
-            "groff",
-            "m4",
-            "bison",
-            "gcc",
-            "gettext",
-            "make",
-            "file",
-            "pacman",
-            "sed",
-            "automake",
-            "sudo",
-            "binutils",
-        },
-        "some-group": {"libtool", "sudo", "binutils"},
+        "base-devel": set(
+            [
+                "libtool",
+                "gawk",
+                "which",
+                "texinfo",
+                "fakeroot",
+                "grep",
+                "findutils",
+                "autoconf",
+                "gzip",
+                "pkgconf",
+                "flex",
+                "patch",
+                "groff",
+                "m4",
+                "bison",
+                "gcc",
+                "gettext",
+                "make",
+                "file",
+                "pacman",
+                "sed",
+                "automake",
+                "sudo",
+                "binutils",
+            ]
+        ),
+        "some-group": set(["libtool", "sudo", "binutils"]),
     },
     "upgradable_pkgs": {
         "sqlite": VersionTuple(current="3.36.0-1", latest="3.37.0-1"),
@@ -107,7 +113,7 @@ valid_inventory = {
     },
 }
 
-empty_inventory: dict[str, dict[str, t.Any]] = {
+empty_inventory = {
     "installed_pkgs": {},
     "available_pkgs": {},
     "installed_groups": {},
@@ -153,14 +159,16 @@ class TestPacman:
     def test_success(self, mock_empty_inventory):
         with set_module_args({"update_cache": True}):  # Simplest args to let init go through
             P = pacman.Pacman(pacman.setup_module())
-            with pytest.raises(AnsibleExitJson):
+            with pytest.raises(AnsibleExitJson) as e:
                 P.success()
 
     def test_fail(self, mock_empty_inventory):
         with set_module_args({"update_cache": True}):
             P = pacman.Pacman(pacman.setup_module())
 
-            args = dict(msg="msg", stdout="something", stderr="somethingelse", cmd=["command", "with", "args"], rc=1)
+            args = dict(
+                msg="msg", stdout="something", stderr="somethingelse", cmd=["command", "with", "args"], rc=1
+            )
             with pytest.raises(AnsibleFailJson) as e:
                 P.fail(**args)
 
@@ -352,7 +360,7 @@ class TestPacman:
 
             with pytest.raises(AnsibleExitJson) as e:
                 P.run()
-        assert self.mock_run_command.call_count == 0
+        self.mock_run_command.call_count == 0
         out = e.value.args[0]
         assert "packages" not in out
         assert out["changed"]
@@ -363,147 +371,49 @@ class TestPacman:
             (
                 {},
                 [
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "a\nb\nc", ""),
-                    (["pacman", "--sync", "--refresh"], {"check_rc": False}, 0, "stdout", "stderr"),
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "b\na\nc", ""),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'a\nb\nc', ''),
+                    (["pacman", "--sync", "--refresh"], {'check_rc': False}, 0, 'stdout', 'stderr'),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'b\na\nc', ''),
                 ],
                 False,
             ),
             (
                 {"force": True},
                 [
-                    (["pacman", "--sync", "--refresh", "--refresh"], {"check_rc": False}, 0, "stdout", "stderr"),
+                    (["pacman", "--sync", "--refresh", "--refresh"], {'check_rc': False}, 0, 'stdout', 'stderr'),
                 ],
                 True,
             ),
             (
                 {"update_cache_extra_args": "--some-extra args"},  # shlex test
                 [
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "a\nb\nc", ""),
-                    (
-                        ["pacman", "--sync", "--refresh", "--some-extra", "args"],
-                        {"check_rc": False},
-                        0,
-                        "stdout",
-                        "stderr",
-                    ),
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "a changed\nb\nc", ""),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'a\nb\nc', ''),
+                    (["pacman", "--sync", "--refresh", "--some-extra", "args"], {'check_rc': False}, 0, 'stdout', 'stderr'),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'a changed\nb\nc', ''),
                 ],
                 True,
             ),
             (
                 {"force": True, "update_cache_extra_args": "--some-extra args"},
                 [
-                    (
-                        ["pacman", "--sync", "--refresh", "--some-extra", "args", "--refresh"],
-                        {"check_rc": False},
-                        0,
-                        "stdout",
-                        "stderr",
-                    ),
+                    (["pacman", "--sync", "--refresh", "--some-extra", "args", "--refresh"], {'check_rc': False}, 0, 'stdout', 'stderr'),
                 ],
                 True,
-            ),
-            (
-                # root + cachedir + config: all commands get prefixed with the global options
-                {"root": "/mnt", "cachedir": "/mnt/var/cache/pacman/pkg", "config": "/alt/pacman.conf"},
-                [
-                    (
-                        [
-                            "pacman",
-                            "--config",
-                            "/alt/pacman.conf",
-                            "--root",
-                            "/mnt",
-                            "--cachedir",
-                            "/mnt/var/cache/pacman/pkg",
-                            "--sync",
-                            "--list",
-                        ],
-                        {"check_rc": True},
-                        0,
-                        "a\nb\nc",
-                        "",
-                    ),
-                    (
-                        [
-                            "pacman",
-                            "--config",
-                            "/alt/pacman.conf",
-                            "--root",
-                            "/mnt",
-                            "--cachedir",
-                            "/mnt/var/cache/pacman/pkg",
-                            "--sync",
-                            "--refresh",
-                        ],
-                        {"check_rc": False},
-                        0,
-                        "stdout",
-                        "stderr",
-                    ),
-                    (
-                        [
-                            "pacman",
-                            "--config",
-                            "/alt/pacman.conf",
-                            "--root",
-                            "/mnt",
-                            "--cachedir",
-                            "/mnt/var/cache/pacman/pkg",
-                            "--sync",
-                            "--list",
-                        ],
-                        {"check_rc": True},
-                        0,
-                        "a\nb\nc",
-                        "",
-                    ),
-                ],
-                False,
-            ),
-            (
-                # config only (no root/cachedir)
-                {"config": "/alt/pacman.conf"},
-                [
-                    (
-                        ["pacman", "--config", "/alt/pacman.conf", "--sync", "--list"],
-                        {"check_rc": True},
-                        0,
-                        "a\nb\nc",
-                        "",
-                    ),
-                    (
-                        ["pacman", "--config", "/alt/pacman.conf", "--sync", "--refresh"],
-                        {"check_rc": False},
-                        0,
-                        "stdout",
-                        "stderr",
-                    ),
-                    (
-                        ["pacman", "--config", "/alt/pacman.conf", "--sync", "--list"],
-                        {"check_rc": True},
-                        0,
-                        "a\nb\nc",
-                        "",
-                    ),
-                ],
-                False,
             ),
             (
                 # Test whether pacman --sync --list is not called more than twice
                 {"upgrade": True},
                 [
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "core foo 1.0.0-1 [installed]", ""),
-                    (["pacman", "--sync", "--refresh"], {"check_rc": False}, 0, "stdout", "stderr"),
-                    (["pacman", "--sync", "--list"], {"check_rc": True}, 0, "core foo 1.0.0-1 [installed]", ""),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'core foo 1.0.0-1 [installed]', ''),
+                    (["pacman", "--sync", "--refresh"], {'check_rc': False}, 0, 'stdout', 'stderr'),
+                    (["pacman", "--sync", "--list"], {'check_rc': True}, 0, 'core foo 1.0.0-1 [installed]', ''),
                     # The following is _build_inventory:
-                    (["pacman", "--query"], {"check_rc": True}, 0, "foo 1.0.0-1", ""),
-                    (["pacman", "--query", "--groups"], {"check_rc": True}, 0, "", ""),
-                    (["pacman", "--sync", "--groups", "--groups"], {"check_rc": True}, 0, "", ""),
-                    (["pacman", "--query", "--upgrades"], {"check_rc": False}, 0, "", ""),
-                    (["pacman", "--query", "--explicit"], {"check_rc": True}, 0, "foo 1.0.0-1", ""),
-                    (["pacman", "--query", "--deps"], {"check_rc": True}, 0, "", ""),
+                    (["pacman", "--query"], {'check_rc': True}, 0, 'foo 1.0.0-1', ''),
+                    (["pacman", "--query", "--groups"], {'check_rc': True}, 0, '', ''),
+                    (["pacman", "--sync", "--groups", "--groups"], {'check_rc': True}, 0, '', ''),
+                    (["pacman", "--query", "--upgrades"], {'check_rc': False}, 0, '', ''),
+                    (["pacman", "--query", "--explicit"], {'check_rc': True}, 0, 'foo 1.0.0-1', ''),
+                    (["pacman", "--query", "--deps"], {'check_rc': True}, 0, '', ''),
                 ],
                 False,
             ),
@@ -513,6 +423,7 @@ class TestPacman:
         args = {"update_cache": True}
         args.update(module_args)
         with set_module_args(args):
+
             self.mock_run_command.side_effect = [
                 (rc, stdout, stderr) for expected_call, kwargs, rc, stdout, stderr in expected_calls
             ]
@@ -520,12 +431,9 @@ class TestPacman:
                 P = pacman.Pacman(pacman.setup_module())
                 P.run()
 
-        self.mock_run_command.assert_has_calls(
-            [
-                mock.call(mock.ANY, expected_call, **kwargs)
-                for expected_call, kwargs, rc, stdout, stderr in expected_calls
-            ]
-        )
+        self.mock_run_command.assert_has_calls([
+            mock.call(mock.ANY, expected_call, **kwargs) for expected_call, kwargs, rc, stdout, stderr in expected_calls
+        ])
         out = e.value.args[0]
         assert out["cache_updated"] == changed
         assert out["changed"] == changed
@@ -568,6 +476,7 @@ class TestPacman:
         if upgrade_extra_args:
             args["upgrade_extra_args"] = upgrade_extra_args
         with set_module_args(args):
+
             if run_command_data and "return_value" in run_command_data:
                 self.mock_run_command.return_value = run_command_data["return_value"]
 
@@ -578,7 +487,7 @@ class TestPacman:
             out = e.value.args[0]
 
         if check_mode_value:
-            assert self.mock_run_command.call_count == 0
+            self.mock_run_command.call_count == 0
 
         if run_command_data and "args" in run_command_data:
             self.mock_run_command.assert_called_with(mock.ANY, run_command_data["args"], check_rc=False)
@@ -721,7 +630,9 @@ class TestPacman:
             ),
         ],
     )
-    def test_package_list(self, mock_valid_inventory, state, pkg_names, expected, run_command_data, raises):
+    def test_package_list(
+        self, mock_valid_inventory, state, pkg_names, expected, run_command_data, raises
+    ):
         with set_module_args({"name": pkg_names, "state": state}):
             P = pacman.Pacman(pacman.setup_module())
             P.inventory = P._build_inventory()
@@ -756,7 +667,7 @@ class TestPacman:
         assert not out["changed"]
         assert "packages" in out
         assert "diff" not in out
-        assert self.mock_run_command.call_count == 0
+        self.mock_run_command.call_count == 0
 
     @pytest.mark.parametrize(
         "module_args, expected_packages, package_list_out, run_command_data, raises",
@@ -1082,52 +993,6 @@ class TestPacman:
                                 "--some",
                                 "--thing",
                                 "else",
-                                "--sync",
-                                "sudo",
-                            ],
-                            check_rc=False,
-                        ),
-                    ],
-                    "side_effect": [(0, "sudo version", ""), (0, "", "")],
-                },
-                AnsibleExitJson,
-            ),
-            (
-                # install pkg with root: global options come before the operation flags
-                {"name": ["sudo"], "state": "present", "root": "/mnt", "cachedir": "/mnt/var/cache/pacman/pkg"},
-                ["sudo"],
-                [Package("sudo", "sudo")],
-                {
-                    "calls": [
-                        mock.call(
-                            mock.ANY,
-                            [
-                                "pacman",
-                                "--root",
-                                "/mnt",
-                                "--cachedir",
-                                "/mnt/var/cache/pacman/pkg",
-                                "--noconfirm",
-                                "--noprogressbar",
-                                "--needed",
-                                "--sync",
-                                "--print-format",
-                                "%n %v",
-                                "sudo",
-                            ],
-                            check_rc=False,
-                        ),
-                        mock.call(
-                            mock.ANY,
-                            [
-                                "pacman",
-                                "--root",
-                                "/mnt",
-                                "--cachedir",
-                                "/mnt/var/cache/pacman/pkg",
-                                "--noconfirm",
-                                "--noprogressbar",
-                                "--needed",
                                 "--sync",
                                 "sudo",
                             ],

@@ -1,26 +1,23 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017, Alberto Murillo <alberto.murillo.silva@intel.com>
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: swupd
 short_description: Manages updates and bundles in ClearLinux systems
-deprecated:
-  removed_in: 15.0.0
-  why: >-
-    ClearLinux was made EOL in July 2025. If you think the module is still useful for another distribution,
-    please L(create an issue in the community.general repository, https://github.com/ansible-collections/community.general/issues/).
-  alternative: There is none.
 description:
   - Manages updates and bundles with the swupd bundle manager, which is used by the Clear Linux Project for Intel Architecture.
 author: Alberto Murillo (@albertomurillo)
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -101,11 +98,10 @@ EXAMPLES = r"""
 
 
 import os
-
 from ansible.module_utils.basic import AnsibleModule
 
 
-class Swupd:
+class Swupd(object):
     FILES_NOT_MATCH = "files did not match"
     FILES_REPLACED = "missing files were replaced"
     FILES_FIXED = "files were fixed"
@@ -137,22 +133,22 @@ class Swupd:
         cmd = [self.swupd_cmd] + command
 
         if self.format:
-            cmd.append(f"--format={self.format}")
+            cmd.append("--format=%s" % self.format)
         if self.manifest:
-            cmd.append(f"--manifest={self.manifest}")
+            cmd.append("--manifest=%s" % self.manifest)
         if self.url:
-            cmd.append(f"--url={self.url}")
+            cmd.append("--url=%s" % self.url)
         else:
             if self.contenturl and command != "check-update":
-                cmd.append(f"--contenturl={self.contenturl}")
+                cmd.append("--contenturl=%s" % self.contenturl)
             if self.versionurl:
-                cmd.append(f"--versionurl={self.versionurl}")
+                cmd.append("--versionurl=%s" % self.versionurl)
 
         return cmd
 
     def _is_bundle_installed(self, bundle):
         try:
-            os.stat(f"/usr/share/clear/bundles/{bundle}")
+            os.stat("/usr/share/clear/bundles/%s" % bundle)
         except OSError:
             return False
 
@@ -179,7 +175,10 @@ class Swupd:
             self.failed = True
             self.msg = "Failed to check for filesystem inconsistencies."
 
-        return self.FILES_NOT_MATCH in self.stdout
+        if self.FILES_NOT_MATCH in self.stdout:
+            return True
+
+        return False
 
     def install_bundle(self, bundle):
         """Installs a bundle with `swupd bundle-add bundle`"""
@@ -187,7 +186,7 @@ class Swupd:
             self.module.exit_json(changed=not self._is_bundle_installed(bundle))
 
         if self._is_bundle_installed(bundle):
-            self.msg = f"Bundle {bundle} is already installed"
+            self.msg = "Bundle %s is already installed" % bundle
             return
 
         cmd = self._get_cmd(["bundle-add", bundle])
@@ -195,11 +194,11 @@ class Swupd:
 
         if self.rc == 0:
             self.changed = True
-            self.msg = f"Bundle {bundle} installed"
+            self.msg = "Bundle %s installed" % bundle
             return
 
         self.failed = True
-        self.msg = f"Failed to install bundle {bundle}"
+        self.msg = "Failed to install bundle %s" % bundle
 
     def remove_bundle(self, bundle):
         """Removes a bundle with `swupd bundle-remove bundle`"""
@@ -215,11 +214,11 @@ class Swupd:
 
         if self.rc == 0:
             self.changed = True
-            self.msg = f"Bundle {bundle} removed"
+            self.msg = "Bundle %s removed" % bundle
             return
 
         self.failed = True
-        self.msg = f"Failed to remove bundle {bundle}"
+        self.msg = "Failed to remove bundle %s" % bundle
 
     def update_os(self):
         """Updates the os with `swupd update`"""
@@ -253,9 +252,7 @@ class Swupd:
         cmd = self._get_cmd(["verify", "--fix"])
         self._run_cmd(cmd)
 
-        if self.rc == 0 and (
-            self.FILES_REPLACED in self.stdout or self.FILES_FIXED in self.stdout or self.FILES_DELETED in self.stdout
-        ):
+        if self.rc == 0 and (self.FILES_REPLACED in self.stdout or self.FILES_FIXED in self.stdout or self.FILES_DELETED in self.stdout):
             self.changed = True
             self.msg = "Fix successful"
             return
@@ -280,7 +277,7 @@ def main():
         ),
         required_one_of=[["name", "update", "verify"]],
         mutually_exclusive=[["name", "update", "verify"]],
-        supports_check_mode=True,
+        supports_check_mode=True
     )
 
     swupd = Swupd(module)
@@ -307,5 +304,5 @@ def main():
         module.exit_json(changed=swupd.changed, msg=swupd.msg, stdout=swupd.stdout, stderr=swupd.stderr)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

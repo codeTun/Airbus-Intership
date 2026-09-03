@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -75,19 +76,20 @@ from ansible.plugins.become import BecomeBase
 
 
 class BecomeModule(BecomeBase):
-    name = "community.general.sesu"
 
-    prompt = "Please enter your password:"
-    fail = missing = ("Sorry, try again with sesu.",)
+    name = 'community.general.sesu'
+
+    prompt = 'Please enter your password:'
+    fail = missing = ('Sorry, try again with sesu.',)
 
     def build_become_command(self, cmd, shell):
-        super().build_become_command(cmd, shell)
+        super(BecomeModule, self).build_become_command(cmd, shell)
 
         if not cmd:
             return cmd
 
-        become = self.get_option("become_exe")
+        become = self.get_option('become_exe')
 
-        flags = self.get_option("become_flags")
-        user = self.get_option("become_user")
-        return f"{become} {flags} {user} -c {self._build_success_command(cmd, shell)}"
+        flags = self.get_option('become_flags')
+        user = self.get_option('become_user')
+        return f'{become} {flags} {user} -c {self._build_success_command(cmd, shell)}'

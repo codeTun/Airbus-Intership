@@ -4,7 +4,8 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: mssql_script
@@ -16,7 +17,7 @@ version_added: "4.0.0"
 description:
   - Execute SQL scripts on a MSSQL database.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 
 attributes:
   check_mode:
@@ -39,16 +40,12 @@ options:
     description: The password used to authenticate with.
     type: str
   login_host:
-    description:
-      - Host running the database.
-      - For named instances, use the format V(server\\instance). In that case, do not use O(login_port).
+    description: Host running the database.
     type: str
     required: true
   login_port:
-    description:
-      - Port of the MSSQL server. Requires O(login_host) to be defined as well.
-      - Cannot be used together with a named instance in O(login_host) (that is, V(server\\instance) format).
-      - If O(login_host) is not a named instance and O(login_port) is not specified, it defaults to V(1433).
+    description: Port of the MSSQL server. Requires O(login_host) be defined as well.
+    default: 1433
     type: int
   script:
     description:
@@ -266,11 +263,9 @@ query_results_dict:
               returned: success, if output is dict
 """
 
-import json
-import traceback
-
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-
+import traceback
+import json
 PYMSSQL_IMP_ERR = None
 try:
     import pymssql
@@ -287,89 +282,87 @@ def clean_output(o):
 
 def run_module():
     module_args = dict(
-        name=dict(aliases=["db"], default=""),
+        name=dict(aliases=['db'], default=''),
         login_user=dict(),
         login_password=dict(no_log=True),
         login_host=dict(required=True),
-        login_port=dict(type="int"),
+        login_port=dict(type='int', default=1433),
         script=dict(required=True),
-        output=dict(default="default", choices=["dict", "default"]),
-        params=dict(type="dict"),
-        transaction=dict(type="bool", default=False),
+        output=dict(default='default', choices=['dict', 'default']),
+        params=dict(type='dict'),
+        transaction=dict(type='bool', default=False),
     )
 
     result = dict(
         changed=False,
     )
 
-    module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
+    module = AnsibleModule(
+        argument_spec=module_args,
+        supports_check_mode=True
+    )
     if not MSSQL_FOUND:
-        module.fail_json(msg=missing_required_lib("pymssql"), exception=PYMSSQL_IMP_ERR)
+        module.fail_json(msg=missing_required_lib(
+            'pymssql'), exception=PYMSSQL_IMP_ERR)
 
-    db = module.params["name"]
-    login_user = module.params["login_user"]
-    login_password = module.params["login_password"]
-    login_host = module.params["login_host"]
-    login_port = module.params["login_port"]
-    script = module.params["script"]
-    output = module.params["output"]
-    sql_params = module.params["params"]
+    db = module.params['name']
+    login_user = module.params['login_user']
+    login_password = module.params['login_password']
+    login_host = module.params['login_host']
+    login_port = module.params['login_port']
+    script = module.params['script']
+    output = module.params['output']
+    sql_params = module.params['params']
     # Added param to set the transactional mode (true/false)
-    transaction = module.params["transaction"]
-
-    if "\\" in login_host and login_port is not None:
-        module.fail_json(
-            msg=r"login_port cannot be used with a named instance in login_host (server\instance format). "
-            "Named instances use the SQL Server Browser service to resolve the port automatically."
-        )
+    transaction = module.params['transaction']
 
     login_querystring = login_host
-    if "\\" not in login_host and login_port is not None:
-        login_querystring = f"{login_host}:{login_port}"
+    if login_port != 1433:
+        login_querystring = "%s:%s" % (login_host, login_port)
 
     if login_user is not None and login_password is None:
-        module.fail_json(msg="when supplying login_user argument, login_password must also be provided")
+        module.fail_json(
+            msg="when supplying login_user argument, login_password must also be provided")
 
     try:
-        conn = pymssql.connect(user=login_user, password=login_password, host=login_querystring, database=db)
+        conn = pymssql.connect(
+            user=login_user, password=login_password, host=login_querystring, database=db)
         cursor = conn.cursor()
     except Exception as e:
         if "Unknown database" in str(e):
             errno, errstr = e.args
-            module.fail_json(msg=f"ERROR: {errno} {errstr}")
+            module.fail_json(msg="ERROR: %s %s" % (errno, errstr))
         else:
-            module.fail_json(
-                msg="unable to connect, check login_user and login_password are correct, or alternatively check your "
-                "@sysconfdir@/freetds.conf / ${HOME}/.freetds.conf"
-            )
+            module.fail_json(msg="unable to connect, check login_user and login_password are correct, or alternatively check your "
+                                 "@sysconfdir@/freetds.conf / ${HOME}/.freetds.conf")
 
     # If transactional mode is requested, start a transaction
     conn.autocommit(not transaction)
 
-    query_results_key = "query_results"
-    if output == "dict":
+    query_results_key = 'query_results'
+    if output == 'dict':
         cursor = conn.cursor(as_dict=True)
-        query_results_key = "query_results_dict"
+        query_results_key = 'query_results_dict'
 
     # Process the script into batches
     queries = []
     current_batch = []
     for statement in script.splitlines(True):
         # Ignore the Byte Order Mark, if found
-        if statement.strip() == "\ufeff":
+        if statement.strip() == '\uFEFF':
             continue
 
         # Assume each 'GO' is on its own line but may have leading/trailing whitespace
         # and be of mixed-case
-        if statement.strip().upper() != "GO":
+        if statement.strip().upper() != 'GO':
             current_batch.append(statement)
         else:
-            queries.append("".join(current_batch))
+            queries.append(''.join(current_batch))
             current_batch = []
     if len(current_batch) > 0:
-        queries.append("".join(current_batch))
+        queries.append(''.join(current_batch))
 
-    result["changed"] = True
+    result['changed'] = True
     if module.check_mode:
         module.exit_json(**result)
 
@@ -391,15 +384,15 @@ def run_module():
             # We know we executed the statement so this error just means we have no resultset
             # which is ok (eg UPDATE/INSERT)
             if (
-                type(e).__name__ == "OperationalError"
-                and str(e) == "Statement not executed or executed statement has no resultset"
+                type(e).__name__ == 'OperationalError' and
+                str(e) == 'Statement not executed or executed statement has no resultset'
             ):
                 query_results.append([])
             else:
                 # Rollback transaction before failing the module in case of error
                 if transaction:
                     conn.rollback()
-                error_msg = f"{type(e).__name__}: {e}"
+                error_msg = '%s: %s' % (type(e).__name__, str(e))
                 module.fail_json(msg="query failed", query=query, error=error_msg, **result)
 
     # Commit transaction before exiting the module in case of no error
@@ -417,5 +410,5 @@ def main():
     run_module()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

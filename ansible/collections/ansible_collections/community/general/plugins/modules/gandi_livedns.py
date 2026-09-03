@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2019 Gregory Thiemonge <gregory.thiemonge@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: gandi_livedns
@@ -15,13 +17,12 @@ short_description: Manage Gandi LiveDNS records
 description:
   - 'Manages DNS records by the Gandi LiveDNS API, see the docs: U(https://doc.livedns.gandi.net/).'
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
   diff_mode:
-    support: full
-    version_added: 13.0.0
+    support: none
 options:
   personal_access_token:
     description:
@@ -160,65 +161,56 @@ record:
 
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._gandi_livedns_api import GandiLiveDNSAPI
+from ansible_collections.community.general.plugins.module_utils.gandi_livedns_api import GandiLiveDNSAPI
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            api_key=dict(type="str", no_log=True),
-            personal_access_token=dict(type="str", no_log=True),
-            record=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["absent", "present"]),
-            ttl=dict(type="int"),
-            type=dict(type="str", required=True),
-            values=dict(type="list", elements="str"),
-            domain=dict(type="str", required=True),
+            api_key=dict(type='str', no_log=True),
+            personal_access_token=dict(type='str', no_log=True),
+            record=dict(type='str', required=True),
+            state=dict(type='str', default='present', choices=['absent', 'present']),
+            ttl=dict(type='int'),
+            type=dict(type='str', required=True),
+            values=dict(type='list', elements='str'),
+            domain=dict(type='str', required=True),
         ),
         supports_check_mode=True,
         required_if=[
-            ("state", "present", ["values", "ttl"]),
+            ('state', 'present', ['values', 'ttl']),
         ],
         mutually_exclusive=[
-            ("api_key", "personal_access_token"),
+            ('api_key', 'personal_access_token'),
         ],
         required_one_of=[
-            ("api_key", "personal_access_token"),
+            ('api_key', 'personal_access_token'),
         ],
     )
 
     gandi_api = GandiLiveDNSAPI(module)
 
-    domain = module.params["domain"]
-
-    if module.params["state"] == "present":
-        before, ret, changed = gandi_api.ensure_dns_record(
-            module.params["record"],
-            module.params["type"],
-            module.params["ttl"],
-            module.params["values"],
-            domain,
-        )
+    if module.params['state'] == 'present':
+        ret, changed = gandi_api.ensure_dns_record(module.params['record'],
+                                                   module.params['type'],
+                                                   module.params['ttl'],
+                                                   module.params['values'],
+                                                   module.params['domain'])
     else:
-        before, ret, changed = gandi_api.delete_dns_record(
-            module.params["record"], module.params["type"], module.params["values"], domain
-        )
+        ret, changed = gandi_api.delete_dns_record(module.params['record'],
+                                                   module.params['type'],
+                                                   module.params['values'],
+                                                   module.params['domain'])
 
     result = dict(
         changed=changed,
     )
     if ret:
-        result["record"] = gandi_api.build_result(ret, domain)
-
-    if module._diff:
-        result["diff"] = {
-            "before": gandi_api.build_result(before, domain) or {},
-            "after": result.get("record") or {},
-        }
+        result['record'] = gandi_api.build_result(ret,
+                                                  module.params['domain'])
 
     module.exit_json(**result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

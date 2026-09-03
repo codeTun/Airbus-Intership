@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2017, Ted Trask <ttrask01@yahoo.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: awall
@@ -15,7 +18,7 @@ description:
   - Alpine Wall (C(awall)) generates a firewall configuration from the enabled policy files and activates the configuration
     on the system.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -66,12 +69,11 @@ EXAMPLES = r"""
 RETURN = """ # """
 
 import re
-
 from ansible.module_utils.basic import AnsibleModule
 
 
 def activate(module):
-    cmd = f"{AWALL_PATH} activate --force"
+    cmd = "%s activate --force" % (AWALL_PATH)
     rc, stdout, stderr = module.run_command(cmd)
     if rc == 0:
         return True
@@ -80,9 +82,11 @@ def activate(module):
 
 
 def is_policy_enabled(module, name):
-    cmd = f"{AWALL_PATH} list"
+    cmd = "%s list" % (AWALL_PATH)
     rc, stdout, stderr = module.run_command(cmd)
-    return bool(re.search(rf"^{name}\s+enabled", stdout, re.MULTILINE))
+    if re.search(r"^%s\s+enabled" % name, stdout, re.MULTILINE):
+        return True
+    return False
 
 
 def enable_policy(module, names, act):
@@ -94,15 +98,15 @@ def enable_policy(module, names, act):
         module.exit_json(changed=False, msg="policy(ies) already enabled")
     names = " ".join(policies)
     if module.check_mode:
-        cmd = f"{AWALL_PATH} list"
+        cmd = "%s list" % (AWALL_PATH)
     else:
-        cmd = f"{AWALL_PATH} enable {names}"
+        cmd = "%s enable %s" % (AWALL_PATH, names)
     rc, stdout, stderr = module.run_command(cmd)
     if rc != 0:
-        module.fail_json(msg=f"failed to enable {names}", stdout=stdout, stderr=stderr)
+        module.fail_json(msg="failed to enable %s" % names, stdout=stdout, stderr=stderr)
     if act and not module.check_mode:
         activate(module)
-    module.exit_json(changed=True, msg=f"enabled awall policy(ies): {names}")
+    module.exit_json(changed=True, msg="enabled awall policy(ies): %s" % names)
 
 
 def disable_policy(module, names, act):
@@ -114,41 +118,40 @@ def disable_policy(module, names, act):
         module.exit_json(changed=False, msg="policy(ies) already disabled")
     names = " ".join(policies)
     if module.check_mode:
-        cmd = f"{AWALL_PATH} list"
+        cmd = "%s list" % (AWALL_PATH)
     else:
-        cmd = f"{AWALL_PATH} disable {names}"
+        cmd = "%s disable %s" % (AWALL_PATH, names)
     rc, stdout, stderr = module.run_command(cmd)
     if rc != 0:
-        module.fail_json(msg=f"failed to disable {names}", stdout=stdout, stderr=stderr)
+        module.fail_json(msg="failed to disable %s" % names, stdout=stdout, stderr=stderr)
     if act and not module.check_mode:
         activate(module)
-    module.exit_json(changed=True, msg=f"disabled awall policy(ies): {names}")
+    module.exit_json(changed=True, msg="disabled awall policy(ies): %s" % names)
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(type="str", default="enabled", choices=["disabled", "enabled"]),
-            name=dict(type="list", elements="str"),
-            activate=dict(type="bool", default=False),
+            state=dict(type='str', default='enabled', choices=['disabled', 'enabled']),
+            name=dict(type='list', elements='str'),
+            activate=dict(type='bool', default=False),
         ),
-        required_one_of=[["name", "activate"]],
+        required_one_of=[['name', 'activate']],
         supports_check_mode=True,
     )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     global AWALL_PATH
-    AWALL_PATH = module.get_bin_path("awall", required=True)
+    AWALL_PATH = module.get_bin_path('awall', required=True)
 
     p = module.params
 
-    if p["name"]:
-        if p["state"] == "enabled":
-            enable_policy(module, p["name"], p["activate"])
-        elif p["state"] == "disabled":
-            disable_policy(module, p["name"], p["activate"])
+    if p['name']:
+        if p['state'] == 'enabled':
+            enable_policy(module, p['name'], p['activate'])
+        elif p['state'] == 'disabled':
+            disable_policy(module, p['name'], p['activate'])
 
-    if p["activate"]:
+    if p['activate']:
         if not module.check_mode:
             activate(module)
         module.exit_json(changed=True, msg="activated awall rules")
@@ -156,5 +159,5 @@ def main():
     module.fail_json(msg="no action defined")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

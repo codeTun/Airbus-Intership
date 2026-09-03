@@ -7,12 +7,12 @@
   dnf:
     name: flatpak
     state: present
-  when: ansible_facts.distribution == 'Fedora'
+  when: ansible_distribution == 'Fedora'
 - name: Install flatpak package on Ubuntu
   apt:
     name: flatpak
     state: present
-  when: ansible_facts.distribution == 'Ubuntu'
+  when: ansible_distribution == 'Ubuntu'
 - name: Install flatpak remote for testing check mode
   flatpak_remote:
     name: check-mode-test-remote

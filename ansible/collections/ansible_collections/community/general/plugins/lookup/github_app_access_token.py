@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2023, Poh Wei Sheng <weisheng-p@hotmail.sg>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: github_app_access_token
@@ -75,64 +77,59 @@ _raw:
 
 try:
     import jwt
-
     HAS_JWT = True
 except ImportError:
     HAS_JWT = False
 
 HAS_PYTHON_JWT = False  # vs pyjwt
-if HAS_JWT and hasattr(jwt, "JWT"):
+if HAS_JWT and hasattr(jwt, 'JWT'):
     HAS_PYTHON_JWT = True
-    from jwt import JWT, jwk_from_pem  # type: ignore[attr-defined]
-
+    from jwt import jwk_from_pem, JWT
     jwt_instance = JWT()
 
 try:
     from cryptography.hazmat.primitives import serialization
-
     HAS_CRYPTOGRAPHY = True
 except ImportError:
     HAS_CRYPTOGRAPHY = False
 
 
-import json
 import time
-from http import HTTPStatus
+import json
 from urllib.error import HTTPError
 
-from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.module_utils.urls import open_url
+from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.plugins.lookup import LookupBase
 from ansible.utils.display import Display
-
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_no_terms
 
 display = Display()
 
 
 class PythonJWT:
+
     @staticmethod
     def read_key(path, private_key=None):
         try:
             if private_key:
-                return jwk_from_pem(private_key.encode("utf-8"))
-            with open(path, "rb") as pem_file:
+                return jwk_from_pem(private_key.encode('utf-8'))
+            with open(path, 'rb') as pem_file:
                 return jwk_from_pem(pem_file.read())
         except Exception as e:
-            raise AnsibleError(f"Error while parsing key file: {e}") from e
+            raise AnsibleError(f"Error while parsing key file: {e}")
 
     @staticmethod
     def encode_jwt(app_id, jwk, exp=600):
         now = int(time.time())
         payload = {
-            "iat": now,
-            "exp": now + exp,
-            "iss": app_id,
+            'iat': now,
+            'exp': now + exp,
+            'iss': app_id,
         }
         try:
-            return jwt_instance.encode(payload, jwk, alg="RS256")
+            return jwt_instance.encode(payload, jwk, alg='RS256')
         except Exception as e:
-            raise AnsibleError(f"Error while encoding jwt: {e}") from e
+            raise AnsibleError(f"Error while encoding jwt: {e}")
 
 
 def read_key(path, private_key=None):
@@ -140,13 +137,13 @@ def read_key(path, private_key=None):
         return PythonJWT.read_key(path, private_key)
     try:
         if private_key:
-            key_bytes = private_key.encode("utf-8")
+            key_bytes = private_key.encode('utf-8')
         else:
-            with open(path, "rb") as pem_file:
+            with open(path, 'rb') as pem_file:
                 key_bytes = pem_file.read()
         return serialization.load_pem_private_key(key_bytes, password=None)
     except Exception as e:
-        raise AnsibleError(f"Error while parsing key file: {e}") from e
+        raise AnsibleError(f"Error while parsing key file: {e}")
 
 
 def encode_jwt(app_id, private_key_obj, exp=600):
@@ -154,43 +151,43 @@ def encode_jwt(app_id, private_key_obj, exp=600):
         return PythonJWT.encode_jwt(app_id, private_key_obj)
     now = int(time.time())
     payload = {
-        "iat": now,
-        "exp": now + exp,
-        "iss": app_id,
+        'iat': now,
+        'exp': now + exp,
+        'iss': app_id,
     }
     try:
-        return jwt.encode(payload, private_key_obj, algorithm="RS256")
+        return jwt.encode(payload, private_key_obj, algorithm='RS256')
     except Exception as e:
-        raise AnsibleError(f"Error while encoding jwt: {e}") from e
+        raise AnsibleError(f"Error while encoding jwt: {e}")
 
 
 def post_request(generated_jwt, installation_id, api_base):
-    base = api_base.rstrip("/")
+    base = api_base.rstrip('/')
     github_url = f"{base}/app/installations/{installation_id}/access_tokens"
 
     headers = {
-        "Authorization": f"Bearer {generated_jwt}",
+        "Authorization": f'Bearer {generated_jwt}',
         "Accept": "application/vnd.github.v3+json",
     }
     try:
-        response = open_url(github_url, headers=headers, method="POST")
+        response = open_url(github_url, headers=headers, method='POST')
     except HTTPError as e:
         try:
             error_body = json.loads(e.read().decode())
             display.vvv(f"Error returned: {error_body}")
         except Exception:
             error_body = {}
-        if e.code == HTTPStatus.NOT_FOUND:
-            raise AnsibleError("Github return error. Please confirm your installation_id value is valid") from e
-        elif e.code == HTTPStatus.UNAUTHORIZED:
-            raise AnsibleError("Github return error. Please confirm your private key is valid") from e
-        raise AnsibleError(f"Unexpected data returned: {e} -- {error_body}") from e
+        if e.code == 404:
+            raise AnsibleError("Github return error. Please confirm your installation_id value is valid")
+        elif e.code == 401:
+            raise AnsibleError("Github return error. Please confirm your private key is valid")
+        raise AnsibleError(f"Unexpected data returned: {e} -- {error_body}")
     response_body = response.read()
     try:
-        json_data = json.loads(response_body.decode("utf-8"))
+        json_data = json.loads(response_body.decode('utf-8'))
     except json.decoder.JSONDecodeError as e:
-        raise AnsibleError(f"Error while dencoding JSON respone from github: {e}") from e
-    return json_data.get("token")
+        raise AnsibleError(f"Error while dencoding JSON respone from github: {e}")
+    return json_data.get('token')
 
 
 def get_token(key_path, app_id, installation_id, private_key, github_url, expiry=600):
@@ -202,15 +199,14 @@ def get_token(key_path, app_id, installation_id, private_key, github_url, expiry
 class LookupModule(LookupBase):
     def run(self, terms, variables=None, **kwargs):
         if not HAS_JWT:
-            raise AnsibleError('Python jwt library is required. Please install using "pip install pyjwt"')
+            raise AnsibleError('Python jwt library is required. '
+                               'Please install using "pip install pyjwt"')
 
         if not HAS_PYTHON_JWT and not HAS_CRYPTOGRAPHY:
-            raise AnsibleError(
-                'Python cryptography library is required. Please install using "pip install cryptography"'
-            )
+            raise AnsibleError('Python cryptography library is required. '
+                               'Please install using "pip install cryptography"')
 
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_no_terms(self, terms=terms, direct=kwargs)
 
         if not (self.get_option("key_path") or self.get_option("private_key")):
             raise AnsibleOptionsError("One of key_path or private_key is required")
@@ -218,12 +214,12 @@ class LookupModule(LookupBase):
             raise AnsibleOptionsError("key_path and private_key are mutually exclusive")
 
         t = get_token(
-            self.get_option("key_path"),
-            self.get_option("app_id"),
-            self.get_option("installation_id"),
-            self.get_option("private_key"),
-            self.get_option("github_url"),
-            self.get_option("token_expiry"),
+            self.get_option('key_path'),
+            self.get_option('app_id'),
+            self.get_option('installation_id'),
+            self.get_option('private_key'),
+            self.get_option('github_url'),
+            self.get_option('token_expiry'),
         )
 
         return [t]

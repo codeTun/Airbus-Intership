@@ -12,7 +12,6 @@
     files:
       - 1.txt
       - 2.txt
-    executable: '{{ iso_extract_7zip_executable | default(omit) }}'
   register: iso_extract_test0
 
 - assert:
@@ -26,7 +25,6 @@
     files:
       - 1.txt
       - 2.txt
-    executable: '{{ iso_extract_7zip_executable | default(omit) }}'
   register: iso_extract_test0_again
 
 - name: Test iso_extract_test0_again (normal mode)
@@ -40,20 +38,3 @@
     that:
       - iso_extract_test0_again is changed
   when: in_check_mode
-
-- name: Extract the iso using files with leading slash
-  iso_extract:
-    image: '{{ output_test_dir }}/test.iso'
-    dest: '{{ output_test_dir }}'
-    files:
-      - /1.txt
-      - /2.txt
-    force: true
-    executable: '{{ iso_extract_7zip_executable | default(omit) }}'
-  register: iso_extract_leading_slash
-
-- name: Test iso_extract with leading slash succeeds (normal mode)
-  assert:
-    that:
-      - iso_extract_leading_slash is not failed
-  when: not in_check_mode

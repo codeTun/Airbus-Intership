@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2020, FELDSAM s.r.o. - FeldHost™ <support@feldhost.cz>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
+
 
 DOCUMENTATION = r"""
 name: opennebula
@@ -11,8 +13,7 @@ author:
 short_description: OpenNebula inventory source
 version_added: "3.8.0"
 extends_documentation_fragment:
-  - ansible.builtin.constructed
-  - community.library_inventory_filtering_v1.inventory_filter
+  - constructed
 description:
   - Get inventory hosts from OpenNebula cloud.
   - Uses an YAML configuration file ending with either C(opennebula.yml) or C(opennebula.yaml) to set parameter values.
@@ -71,30 +72,16 @@ options:
     description: Create host groups by VM labels.
     type: bool
     default: true
-  filters:
-    # This option is provided by the community.library_inventory_filtering_v1.inventory_filter doc fragment
-    version_added: 13.2.0
 """
 
 EXAMPLES = r"""
 # inventory_opennebula.yml file in YAML format
 # Example command line: ansible-inventory --list -i inventory_opennebula.yml
 
----
 # Pass a label filter to the API
 plugin: community.general.opennebula
 api_url: https://opennebula:2633/RPC2
 filter_by_label: Cache
-
----
-# Only return VMs whose USER_TEMPLATE has both PROJECT=climb and ENVIRONMENT=test
-plugin: community.general.opennebula
-api_url: https://opennebula:2633/RPC2
-filter:
-  - include: >-
-      PROJECT == "climb" and
-      ENVIRONMENT == "test"
-  - exclude: true
 """
 
 try:
@@ -104,83 +91,68 @@ try:
 except ImportError:
     HAS_PYONE = False
 
-import os
-from dataclasses import dataclass
-
 from ansible.errors import AnsibleError
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
-from ansible_collections.community.library_inventory_filtering_v1.plugins.plugin_utils.inventory_filter import (
-    filter_host,
-    parse_filters,
-)
 
-from ansible_collections.community.general.plugins.plugin_utils._unsafe import make_unsafe
+from ansible_collections.community.general.plugins.plugin_utils.unsafe import make_unsafe
 
-
-@dataclass
-class AuthParams:
-    url: str
-    username: str
-    password: str
+from collections import namedtuple
+import os
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):
-    NAME = "community.general.opennebula"
+    NAME = 'community.general.opennebula'
 
     def verify_file(self, path):
         valid = False
-        if super().verify_file(path):
-            if path.endswith(("opennebula.yaml", "opennebula.yml")):
+        if super(InventoryModule, self).verify_file(path):
+            if path.endswith(('opennebula.yaml', 'opennebula.yml')):
                 valid = True
         return valid
 
     def _get_connection_info(self):
-        url = self.get_option("api_url")
-        username = self.get_option("api_username")
-        password = self.get_option("api_password")
-        authfile = self.get_option("api_authfile")
+        url = self.get_option('api_url')
+        username = self.get_option('api_username')
+        password = self.get_option('api_password')
+        authfile = self.get_option('api_authfile')
 
         if not username and not password:
             if authfile is None:
                 authfile = os.path.join(os.environ.get("HOME"), ".one", "one_auth")
             try:
-                with open(authfile) as fp:
+                with open(authfile, "r") as fp:
                     authstring = fp.read().rstrip()
                 username, password = authstring.split(":")
-            except OSError as e:
-                raise AnsibleError(f"Could not find or read ONE_AUTH file at '{authfile}'") from e
-            except Exception as e:
-                raise AnsibleError(f"Error occurs when reading ONE_AUTH file at '{authfile}'") from e
+            except (OSError, IOError):
+                raise AnsibleError(f"Could not find or read ONE_AUTH file at '{authfile}'")
+            except Exception:
+                raise AnsibleError(f"Error occurs when reading ONE_AUTH file at '{authfile}'")
 
-        return AuthParams(url=url, username=username, password=password)
+        auth_params = namedtuple('auth', ('url', 'username', 'password'))
+
+        return auth_params(url=url, username=username, password=password)
 
     def _get_vm_ipv4(self, vm):
-        nic = vm.TEMPLATE.get("NIC")
-
-        if not nic:
-            return False
+        nic = vm.TEMPLATE.get('NIC')
 
         if isinstance(nic, dict):
             nic = [nic]
 
         for net in nic:
-            if net.get("IP"):
-                return net["IP"]
+            if net.get('IP'):
+                return net['IP']
 
         return False
 
     def _get_vm_ipv6(self, vm):
-        nic = vm.TEMPLATE.get("NIC")
-
-        if not nic:
-            return False
+        nic = vm.TEMPLATE.get('NIC')
 
         if isinstance(nic, dict):
             nic = [nic]
 
         for net in nic:
-            if net.get("IP6_GLOBAL"):
-                return net["IP6_GLOBAL"]
+            if net.get('IP6_GLOBAL'):
+                return net['IP6_GLOBAL']
 
         return False
 
@@ -188,7 +160,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         auth = self._get_connection_info()
 
         if not (auth.username and auth.password):
-            raise AnsibleError("API Credentials missing. Check OpenNebula inventory file.")
+            raise AnsibleError('API Credentials missing. Check OpenNebula inventory file.')
         else:
             one_client = pyone.OneServer(auth.url, session=f"{auth.username}:{auth.password}")
 
@@ -196,7 +168,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         try:
             vm_pool = one_client.vmpool.infoextended(-2, -1, -1, 3)
         except Exception as e:
-            raise AnsibleError(f"Something happened during XML-RPC call: {e}") from e
+            raise AnsibleError(f"Something happened during XML-RPC call: {e}")
 
         return vm_pool
 
@@ -210,81 +182,74 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             server = vm.USER_TEMPLATE
 
             labels = []
-            if vm.USER_TEMPLATE.get("LABELS"):
-                labels = [
-                    s for s in vm.USER_TEMPLATE.get("LABELS") if s == "," or s == "-" or s.isalnum() or s.isspace()
-                ]
-                labels = "".join(labels)
-                labels = labels.replace(" ", "_")
-                labels = labels.replace("-", "_")
-                labels = labels.split(",")
+            if vm.USER_TEMPLATE.get('LABELS'):
+                labels = [s for s in vm.USER_TEMPLATE.get('LABELS') if s == ',' or s == '-' or s.isalnum() or s.isspace()]
+                labels = ''.join(labels)
+                labels = labels.replace(' ', '_')
+                labels = labels.replace('-', '_')
+                labels = labels.split(',')
 
             # filter by label
             if label_filter is not None:
                 if label_filter not in labels:
                     continue
 
-            server["name"] = vm.NAME
-            server["id"] = vm.ID
-            if hasattr(vm.HISTORY_RECORDS, "HISTORY") and vm.HISTORY_RECORDS.HISTORY:
-                server["host"] = vm.HISTORY_RECORDS.HISTORY[-1].HOSTNAME
-            server["LABELS"] = labels
-            server["v4_first_ip"] = self._get_vm_ipv4(vm)
-            server["v6_first_ip"] = self._get_vm_ipv6(vm)
+            server['name'] = vm.NAME
+            server['id'] = vm.ID
+            if hasattr(vm.HISTORY_RECORDS, 'HISTORY') and vm.HISTORY_RECORDS.HISTORY:
+                server['host'] = vm.HISTORY_RECORDS.HISTORY[-1].HOSTNAME
+            server['LABELS'] = labels
+            server['v4_first_ip'] = self._get_vm_ipv4(vm)
+            server['v6_first_ip'] = self._get_vm_ipv6(vm)
 
             result.append(server)
 
         return result
 
     def _populate(self):
-        hostname_preference = self.get_option("hostname")
-        group_by_labels = self.get_option("group_by_labels")
-        strict = self.get_option("strict")
-        filters = parse_filters(self.get_option("filters"))
+        hostname_preference = self.get_option('hostname')
+        group_by_labels = self.get_option('group_by_labels')
+        strict = self.get_option('strict')
 
         # Add a top group 'one'
-        self.inventory.add_group(group="all")
+        self.inventory.add_group(group='all')
 
-        filter_by_label = self.get_option("filter_by_label")
+        filter_by_label = self.get_option('filter_by_label')
         servers = self._retrieve_servers(filter_by_label)
         for server in servers:
             server = make_unsafe(server)
-            hostname = server["name"]
-
-            if not filter_host(self, hostname, server, filters):
-                continue
-
+            hostname = server['name']
             # check for labels
-            if group_by_labels and server["LABELS"]:
-                for label in server["LABELS"]:
+            if group_by_labels and server['LABELS']:
+                for label in server['LABELS']:
                     self.inventory.add_group(group=label)
                     self.inventory.add_host(host=hostname, group=label)
 
-            self.inventory.add_host(host=hostname, group="all")
+            self.inventory.add_host(host=hostname, group='all')
 
             for attribute, value in server.items():
                 self.inventory.set_variable(hostname, attribute, value)
 
-            if hostname_preference != "name":
-                self.inventory.set_variable(hostname, "ansible_host", server[hostname_preference])
+            if hostname_preference != 'name':
+                self.inventory.set_variable(hostname, 'ansible_host', server[hostname_preference])
 
-            if server.get("SSH_PORT"):
-                self.inventory.set_variable(hostname, "ansible_port", server["SSH_PORT"])
+            if server.get('SSH_PORT'):
+                self.inventory.set_variable(hostname, 'ansible_port', server['SSH_PORT'])
 
             # handle construcable implementation: get composed variables if any
-            self._set_composite_vars(self.get_option("compose"), server, hostname, strict=strict)
+            self._set_composite_vars(self.get_option('compose'), server, hostname, strict=strict)
 
             # groups based on jinja conditionals get added to specific groups
-            self._add_host_to_composed_groups(self.get_option("groups"), server, hostname, strict=strict)
+            self._add_host_to_composed_groups(self.get_option('groups'), server, hostname, strict=strict)
 
             # groups based on variables associated with them in the inventory
-            self._add_host_to_keyed_groups(self.get_option("keyed_groups"), server, hostname, strict=strict)
+            self._add_host_to_keyed_groups(self.get_option('keyed_groups'), server, hostname, strict=strict)
 
     def parse(self, inventory, loader, path, cache=True):
         if not HAS_PYONE:
-            raise AnsibleError("OpenNebula Inventory plugin requires pyone to work!")
+            raise AnsibleError('OpenNebula Inventory plugin requires pyone to work!')
 
-        super().parse(inventory, loader, path)
+        super(InventoryModule, self).parse(inventory, loader, path)
         self._read_config_data(path=path)
 
         self._populate()

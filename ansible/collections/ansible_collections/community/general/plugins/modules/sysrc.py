@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2019 David Lundgren <dlundgren@syberisle.net>
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 author:
@@ -16,7 +19,7 @@ version_added: '2.0.0'
 description:
   - Manages C(/etc/rc.conf) for FreeBSD.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -93,34 +96,33 @@ EXAMPLES = r"""
 """
 
 
+from ansible_collections.community.general.plugins.module_utils.module_helper import StateModuleHelper
+
 import os
 import re
-
-from ansible_collections.community.general.plugins.module_utils._module_helper import StateModuleHelper
 
 
 class Sysrc(StateModuleHelper):
     module = dict(
         argument_spec=dict(
-            name=dict(type="str", required=True),
-            value=dict(type="str"),
-            state=dict(type="str", default="present", choices=["absent", "present", "value_present", "value_absent"]),
-            path=dict(type="str", default="/etc/rc.conf"),
-            delim=dict(type="str", default=" "),
-            jail=dict(type="str"),
+            name=dict(type='str', required=True),
+            value=dict(type='str'),
+            state=dict(type='str', default='present', choices=['absent', 'present', 'value_present', 'value_absent']),
+            path=dict(type='str', default='/etc/rc.conf'),
+            delim=dict(type='str', default=' '),
+            jail=dict(type='str')
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
-    output_params = ("value",)
+    output_params = ('value',)
     use_old_vardict = False
 
     def __init_module__(self):
         # OID style names are not supported
-        if not re.match(r"^\w+$", self.vars.name, re.ASCII):
+        if not re.match(r'^\w+$', self.vars.name, re.ASCII):
             self.module.fail_json(msg="Name may only contain alpha-numeric and underscore characters")
 
-        self.module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
-        self.sysrc = self.module.get_bin_path("sysrc", True)
+        self.sysrc = self.module.get_bin_path('sysrc', True)
 
     def _contains(self):
         value = self._get()
@@ -135,33 +137,33 @@ class Sysrc(StateModuleHelper):
         if not os.path.exists(self.vars.path):
             return None
 
-        (rc, out, err) = self._sysrc("-v", "-n", self.vars.name)
+        (rc, out, err) = self._sysrc('-v', '-n', self.vars.name)
         if "unknown variable" in err or "unknown variable" in out:
             # Prior to FreeBSD 11.1 sysrc would write "unknown variable" to stdout and not stderr
             # https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=229806
             return None
 
         if out.startswith(self.vars.path):
-            return out.split(":", 1)[1].strip()
+            return out.split(':', 1)[1].strip()
 
         return None
 
     def _modify(self, op, changed):
-        (rc, out, err) = self._sysrc(f"{self.vars.name}{op}={self.vars.delim}{self.vars.value}")
-        if out.startswith(f"{self.vars.name}:"):
-            return changed(out.split(" -> ")[1].strip().split(self.vars.delim))
+        (rc, out, err) = self._sysrc("%s%s=%s%s" % (self.vars.name, op, self.vars.delim, self.vars.value))
+        if out.startswith("%s:" % self.vars.name):
+            return changed(out.split(' -> ')[1].strip().split(self.vars.delim))
 
         return False
 
     def _sysrc(self, *args):
-        cmd = [self.sysrc, "-f", self.vars.path]
+        cmd = [self.sysrc, '-f', self.vars.path]
         if self.vars.jail:
-            cmd += ["-j", self.vars.jail]
+            cmd += ['-j', self.vars.jail]
         cmd.extend(args)
 
         (rc, out, err) = self.module.run_command(cmd)
         if "Permission denied" in err:
-            self.module.fail_json(msg=f"Permission denied for {self.vars.path}")
+            self.module.fail_json(msg="Permission denied for %s" % self.vars.path)
 
         return rc, out, err
 
@@ -170,7 +172,7 @@ class Sysrc(StateModuleHelper):
             return
 
         if not self.check_mode:
-            self._sysrc("-x", self.vars.name)
+            self._sysrc('-x', self.vars.name)
 
         self.changed = True
 
@@ -180,11 +182,11 @@ class Sysrc(StateModuleHelper):
             return
 
         if self.vars.value is None:
-            self.vars.set("value", value)
+            self.vars.set('value', value)
             return
 
         if not self.check_mode:
-            self._sysrc(f"{self.vars.name}={self.vars.value}")
+            self._sysrc("%s=%s" % (self.vars.name, self.vars.value))
 
         self.changed = True
 
@@ -193,7 +195,7 @@ class Sysrc(StateModuleHelper):
         if not contains:
             return
 
-        self.changed = self.check_mode or self._modify("-", lambda values: self.vars.value not in values)
+        self.changed = self.check_mode or self._modify('-', lambda values: self.vars.value not in values)
 
     def state_value_present(self):
         (contains, value) = self._contains()
@@ -201,15 +203,15 @@ class Sysrc(StateModuleHelper):
             return
 
         if self.vars.value is None:
-            self.vars.set("value", value)
+            self.vars.set('value', value)
             return
 
-        self.changed = self.check_mode or self._modify("+", lambda values: self.vars.value in values)
+        self.changed = self.check_mode or self._modify('+', lambda values: self.vars.value in values)
 
 
 def main():
     Sysrc.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

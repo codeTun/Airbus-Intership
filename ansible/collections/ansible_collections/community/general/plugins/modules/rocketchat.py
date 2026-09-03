@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2016, Deepak Kothandan <deepak.kothandan@outlook.com>
 # Copyright (c) 2015, Stefan Berggren <nsg@nsg.cc>
@@ -7,7 +8,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: rocketchat
@@ -16,7 +19,7 @@ description:
   - This module sends notifications to Rocket Chat through the Incoming WebHook integration.
 author: "Ramon de la Fuente (@ramondelafuente)"
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: none
@@ -101,10 +104,9 @@ options:
     description:
       - If V(true), the payload matches Rocket.Chat prior to 7.4.0 format. This format has been used by the module since its
         inception, but is no longer supported by Rocket.Chat 7.4.0.
-      - The default value changed from V(true) to V(false) in community.general 13.0.0.
+      - The default value of the option, V(true), is B(deprecated) since community.general 11.2.0 and will change to V(false) in community.general 13.0.0.
       - This parameter is going to be removed in a future release when Rocket.Chat 7.4.0 becomes the minimum supported version.
     type: bool
-    default: false
     version_added: 10.5.0
 """
 
@@ -161,97 +163,106 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
 
 
-def build_payload_for_rocketchat(
-    module, text, channel, username, icon_url, icon_emoji, link_names, color, attachments, is_pre740
-):
+ROCKETCHAT_INCOMING_WEBHOOK = '%s://%s/hooks/%s'
+
+
+def build_payload_for_rocketchat(module, text, channel, username, icon_url, icon_emoji, link_names, color, attachments, is_pre740):
     payload = {}
     if color == "normal" and text is not None:
         payload = dict(text=text)
     elif text is not None:
         payload = dict(attachments=[dict(text=text, color=color)])
     if channel is not None:
-        if channel[0] == "#" or channel[0] == "@":
-            payload["channel"] = channel
+        if channel[0] == '#' or channel[0] == '@':
+            payload['channel'] = channel
         else:
-            payload["channel"] = f"#{channel}"
+            payload['channel'] = '#' + channel
     if username is not None:
-        payload["username"] = username
+        payload['username'] = username
     if icon_emoji is not None:
-        payload["icon_emoji"] = icon_emoji
+        payload['icon_emoji'] = icon_emoji
     else:
-        payload["icon_url"] = icon_url
+        payload['icon_url'] = icon_url
     if link_names is not None:
-        payload["link_names"] = link_names
+        payload['link_names'] = link_names
 
     if attachments is not None:
-        if "attachments" not in payload:
-            payload["attachments"] = []
+        if 'attachments' not in payload:
+            payload['attachments'] = []
 
     if attachments is not None:
         for attachment in attachments:
-            if "fallback" not in attachment:
-                attachment["fallback"] = attachment["text"]
-            payload["attachments"].append(attachment)
+            if 'fallback' not in attachment:
+                attachment['fallback'] = attachment['text']
+            payload['attachments'].append(attachment)
 
     payload = module.jsonify(payload)
     if is_pre740:
-        payload = f"payload={payload}"
+        payload = "payload=" + payload
     return payload
 
 
 def do_notify_rocketchat(module, domain, token, protocol, payload, is_pre740):
-    if token.count("/") < 1:
+
+    if token.count('/') < 1:
         module.fail_json(msg="Invalid Token specified, provide a valid token")
 
-    rocketchat_incoming_webhook = f"{protocol}://{domain}/hooks/{token}"
+    rocketchat_incoming_webhook = ROCKETCHAT_INCOMING_WEBHOOK % (protocol, domain, token)
 
     headers = None
     if not is_pre740:
-        headers = {"Content-type": "application/json"}
+        headers = {'Content-type': 'application/json'}
     response, info = fetch_url(module, rocketchat_incoming_webhook, data=payload, headers=headers)
-    if info["status"] != 200:
-        module.fail_json(msg=f"failed to send message, return status={info['status']}")
+    if info['status'] != 200:
+        module.fail_json(msg="failed to send message, return status=%s" % str(info['status']))
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            domain=dict(type="str", required=True),
-            token=dict(type="str", required=True, no_log=True),
-            protocol=dict(type="str", default="https", choices=["http", "https"]),
-            msg=dict(type="str"),
-            channel=dict(type="str"),
-            username=dict(type="str", default="Ansible"),
-            icon_url=dict(type="str", default="https://docs.ansible.com/favicon/favicon.ico"),
-            icon_emoji=dict(type="str"),
-            link_names=dict(type="int", default=1, choices=[0, 1]),
-            validate_certs=dict(default=True, type="bool"),
-            color=dict(type="str", default="normal", choices=["normal", "good", "warning", "danger"]),
-            attachments=dict(type="list", elements="dict"),
-            is_pre740=dict(type="bool", default=False),
+            domain=dict(type='str', required=True),
+            token=dict(type='str', required=True, no_log=True),
+            protocol=dict(type='str', default='https', choices=['http', 'https']),
+            msg=dict(type='str'),
+            channel=dict(type='str'),
+            username=dict(type='str', default='Ansible'),
+            icon_url=dict(type='str', default='https://docs.ansible.com/favicon/favicon.ico'),
+            icon_emoji=dict(type='str'),
+            link_names=dict(type='int', default=1, choices=[0, 1]),
+            validate_certs=dict(default=True, type='bool'),
+            color=dict(type='str', default='normal', choices=['normal', 'good', 'warning', 'danger']),
+            attachments=dict(type='list', elements='dict'),
+            is_pre740=dict(type='bool')
         )
     )
 
-    domain = module.params["domain"]
-    token = module.params["token"]
-    protocol = module.params["protocol"]
-    text = module.params["msg"]
-    channel = module.params["channel"]
-    username = module.params["username"]
-    icon_url = module.params["icon_url"]
-    icon_emoji = module.params["icon_emoji"]
-    link_names = module.params["link_names"]
-    color = module.params["color"]
-    attachments = module.params["attachments"]
-    is_pre740 = module.params["is_pre740"]
+    domain = module.params['domain']
+    token = module.params['token']
+    protocol = module.params['protocol']
+    text = module.params['msg']
+    channel = module.params['channel']
+    username = module.params['username']
+    icon_url = module.params['icon_url']
+    icon_emoji = module.params['icon_emoji']
+    link_names = module.params['link_names']
+    color = module.params['color']
+    attachments = module.params['attachments']
+    is_pre740 = module.params['is_pre740']
 
-    payload = build_payload_for_rocketchat(
-        module, text, channel, username, icon_url, icon_emoji, link_names, color, attachments, is_pre740
-    )
+    if is_pre740 is None:
+        module.deprecate(
+            "The default value 'true' for 'is_pre740' is deprecated and will change to 'false' in community.general 13.0.0."
+            " You can explicitly set 'is_pre740' in your task to avoid this deprecation warning",
+            version="13.0.0",
+            collection_name="community.general",
+        )
+        is_pre740 = True
+
+    payload = build_payload_for_rocketchat(module, text, channel, username, icon_url, icon_emoji, link_names, color, attachments, is_pre740)
     do_notify_rocketchat(module, domain, token, protocol, payload, is_pre740)
 
     module.exit_json(msg="OK")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

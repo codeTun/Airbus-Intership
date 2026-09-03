@@ -28,6 +28,65 @@
     cache_valid_time: 3600
   tags: [supervision, paquets]
 
+- name: Locale engendree
+  community.general.locale_gen:
+    name: "{{ supervision_locale }}"
+    state: present
+  tags: [supervision, paquets]
+
+# innodb_file_per_table et open_files_limit sont exiges par Centreon, et doivent
+# etre poses avant l'installation : le paquet verifie ces valeurs.
+- name: Reglages MariaDB attendus par Centreon
+  ansible.builtin.copy:
+    dest: /etc/mysql/mariadb.conf.d/80-centreon.cnf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Genere par Ansible, role supervision. Ne pas modifier a la main.
+      [server]
+      {% for cle, valeur in supervision_mariadb_reglages.items() %}
+      {{ cle }} = {{ valeur }}
+      {% endfor %}
+  notify: Redemarrer mariadb
+  tags: [supervision, base]
+
+# open_files_limit ne peut pas depasser ce que systemd accorde au service, quelle
+# que soit la valeur du fichier de configuration. Sans cette derogation, MariaDB
+# plafonne bien en dessous des 32000 exiges, et l'installation de Centreon
+# s'interrompt en le signalant.
+- name: Repertoire de derogation systemd present
+  ansible.builtin.file:
+    path: /etc/systemd/system/mariadb.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [supervision, base]
+
+- name: Limite de descripteurs relevee pour MariaDB
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mariadb.service.d/centreon.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Genere par Ansible, role supervision. Ne pas modifier a la main.
+      [Service]
+      LimitNOFILE={{ supervision_mariadb_reglages.open_files_limit }}
+  notify: Redemarrer mariadb
+  tags: [supervision, base]
+
+- name: Definition systemd rechargee
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  tags: [supervision, base]
+
+# Les reglages doivent etre effectifs avant que le paquet ne les verifie.
+- name: Reglages MariaDB appliques sans attendre la fin du role
+  ansible.builtin.meta: flush_handlers
+  tags: [supervision, base]
+
 - name: Cle du depot Centreon
   ansible.builtin.get_url:
     url: https://apt-key.centreon.com
@@ -47,14 +106,46 @@
     enabled: true
   tags: [supervision, depot]
 
+# Centreon repartit ses paquets sur deux sources. Celle-ci porte les trois
+# bibliotheques Perl dont centreon-gorgone depend et que Debian ne distribue pas :
+# libmojo-ioloop-signal-perl, libnet-curl-perl et libssh-session-perl. Sans elle,
+# l'installation s'arrete sur "you have held broken packages".
+# Le depot PHP de Sury n'est pas necessaire, Debian 12 fournissant PHP 8.2.
+- name: Depot des extensions Centreon declare
+  ansible.builtin.deb822_repository:
+    name: centreon-plugins
+    types: [deb]
+    uris: https://packages.centreon.com/apt-plugins-stable/
+    suites: ["{{ ansible_facts.distribution_release }}"]
+    components: [main]
+    signed_by: /usr/share/keyrings/centreon.asc
+    state: present
+    enabled: true
+  tags: [supervision, depot]
+
+# centreon-mariadb est nomme explicitement : c'est lui qui porte la limite de
+# descripteurs de fichiers du service, que le metapaquet seul ne garantit pas.
 - name: Centreon installe
   ansible.builtin.apt:
-    name: centreon
+    name: [centreon-mariadb, centreon]
     state: present
     update_cache: true
   environment:
     DEBIAN_FRONTEND: noninteractive
   notify: Redemarrer centreon
+  tags: [supervision, installation]
+
+# Le repertoire n'existe pas avant l'installation, d'ou la place de cette tache.
+# Le fichier est fourni rempli par le paquet : on modifie la ligne, on n'ecrase pas.
+- name: Fuseau horaire declare a PHP
+  ansible.builtin.lineinfile:
+    path: "/etc/php/{{ supervision_version_php }}/mods-available/centreon.ini"
+    regexp: '^;?\s*date\.timezone'
+    line: "date.timezone = {{ fuseau_horaire }}"
+    state: present
+  notify:
+    - Redemarrer php-fpm
+    - Redemarrer apache
   tags: [supervision, installation]
 
 - name: Services Centreon actifs
@@ -70,7 +161,7 @@
   ansible.builtin.file:
     path: /var/log/laboratoire
     state: directory
-    owner: syslog
+    owner: "{{ supervision_utilisateur_syslog }}"
     group: adm
     mode: "0750"
   tags: [supervision, journaux]
@@ -114,13 +205,80 @@
   no_log: true
   tags: [supervision, hotes]
 
+# L'assistant web fait saisir le mot de passe du compte admin a la main, il ne
+# peut donc pas coincider avec celui du coffre. Plutot que d'exiger une saisie
+# identique des deux cotes, ce qui echouera toujours, l'empreinte est recalculee
+# ici depuis le coffre. Le coffre devient ainsi la seule source de verite.
+#
+# Le mot de passe transite par l'environnement et non par la ligne de commande :
+# il n'apparait donc pas dans la liste des processus. bcrypt cout 10, ce que
+# password_hash produit par defaut et ce que Centreon stocke deja.
+- name: Mot de passe du compte admin aligne sur le coffre
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      empreinte=$(php -r 'echo password_hash($argv[1], PASSWORD_DEFAULT);' "$MDP")
+      mysql centreon <<SQL
+      UPDATE contact_password
+         SET password = '$empreinte', creation_date = UNIX_TIMESTAMP()
+       WHERE contact_id = (SELECT contact_id FROM contact
+                            WHERE contact_alias = '$UTILISATEUR');
+      SQL
+  environment:
+    MDP: "{{ supervision_admin_mot_de_passe }}"
+    UTILISATEUR: "{{ supervision_admin }}"
+  when: supervision_hotes_connus.rc != 0
+  no_log: true
+  tags: [supervision, hotes]
+
+# Second essai apres realignement. Sur une plate-forme deja saine, la tache
+# precedente est ignoree et celle-ci ne fait que confirmer.
+- name: Machines connues de Centreon, apres realignement
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HOST -a show
+  register: supervision_hotes_apres
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: supervision_hotes_connus.rc != 0
+  tags: [supervision, hotes]
+
+# Une tache ignoree qui porte register ecrase tout de meme la variable, et le
+# resultat n'a alors ni rc ni stdout. D'ou ce choix explicite entre les deux
+# tentatives. no_log parce que le resultat conserve la ligne de commande, mot
+# de passe compris.
+- name: Etat retenu pour la suite
+  ansible.builtin.set_fact:
+    supervision_hotes: >-
+      {{ supervision_hotes_apres if supervision_hotes_apres.rc is defined
+         else supervision_hotes_connus }}
+  no_log: true
+  tags: [supervision, hotes]
+
+# no_log masque le motif des echecs suivants. Ce controle rend un message
+# exploitable sans divulguer le mot de passe, et s'arrete avant la boucle.
+- name: Ligne de commande Centreon utilisable
+  ansible.builtin.assert:
+    that:
+      - supervision_hotes.rc == 0
+    fail_msg: >-
+      L'outil en ligne de commande de Centreon a rendu le code
+      {{ supervision_hotes.rc | default('inconnu') }}. Deux causes
+      possibles. Soit l'assistant web n'a jamais tourne, et il manque alors la
+      base, le compte administrateur et /etc/centreon/centreon.conf.php. Soit
+      coffre_supervision_mot_de_passe ne correspond pas au mot de passe du
+      compte admin choisi pendant cet assistant.
+    success_msg: Ligne de commande Centreon operationnelle.
+  tags: [supervision, hotes]
+
 - name: Machines du laboratoire declarees
   ansible.builtin.command: >-
     /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
     -p {{ supervision_admin_mot_de_passe }} -o HOST -a add
-    -v "{{ item }};{{ item }};{{ hostvars[item].ansible_host }};generic-host;central;"
+    -v "{{ item }};{{ item }};{{ hostvars[item].ansible_host }};{{ supervision_modele_hote }};{{ supervision_collecteur }};"
   loop: "{{ groups['serveurs'] | default([]) }}"
-  when: item not in (supervision_hotes_connus.stdout | default(''))
+  when: item not in (supervision_hotes.stdout | default(''))
   changed_when: true
   no_log: true
   notify: Redemarrer centreon
@@ -150,7 +308,7 @@
   loop: "{{ query('subelements', supervision_affectations, 'controles', {'skip_missing': True}) }}"
   loop_control:
     label: "{{ item.0.machine }} / {{ item.1.nom }}"
-  when: item.0.machine not in (supervision_hotes_connus.stdout | default(''))
+  when: item.0.machine not in (supervision_hotes.stdout | default(''))
   changed_when: true
   no_log: true
   notify: Redemarrer centreon

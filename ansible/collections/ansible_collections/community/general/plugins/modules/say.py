@@ -1,10 +1,13 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright (c) 2013, Michael DeHaan <michael@ansible.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: say
@@ -17,7 +20,7 @@ notes:
   - A list of available voices, with language, can be found by running C(say -v ?) on a OSX host and C(espeak --voices) on
     a Linux host.
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -33,6 +36,7 @@ options:
     type: str
     description:
       - What voice to use.
+    required: false
 requirements: [say or espeak or espeak-ng]
 author:
   - "Ansible Core Team"
@@ -54,24 +58,25 @@ from ansible.module_utils.basic import AnsibleModule
 def say(module, executable, msg, voice):
     cmd = [executable, msg]
     if voice:
-        cmd.extend(("-v", voice))
+        cmd.extend(('-v', voice))
     module.run_command(cmd, check_rc=True)
 
 
 def main():
+
     module = AnsibleModule(
         argument_spec=dict(
             msg=dict(required=True),
             voice=dict(),
         ),
-        supports_check_mode=True,
+        supports_check_mode=True
     )
 
-    msg = module.params["msg"]
-    voice = module.params["voice"]
-    possibles = ("say", "espeak", "espeak-ng")
+    msg = module.params['msg']
+    voice = module.params['voice']
+    possibles = ('say', 'espeak', 'espeak-ng')
 
-    if platform.system() != "Darwin":
+    if platform.system() != 'Darwin':
         # 'say' binary available, it might be GNUstep tool which doesn't support 'voice' parameter
         voice = None
 
@@ -80,7 +85,7 @@ def main():
         if executable:
             break
     else:
-        module.fail_json(msg=f"Unable to find either {', '.join(possibles)}")
+        module.fail_json(msg='Unable to find either %s' % ', '.join(possibles))
 
     if module.check_mode:
         module.exit_json(msg=msg, changed=False)
@@ -90,5 +95,5 @@ def main():
     module.exit_json(msg=msg, changed=True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

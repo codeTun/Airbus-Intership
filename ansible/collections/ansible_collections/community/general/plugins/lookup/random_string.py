@@ -1,9 +1,12 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Abhijeet Kasurde <akasurde@redhat.com>
 # Copyright (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: random_string
@@ -170,22 +173,26 @@ import secrets
 import string
 
 from ansible.errors import AnsibleLookupError
-from ansible.module_utils.common.text.converters import to_bytes, to_text
 from ansible.plugins.lookup import LookupBase
-
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_no_terms
+from ansible.module_utils.common.text.converters import to_bytes, to_text
 
 
 class LookupModule(LookupBase):
     @staticmethod
     def get_random(random_generator, chars, length):
         if not chars:
-            raise AnsibleLookupError("Available characters cannot be None, please change constraints")
+            raise AnsibleLookupError(
+                "Available characters cannot be None, please change constraints"
+            )
         return "".join(random_generator.choice(chars) for dummy in range(length))
 
     @staticmethod
     def b64encode(string_value, encoding="utf-8"):
-        return to_text(base64.b64encode(to_bytes(string_value, encoding=encoding, errors="surrogate_or_strict")))
+        return to_text(
+            base64.b64encode(
+                to_bytes(string_value, encoding=encoding, errors="surrogate_or_strict")
+            )
+        )
 
     def run(self, terms, variables=None, **kwargs):
         number_chars = string.digits
@@ -194,7 +201,6 @@ class LookupModule(LookupBase):
         special_chars = string.punctuation
 
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_no_terms(self, terms=terms, direct=kwargs)
 
         length = self.get_option("length")
         base64_flag = self.get_option("base64")

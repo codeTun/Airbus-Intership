@@ -64,8 +64,10 @@ module "serveur" {
   ip         = each.value.ip
   passerelle = local.vlans[each.value.vlan].passerelle
 
-  # libvirt expose le DNS du laboratoire sur la passerelle du VLAN mgmt.
-  dns         = [local.vlans["mgmt"].passerelle]
+  # libvirt fait tourner un resolveur par reseau, sur la passerelle de celui-ci.
+  # Designer celle du VLAN mgmt donnerait aux machines des autres VLAN une
+  # adresse qu'elles ne joignent pas, et toute resolution echouerait.
+  dns         = [local.vlans[each.value.vlan].passerelle]
   domaine_dns = var.domaine_dns
 
   admin_utilisateur = var.admin_utilisateur
@@ -94,7 +96,7 @@ module "serveur_windows" {
   ip         = each.value.ip
   passerelle = local.vlans[each.value.vlan].passerelle
 
-  dns = [local.vlans["mgmt"].passerelle]
+  dns = [local.vlans[each.value.vlan].passerelle]
 
   admin_utilisateur      = var.admin_utilisateur
   admin_mot_de_passe     = var.admin_mot_de_passe_windows
@@ -146,7 +148,17 @@ resource "local_file" "inventaire_ansible" {
           { serveurs = { children = local.groupes_serveurs } },
           local.groupes_os,
           length(local.groupes_parefeux) > 0 ? {
-            parefeux = { children = local.groupes_parefeux }
+            parefeux = {
+              children = local.groupes_parefeux
+              vars = {
+                # Un pare-feu ne s'administre pas par SSH : il n'a ni shell POSIX
+                # ni interpreteur Python. Ansible tourne sur le poste et dialogue
+                # avec son API REST. Declare ici, et non seulement dans site.yml,
+                # pour que les commandes ad hoc se comportent de meme.
+                ansible_connection = "local"
+                ansible_become     = false
+              }
+            }
           } : {}
         )
       }

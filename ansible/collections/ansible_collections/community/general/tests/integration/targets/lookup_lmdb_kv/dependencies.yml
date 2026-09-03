@@ -13,4 +13,4 @@
     - name: Setup test data
       script: test_db.py
       args:
-        executable: "{{ ansible_facts.python.executable }}"
+        executable: "{{ ansible_python.executable }}"

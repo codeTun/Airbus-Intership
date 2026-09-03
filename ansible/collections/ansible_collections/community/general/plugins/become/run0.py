@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2024, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
+
 
 DOCUMENTATION = r"""
 name: run0
@@ -60,8 +62,6 @@ options:
     type: string
 notes:
   - This plugin only works when a C(polkit) rule is in place.
-  - This become plugin does not work when connection pipelining is enabled. With ansible-core 2.19+, using it automatically
-    disables pipelining. On ansible-core 2.18 and before, pipelining must explicitly be disabled by the user.
 """
 
 EXAMPLES = r"""
@@ -79,23 +79,22 @@ EXAMPLES = r"""
 
 from re import compile as re_compile
 
-from ansible.module_utils.common.text.converters import to_bytes
 from ansible.plugins.become import BecomeBase
+from ansible.module_utils.common.text.converters import to_bytes
 
 ansi_color_codes = re_compile(to_bytes(r"\x1B\[[0-9;]+m"))
 
 
 class BecomeModule(BecomeBase):
+
     name = "community.general.run0"
 
     prompt = "Password: "
     fail = ("==== AUTHENTICATION FAILED ====",)
     success = ("==== AUTHENTICATION COMPLETE ====",)
-    require_tty = True  # see https://github.com/ansible-collections/community.general/issues/6932
-
-    # See https://github.com/ansible/ansible/issues/81254,
-    # https://github.com/ansible/ansible/pull/78111
-    pipelining = False
+    require_tty = (
+        True  # see https://github.com/ansible-collections/community.general/issues/6932
+    )
 
     @staticmethod
     def remove_ansi_codes(line):
@@ -111,11 +110,9 @@ class BecomeModule(BecomeBase):
         flags = self.get_option("become_flags")
         user = self.get_option("become_user")
 
-        # SYSTEMD_COLORS=0 stops run0 from emitting terminal control
-        # sequences (window title OSC, ANSI reset) around the child
-        # command, which would otherwise corrupt the module JSON and
-        # break result parsing.
-        return f"SYSTEMD_COLORS=0 {become} --user={user} {flags} {self._build_success_command(cmd, shell)}"
+        return (
+            f"{become} --user={user} {flags} {self._build_success_command(cmd, shell)}"
+        )
 
     def check_success(self, b_output):
         b_output = self.remove_ansi_codes(b_output)

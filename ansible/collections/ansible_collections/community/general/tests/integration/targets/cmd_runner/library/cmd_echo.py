@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 import traceback
+
 
 DOCUMENTATION = ""
 
@@ -14,9 +17,7 @@ EXAMPLES = ""
 RETURN = ""
 
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._cmd_runner import CmdRunner
-from ansible_collections.community.general.plugins.module_utils._cmd_runner import cmd_runner_fmt as fmt
+from ansible_collections.community.general.plugins.module_utils.cmd_runner import CmdRunner, cmd_runner_fmt as fmt
 
 
 def main():
@@ -38,26 +39,25 @@ def main():
     info = None
 
     arg_formats = {}
-    for arg, fmt_spec in p["arg_formats"].items():
-        func = getattr(fmt, fmt_spec["func"])
+    for arg, fmt_spec in p['arg_formats'].items():
+        func = getattr(fmt, fmt_spec['func'])
         args = fmt_spec.get("args", [])
 
         arg_formats[arg] = func(*args)
 
     try:
-        runner = CmdRunner(
-            module, [module.params["cmd"], "--"], arg_formats=arg_formats, path_prefix=module.params["path_prefix"]
-        )
+        runner = CmdRunner(module, [module.params["cmd"], '--'], arg_formats=arg_formats, path_prefix=module.params["path_prefix"])
 
-        with runner.context(p["arg_order"], check_mode_skip=p["check_mode_skip"]) as ctx:
-            result = ctx.run(**p["arg_values"])
+        with runner.context(p['arg_order'], check_mode_skip=p['check_mode_skip']) as ctx:
+            result = ctx.run(**p['arg_values'])
             info = ctx.run_info
+        check = "check"
         rc, out, err = result if result is not None else (None, None, None)
 
         module.exit_json(rc=rc, out=out, err=err, info=info)
-    except Exception:
+    except Exception as exc:
         module.fail_json(rc=1, module_stderr=traceback.format_exc(), msg="Module crashed with exception")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

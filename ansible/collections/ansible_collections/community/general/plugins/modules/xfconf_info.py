@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: xfconf_info
@@ -14,8 +16,8 @@ version_added: 3.5.0
 description:
   - This module allows retrieving Xfce 4 configurations with the help of C(xfconf-query).
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._attributes.info_module
+  - community.general.attributes
+  - community.general.attributes.info_module
 attributes:
   check_mode:
     version_added: 3.3.0
@@ -125,17 +127,19 @@ version:
   version_added: 10.2.0
 """
 
-from ansible_collections.community.general.plugins.module_utils._module_helper import ModuleHelper
-from ansible_collections.community.general.plugins.module_utils._xfconf import get_xfconf_version, xfconf_runner
+from ansible_collections.community.general.plugins.module_utils.module_helper import ModuleHelper
+from ansible_collections.community.general.plugins.module_utils.xfconf import xfconf_runner, get_xfconf_version
 
 
 class XFConfInfo(ModuleHelper):
     module = dict(
         argument_spec=dict(
-            channel=dict(type="str"),
-            property=dict(type="str"),
+            channel=dict(type='str'),
+            property=dict(type='str'),
         ),
-        required_by=dict(property=["channel"]),
+        required_by=dict(
+            property=['channel']
+        ),
         supports_check_mode=True,
     )
 
@@ -169,16 +173,16 @@ class XFConfInfo(ModuleHelper):
 
     def __run__(self):
         self.vars.list_arg = not (bool(self.vars.channel) and bool(self.vars.property))
-        output = "value"
+        output = 'value'
         proc = self.process_command_output
         if self.vars.channel is None:
-            output = "channels"
+            output = 'channels'
             proc = self._process_list_channels
         elif self.vars.property is None:
-            output = "properties"
+            output = 'properties'
             proc = self._process_list_properties
 
-        with self.runner.context("list_arg channel property", output_process=proc) as ctx:
+        with self.runner.context('list_arg channel property', output_process=proc) as ctx:
             result = ctx.run(**self.vars.as_dict())
 
         if not self.vars.list_arg and self.vars.is_array:
@@ -190,5 +194,5 @@ def main():
     XFConfInfo.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

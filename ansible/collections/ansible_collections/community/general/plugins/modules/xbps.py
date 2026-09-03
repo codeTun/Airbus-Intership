@@ -1,11 +1,14 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright 2016 Dino Occhialini <dino.occhialini@gmail.com>
 #
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 
 DOCUMENTATION = r"""
 module: xbps
@@ -16,7 +19,7 @@ author:
   - "Dino Occhialini (@dinoocch)"
   - "Michael Aldridge (@the-maldridge)"
 extends_documentation_fragment:
-  - community.general._attributes
+  - community.general.attributes
 attributes:
   check_mode:
     support: full
@@ -155,18 +158,6 @@ packages:
   type: list
   sample: ["ansible"]
   returned: success
-stdout:
-  description: Standard output of the last executed command.
-  returned: when a package manager command was executed
-  type: str
-  sample: ''
-  version_added: 13.1.0
-stderr:
-  description: Standard error of the last executed command.
-  returned: when a package manager command was executed
-  type: str
-  sample: ''
-  version_added: 13.1.0
 """
 
 
@@ -186,7 +177,7 @@ def append_flags(module, xbps_path, cmd, skip_repo=False):
         cmd = cmd + ["-r", module.params["root"]]
     if module.params["repositories"] and cmd[0] != xbps_path["remove"] and not skip_repo:
         for repo in module.params["repositories"]:
-            cmd = cmd + [f"--repository={repo}"]
+            cmd = cmd + ["--repository=%s" % repo]
 
     return cmd
 
@@ -194,14 +185,14 @@ def append_flags(module, xbps_path, cmd, skip_repo=False):
 def query_package(module, xbps_path, name, state="present"):
     """Returns Package info"""
     if state == "present":
-        lcmd = [xbps_path["query"], name]
+        lcmd = [xbps_path['query'], name]
         lcmd = append_flags(module, xbps_path, lcmd, skip_repo=True)
         lrc, lstdout, lstderr = module.run_command(lcmd, check_rc=False)
         if not is_installed(lstdout):
             # package is not installed locally
             return False, False
 
-        rcmd = [xbps_path["install"], "-Sun"]
+        rcmd = [xbps_path['install'], "-Sun"]
         rcmd = append_flags(module, xbps_path, rcmd)
         rrc, rstdout, rstderr = module.run_command(rcmd, check_rc=False)
         if rrc == 0 or rrc == 17:
@@ -214,63 +205,64 @@ def query_package(module, xbps_path, name, state="present"):
 
 
 def update_package_db(module, xbps_path):
-    """Returns (changed, stdout, stderr) for the sync command"""
-    cmd = [xbps_path["install"], "-S"]
+    """Returns True if update_package_db changed"""
+    cmd = [xbps_path['install'], "-S"]
     cmd = append_flags(module, xbps_path, cmd)
-    if module.params["accept_pubkey"]:
+    if module.params['accept_pubkey']:
         stdin = "y\n"
     else:
         stdin = "n\n"
     rc, stdout, stderr = module.run_command(cmd, check_rc=False, data=stdin)
 
     if "Failed to import pubkey" in stderr:
-        module.fail_json(msg="Failed to import pubkey for repository", stdout=stdout, stderr=stderr)
+        module.fail_json(msg="Failed to import pubkey for repository")
     if rc != 0:
-        module.fail_json(msg="Could not update package db", stdout=stdout, stderr=stderr)
-    return "avg rate" in stdout, stdout, stderr
+        module.fail_json(msg="Could not update package db")
+    if "avg rate" in stdout:
+        return True
+    else:
+        return False
 
 
 def upgrade_xbps(module, xbps_path, exit_on_success=False):
-    cmdupgradexbps = [xbps_path["install"], "-uy", "xbps"]
+    cmdupgradexbps = [xbps_path['install'], "-uy", "xbps"]
     cmdupgradexbps = append_flags(module, xbps_path, cmdupgradexbps)
     rc, stdout, stderr = module.run_command(cmdupgradexbps, check_rc=False)
     if rc != 0:
-        module.fail_json(msg="Could not upgrade xbps itself", stdout=stdout, stderr=stderr)
+        module.fail_json(msg='Could not upgrade xbps itself')
 
 
 def upgrade(module, xbps_path):
     """Returns true is full upgrade succeeds"""
-    cmdupgrade = [xbps_path["install"], "-uy"]
-    cmdneedupgrade = [xbps_path["install"], "-un"]
+    cmdupgrade = [xbps_path['install'], "-uy"]
+    cmdneedupgrade = [xbps_path['install'], "-un"]
     cmdupgrade = append_flags(module, xbps_path, cmdupgrade)
     cmdneedupgrade = append_flags(module, xbps_path, cmdneedupgrade)
 
     rc, stdout, stderr = module.run_command(cmdneedupgrade, check_rc=False)
     if rc == 0:
         if len(stdout.splitlines()) == 0:
-            module.exit_json(changed=False, msg="Nothing to upgrade", stdout=stdout, stderr=stderr)
+            module.exit_json(changed=False, msg='Nothing to upgrade')
         elif module.check_mode:
-            module.exit_json(changed=True, msg="Would have performed upgrade", stdout=stdout, stderr=stderr)
+            module.exit_json(changed=True, msg='Would have performed upgrade')
         else:
             rc, stdout, stderr = module.run_command(cmdupgrade, check_rc=False)
             if rc == 0:
-                module.exit_json(changed=True, msg="System upgraded", stdout=stdout, stderr=stderr)
-            elif rc == 16 and module.params["upgrade_xbps"]:
+                module.exit_json(changed=True, msg='System upgraded')
+            elif rc == 16 and module.params['upgrade_xbps']:
                 upgrade_xbps(module, xbps_path)
                 # avoid loops by not trying self-upgrade again
-                module.params["upgrade_xbps"] = False
+                module.params['upgrade_xbps'] = False
                 upgrade(module, xbps_path)
             else:
-                module.fail_json(msg="Could not upgrade", stdout=stdout, stderr=stderr)
+                module.fail_json(msg="Could not upgrade")
     else:
-        module.fail_json(msg="Could not upgrade", stdout=stdout, stderr=stderr)
+        module.fail_json(msg="Could not upgrade")
 
 
 def remove_packages(module, xbps_path, packages):
     """Returns true if package removal succeeds"""
     changed_packages = []
-    last_stdout = ""
-    last_stderr = ""
     # Using a for loop in case of error, we can report the package that failed
     for package in packages:
         # Query the package first, to see if we even need to remove
@@ -278,25 +270,19 @@ def remove_packages(module, xbps_path, packages):
         if not installed:
             continue
 
-        cmd = [xbps_path["remove"], "-y", package]
+        cmd = [xbps_path['remove'], "-y", package]
         cmd = append_flags(module, xbps_path, cmd, skip_repo=True)
         rc, stdout, stderr = module.run_command(cmd, check_rc=False)
 
         if rc != 0:
-            module.fail_json(msg=f"failed to remove {package}", stdout=stdout, stderr=stderr)
+            module.fail_json(msg="failed to remove %s" % (package))
 
-        last_stdout = stdout
-        last_stderr = stderr
         changed_packages.append(package)
 
     if len(changed_packages) > 0:
-        module.exit_json(
-            changed=True,
-            msg=f"removed {len(changed_packages)} package(s)",
-            packages=changed_packages,
-            stdout=last_stdout,
-            stderr=last_stderr,
-        )
+
+        module.exit_json(changed=True, msg="removed %s package(s)" %
+                         len(changed_packages), packages=changed_packages)
 
     module.exit_json(changed=False, msg="package(s) already absent")
 
@@ -304,11 +290,12 @@ def remove_packages(module, xbps_path, packages):
 def install_packages(module, xbps_path, state, packages):
     """Returns true if package install succeeds."""
     toInstall = []
-    for package in packages:
+    for i, package in enumerate(packages):
         """If the package is installed and state == present or state == latest
         and is up-to-date then skip"""
         installed, updated = query_package(module, xbps_path, package)
-        if installed and (state == "present" or (state == "latest" and updated)):
+        if installed and (state == 'present' or
+                          (state == 'latest' and updated)):
             continue
 
         toInstall.append(package)
@@ -316,23 +303,23 @@ def install_packages(module, xbps_path, state, packages):
     if len(toInstall) == 0:
         module.exit_json(changed=False, msg="Nothing to Install")
 
-    cmd = [xbps_path["install"], "-y"] + toInstall
+    cmd = [xbps_path['install'], "-y"] + toInstall
     cmd = append_flags(module, xbps_path, cmd)
     rc, stdout, stderr = module.run_command(cmd, check_rc=False)
 
-    if rc == 16 and module.params["upgrade_xbps"]:
+    if rc == 16 and module.params['upgrade_xbps']:
         upgrade_xbps(module, xbps_path)
         # avoid loops by not trying self-update again
-        module.params["upgrade_xbps"] = False
+        module.params['upgrade_xbps'] = False
         install_packages(module, xbps_path, state, packages)
-    elif rc != 0 and not (state == "latest" and rc == 17):
-        module.fail_json(
-            msg=f"failed to install {len(toInstall)} package(s)", packages=toInstall, stdout=stdout, stderr=stderr
-        )
+    elif rc != 0 and not (state == 'latest' and rc == 17):
+        module.fail_json(msg="failed to install %s packages(s)"
+                         % (len(toInstall)),
+                         packages=toInstall)
 
-    module.exit_json(
-        changed=True, msg=f"installed {len(toInstall)} package(s)", packages=toInstall, stdout=stdout, stderr=stderr
-    )
+    module.exit_json(changed=True, msg="installed %s package(s)"
+                     % (len(toInstall)),
+                     packages=toInstall)
 
 
 def check_packages(module, xbps_path, packages, state):
@@ -340,20 +327,19 @@ def check_packages(module, xbps_path, packages, state):
     would_be_changed = []
     for package in packages:
         installed, updated = query_package(module, xbps_path, package)
-        if (
-            (state in ["present", "latest"] and not installed)
-            or (state == "absent" and installed)
-            or (state == "latest" and not updated)
-        ):
+        if ((state in ["present", "latest"] and not installed) or
+                (state == "absent" and installed) or
+                (state == "latest" and not updated)):
             would_be_changed.append(package)
     if would_be_changed:
         if state == "absent":
             state = "removed"
-        module.exit_json(
-            changed=True, msg=f"{len(would_be_changed)} package(s) would be {state}", packages=would_be_changed
-        )
+        module.exit_json(changed=True, msg="%s package(s) would be %s" % (
+            len(would_be_changed), state),
+            packages=would_be_changed)
     else:
-        module.exit_json(changed=False, msg=f"package(s) already {state}", packages=[])
+        module.exit_json(changed=False, msg="package(s) already %s" % state,
+                         packages=[])
 
 
 def update_cache(module, xbps_path, upgrade_planned):
@@ -361,15 +347,15 @@ def update_cache(module, xbps_path, upgrade_planned):
     if module.check_mode:
         if upgrade_planned:
             return
-        module.exit_json(changed=True, msg="Would have updated the package cache")
-    changed, stdout, stderr = update_package_db(module, xbps_path)
-    if not upgrade_planned:
         module.exit_json(
-            changed=changed,
-            msg=("Updated the package master lists" if changed else "Package list already up to date"),
-            stdout=stdout,
-            stderr=stderr,
+            changed=True, msg='Would have updated the package cache'
         )
+    changed = update_package_db(module, xbps_path)
+    if not upgrade_planned:
+        module.exit_json(changed=changed, msg=(
+            'Updated the package master lists' if changed
+            else 'Package list already up to date'
+        ))
 
 
 def main():
@@ -377,52 +363,53 @@ def main():
 
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(aliases=["pkg", "package"], type="list", elements="str"),
-            state=dict(default="present", choices=["present", "installed", "latest", "absent", "removed"]),
-            recurse=dict(default=False, type="bool"),
-            upgrade=dict(default=False, type="bool"),
-            update_cache=dict(default=True, type="bool"),
-            upgrade_xbps=dict(default=True, type="bool"),
-            root=dict(type="path"),
-            repositories=dict(type="list", elements="str"),
-            accept_pubkey=dict(default=False, type="bool"),
+            name=dict(aliases=['pkg', 'package'], type='list', elements='str'),
+            state=dict(default='present', choices=['present', 'installed',
+                                                   'latest', 'absent',
+                                                   'removed']),
+            recurse=dict(default=False, type='bool'),
+            upgrade=dict(default=False, type='bool'),
+            update_cache=dict(default=True, type='bool'),
+            upgrade_xbps=dict(default=True, type='bool'),
+            root=dict(type='path'),
+            repositories=dict(type='list', elements='str'),
+            accept_pubkey=dict(default=False, type='bool')
         ),
-        required_one_of=[["name", "update_cache", "upgrade"]],
-        supports_check_mode=True,
-    )
-    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
+        required_one_of=[['name', 'update_cache', 'upgrade']],
+        supports_check_mode=True)
 
     xbps_path = dict()
-    xbps_path["install"] = module.get_bin_path("xbps-install", True)
-    xbps_path["query"] = module.get_bin_path("xbps-query", True)
-    xbps_path["remove"] = module.get_bin_path("xbps-remove", True)
+    xbps_path['install'] = module.get_bin_path('xbps-install', True)
+    xbps_path['query'] = module.get_bin_path('xbps-query', True)
+    xbps_path['remove'] = module.get_bin_path('xbps-remove', True)
 
-    if not os.path.exists(xbps_path["install"]):
-        module.fail_json(msg=f"cannot find xbps, in path {xbps_path['install']}")
+    if not os.path.exists(xbps_path['install']):
+        module.fail_json(msg="cannot find xbps, in path %s"
+                         % (xbps_path['install']))
 
     p = module.params
 
     # normalize the state parameter
-    if p["state"] in ["present", "installed"]:
-        p["state"] = "present"
-    elif p["state"] in ["absent", "removed"]:
-        p["state"] = "absent"
+    if p['state'] in ['present', 'installed']:
+        p['state'] = 'present'
+    elif p['state'] in ['absent', 'removed']:
+        p['state'] = 'absent'
 
-    if p["update_cache"]:
-        update_cache(module, xbps_path, (p["name"] or p["upgrade"]))
+    if p['update_cache']:
+        update_cache(module, xbps_path, (p['name'] or p['upgrade']))
 
-    if p["upgrade"]:
+    if p['upgrade']:
         upgrade(module, xbps_path)
 
-    if p["name"]:
-        pkgs = p["name"]
+    if p['name']:
+        pkgs = p['name']
 
         if module.check_mode:
-            check_packages(module, xbps_path, pkgs, p["state"])
+            check_packages(module, xbps_path, pkgs, p['state'])
 
-        if p["state"] in ["present", "latest"]:
-            install_packages(module, xbps_path, p["state"], pkgs)
-        elif p["state"] == "absent":
+        if p['state'] in ['present', 'latest']:
+            install_packages(module, xbps_path, p['state'], pkgs)
+        elif p['state'] == 'absent':
             remove_packages(module, xbps_path, pkgs)
 
 

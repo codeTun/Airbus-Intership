@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Scaleway VPC management module
 #
@@ -6,7 +7,9 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: scaleway_compute_private_network
@@ -16,9 +19,9 @@ author: Pascal MANGIN (@pastral)
 description:
   - This module add or remove a private network to a compute instance (U(https://developer.scaleway.com)).
 extends_documentation_fragment:
-  - community.general._scaleway
-  - community.general._attributes
-  - community.general._scaleway.actiongroup_scaleway
+  - community.general.scaleway
+  - community.general.attributes
+  - community.general.scaleway.actiongroup_scaleway
 
 attributes:
   check_mode:
@@ -120,26 +123,22 @@ scaleway_compute_private_network:
     }
 """
 
+from ansible_collections.community.general.plugins.module_utils.scaleway import SCALEWAY_LOCATION, scaleway_argument_spec, Scaleway
 from ansible.module_utils.basic import AnsibleModule
-
-from ansible_collections.community.general.plugins.module_utils._scaleway import (
-    SCALEWAY_LOCATION,
-    Scaleway,
-    scaleway_argument_spec,
-)
 
 
 def get_nics_info(api, compute_id, private_network_id):
-    response = api.get(f"servers/{compute_id}/private_nics")
+
+    response = api.get('servers/' + compute_id + '/private_nics')
     if not response.ok:
-        msg = f"Error during get servers information: {response.info['msg']}: '{response.json['message']}' ({response.json})"
+        msg = "Error during get servers information: %s: '%s' (%s)" % (response.info['msg'], response.json['message'], response.json)
         api.module.fail_json(msg=msg)
 
     i = 0
-    list_nics = response.json["private_nics"]
+    list_nics = response.json['private_nics']
 
     while i < len(list_nics):
-        if list_nics[i]["private_network_id"] == private_network_id:
+        if list_nics[i]['private_network_id'] == private_network_id:
             return list_nics[i]
         i += 1
 
@@ -147,6 +146,7 @@ def get_nics_info(api, compute_id, private_network_id):
 
 
 def present_strategy(api, compute_id, private_network_id):
+
     changed = False
     nic = get_nics_info(api, compute_id, private_network_id)
     if nic is not None:
@@ -157,17 +157,16 @@ def present_strategy(api, compute_id, private_network_id):
     if api.module.check_mode:
         return changed, {"status": "a private network would be add to a server"}
 
-    response = api.post(path=f"servers/{compute_id}/private_nics", data=data)
+    response = api.post(path='servers/' + compute_id + '/private_nics', data=data)
 
     if not response.ok:
-        api.module.fail_json(
-            msg=f"Error when adding a private network to a server [{response.status_code}: {response.json}]"
-        )
+        api.module.fail_json(msg='Error when adding a private network to a server [{0}: {1}]'.format(response.status_code, response.json))
 
     return changed, response.json
 
 
 def absent_strategy(api, compute_id, private_network_id):
+
     changed = False
     nic = get_nics_info(api, compute_id, private_network_id)
     if nic is None:
@@ -177,22 +176,22 @@ def absent_strategy(api, compute_id, private_network_id):
     if api.module.check_mode:
         return changed, {"status": "private network would be destroyed"}
 
-    response = api.delete(f"servers/{compute_id}/private_nics/{nic['id']}")
+    response = api.delete('servers/' + compute_id + '/private_nics/' + nic['id'])
 
     if not response.ok:
-        api.module.fail_json(
-            msg=f"Error deleting private network from server [{response.status_code}: {response.json}]"
-        )
+        api.module.fail_json(msg='Error deleting private network from server [{0}: {1}]'.format(
+            response.status_code, response.json))
 
     return changed, response.json
 
 
 def core(module):
-    compute_id = module.params["compute_id"]
-    pn_id = module.params["private_network_id"]
+
+    compute_id = module.params['compute_id']
+    pn_id = module.params['private_network_id']
 
     region = module.params["region"]
-    module.params["api_url"] = SCALEWAY_LOCATION[region]["api_endpoint"]
+    module.params['api_url'] = SCALEWAY_LOCATION[region]["api_endpoint"]
 
     api = Scaleway(module=module)
     if module.params["state"] == "absent":
@@ -204,15 +203,13 @@ def core(module):
 
 def main():
     argument_spec = scaleway_argument_spec()
-    argument_spec.update(
-        dict(
-            state=dict(default="present", choices=["absent", "present"]),
-            project=dict(required=True),
-            region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
-            compute_id=dict(required=True),
-            private_network_id=dict(required=True),
-        )
-    )
+    argument_spec.update(dict(
+        state=dict(default='present', choices=['absent', 'present']),
+        project=dict(required=True),
+        region=dict(required=True, choices=list(SCALEWAY_LOCATION.keys())),
+        compute_id=dict(required=True),
+        private_network_id=dict(required=True)
+    ))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -221,5 +218,5 @@ def main():
     core(module)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

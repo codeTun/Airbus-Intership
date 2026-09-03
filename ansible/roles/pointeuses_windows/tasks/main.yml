@@ -1,12 +1,19 @@
 ---
-- name: Mot de passe SQL fourni par le coffre
+- name: Secrets fournis par le coffre
   ansible.builtin.assert:
     that:
       - coffre_pointeuses_mot_de_passe is defined
       - coffre_pointeuses_mot_de_passe | length >= 8
+      - coffre_windows_admin_mot_de_passe is defined
+      - coffre_windows_admin_mot_de_passe | length >= 8
     fail_msg: >-
-      Renseignez coffre_pointeuses_mot_de_passe dans le coffre Ansible.
-      SQL Server refuse un compte sa sans mot de passe solide.
+      Renseignez coffre_pointeuses_mot_de_passe et
+      coffre_windows_admin_mot_de_passe dans le coffre Ansible. Le premier
+      devient le compte sa, que SQL Server refuse sans mot de passe solide. Le
+      second doit reprendre la valeur de admin_mot_de_passe_windows du fichier
+      terraform.tfvars : il sert a ouvrir une session complete sur la machine,
+      sans laquelle le programme d'installation ne peut pas chiffrer ses
+      parametres.
 
 - name: Prerequis .NET installes
   ansible.windows.win_feature:
@@ -62,7 +69,43 @@
       /TCPENABLED=1 /UPDATEENABLED=0
     creates_service: "MSSQL${{ pointeuses_windows_sql_instance }}"
     state: present
+  # Le programme d'installation serialise ses reglages en XML et chiffre au
+  # passage toute SqlSecureString, dont celle de la configuration de l'Agent,
+  # meme vide. ProtectedData.Protect en portee utilisateur ne peut deverrouiller
+  # la cle maitresse du profil qu'a partir des identifiants de la session. Une
+  # connexion SSH par cle publique produit une ouverture de session de type
+  # reseau, qui n'en porte aucun : le chiffrement rend "Access is denied" et
+  # l'installation meurt en douze secondes, avant toute copie de fichier.
+  #
+  # L'elevation est demandee par VARIABLES et non par les mots-cles become.
+  # Dans task_executor.py, _set_become_plugin lit ansible_become des variables
+  # du hote et ignore purement le mot-cle de la tache des que cette variable
+  # existe. Or le groupe windows porte ansible_become: false, ecrit par
+  # Terraform. Un "become: true" en mot-cle serait donc inerte, et l'elevation
+  # n'aurait jamais lieu. Les variables de tache, elles, priment sur celles du
+  # groupe.
+  vars:
+    ansible_become: true
+    ansible_become_method: runas
+    ansible_become_user: "{{ ansible_user }}"
+    ansible_become_password: "{{ coffre_windows_admin_mot_de_passe }}"
+  # Le mot de passe transite dans les arguments : rien ne doit etre journalise.
   no_log: true
+  register: pointeuses_windows_sql_resultat
+  failed_when: false
+
+# no_log masque tout, y compris le motif d'un echec. Ce controle rend un message
+# exploitable sans divulguer les arguments.
+- name: Installation de SQL Server aboutie
+  ansible.builtin.assert:
+    that:
+      - not (pointeuses_windows_sql_resultat.failed | default(false))
+    fail_msg: >-
+      L'installation de SQL Server a echoue avec le code
+      {{ pointeuses_windows_sql_resultat.rc | default('inconnu') }}. Le detail
+      figure sur la machine dans "C:\Program Files\Microsoft SQL Server\160\
+      Setup Bootstrap\Log\Summary.txt".
+    success_msg: Moteur SQL Server Express en place.
 
 - name: Moteur SQL demarre et permanent
   ansible.windows.win_service:

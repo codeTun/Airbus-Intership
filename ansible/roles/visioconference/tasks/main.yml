@@ -96,6 +96,16 @@
   notify: Redemarrer jitsi
   tags: [visio, deploiement]
 
+- name: Repertoires de donnees accessibles aux conteneurs
+  ansible.builtin.file:
+    path: "{{ visioconference_config }}/{{ item }}"
+    state: directory
+    owner: "{{ visioconference_uid_conteneur }}"
+    group: "{{ visioconference_uid_conteneur }}"
+    mode: "0755"
+  loop: "{{ visioconference_repertoires }}"
+  tags: [visio, deploiement]
+
 - name: Pile Jitsi demarree
   ansible.builtin.command:
     cmd: docker compose up -d
@@ -103,32 +113,6 @@
   register: visioconference_compose
   changed_when: "'Started' in visioconference_compose.stderr or 'Created' in visioconference_compose.stderr"
   tags: [visio, deploiement]
-
-- name: Interface web joignable
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: "{{ visioconference_port_web }}"
-    timeout: 180
-  tags: [visio, verification]
-
-# Sans ce compte, personne ne peut ouvrir de salle une fois le Secure Domain
-# actif. Le domaine attendu est meet.jitsi, pas auth.meet.jitsi.
-- name: Compte animateur declare
-  ansible.builtin.command:
-    cmd: >-
-      docker compose exec -T prosody /usr/bin/prosodyctl
-      --config /config/prosody.cfg.lua
-      register {{ visioconference_compte_animateur }} meet.jitsi
-      {{ coffre_visio_animateur_mot_de_passe }}
-    chdir: "{{ visioconference_racine }}"
-  register: visioconference_compte
-  changed_when: visioconference_compte.rc == 0
-  failed_when:
-    - visioconference_compte.rc != 0
-    - "'already exists' not in visioconference_compte.stderr"
-  no_log: true
-  when: visioconference_authentification
-  tags: [visio, securite]
 
 - name: Acces web ouvert aux postes de travail
   community.general.ufw:
@@ -148,3 +132,46 @@
     proto: udp
     comment: Flux audio et video du videobridge
   tags: [visio, parefeu]
+
+# Le controle vient apres l'ouverture : verifier un acces encore ferme ne
+# prouve rien et fait attendre trois minutes pour rien.
+- name: Interface web joignable
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ visioconference_port_web }}"
+    timeout: 180
+  tags: [visio, verification]
+
+# Sans ce compte, personne ne peut ouvrir de salle une fois le Secure Domain
+# actif. Le domaine attendu est meet.jitsi, pas auth.meet.jitsi.
+- name: Compte animateur declare
+  ansible.builtin.command:
+    cmd: >-
+      docker compose exec -T prosody /usr/bin/prosodyctl
+      --config {{ visioconference_config_prosody }}
+      register {{ visioconference_compte_animateur }} meet.jitsi
+      {{ coffre_visio_animateur_mot_de_passe }}
+    chdir: "{{ visioconference_racine }}"
+  register: visioconference_compte
+  changed_when: visioconference_compte.rc == 0
+  failed_when: false
+  no_log: true
+  when: visioconference_authentification
+  tags: [visio, securite]
+
+# no_log masque le motif d'un echec. Ce controle rend un message exploitable
+# sans divulguer le mot de passe de l'animateur.
+- name: Compte animateur effectivement declare
+  ansible.builtin.assert:
+    that:
+      - visioconference_compte.rc == 0 or
+        'already exists' in (visioconference_compte.stderr | default(''))
+    fail_msg: >-
+      La declaration du compte animateur a echoue (code
+      {{ visioconference_compte.rc | default('inconnu') }}). Verifier le chemin
+      visioconference_config_prosody, qui change d'une version a l'autre :
+      docker exec jitsi-prosody-1 find / -name prosody.cfg.lua
+    success_msg: Compte animateur declare sur le domaine meet.jitsi.
+  when: visioconference_authentification
+  tags: [visio, securite]
+

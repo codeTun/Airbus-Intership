@@ -12,13 +12,11 @@
   package:
     name: lvm2
     state: present
-  when: ansible_facts.system == 'Linux'
+  when: ansible_system == 'Linux'
 
 - name: Test lvol module
   block:
     - import_tasks: setup.yml
-
-    - import_tasks: test_thinpool.yml
 
     - import_tasks: test_pvs.yml
 

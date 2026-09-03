@@ -4,4 +4,5 @@
 
 azp/posix/1
 destructive
+skip/aix
 skip/freebsd

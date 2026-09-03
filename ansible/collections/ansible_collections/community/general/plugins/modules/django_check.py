@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2024, Alexei Znamensky <russoz@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import annotations
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 module: django_check
@@ -14,8 +16,8 @@ version_added: 9.1.0
 description:
   - This module is a wrapper for the execution of C(django-admin check).
 extends_documentation_fragment:
-  - community.general._attributes
-  - community.general._django
+  - community.general.attributes
+  - community.general.django
 options:
   databases:
     description:
@@ -85,7 +87,7 @@ version:
   version_added: 10.0.0
 """
 
-from ansible_collections.community.general.plugins.module_utils._django import DjangoModuleHelper
+from ansible_collections.community.general.plugins.module_utils.django import DjangoModuleHelper
 
 
 class DjangoCheck(DjangoModuleHelper):
@@ -110,5 +112,5 @@ def main():
     DjangoCheck.execute()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

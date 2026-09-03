@@ -10,6 +10,8 @@
   ansible.builtin.package:
     name: '{{ item }}'
     state: present
+  # xfsprogs on OpenSUSE requires Python 3, skip this for our newer Py2 OpenSUSE builds
+  when: not (item == 'xfsprogs' and ansible_os_family == 'Suse' and ansible_python.version.major == 2 and ansible_distribution_major_version|int != 42)
   loop:
     - e2fsprogs
     - xfsprogs
@@ -22,7 +24,7 @@
     # bcachefs only on Alpine > 3.18 and Arch Linux for now
     # other distributions have too old versions of bcachefs-tools and/or util-linux (blkid for UUID tests)
     - >-
-      (ansible_facts.distribution == "Alpine" and ansible_facts.distribution_version is version("3.18", ">"))
+      (ansible_facts.distribution == "Alpine" and ansible_facts.distribution_version is version("3.19", ">="))
       or
       ansible_facts.distribution == "Archlinux"
 
@@ -31,10 +33,11 @@
     name: btrfs-progs
     state: present
   when:
-    - ansible_facts.os_family != 'Suse'
-    - ansible_facts.system != "FreeBSD"
+    - ansible_os_family != 'Suse'
+    - not (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('16.04', '<='))
+    - ansible_system != "FreeBSD"
     - not (ansible_facts.os_family == "RedHat" and ansible_facts.distribution_major_version is version('8', '>='))
-    - ansible_facts.os_family != 'Archlinux'  # TODO
+    - ansible_os_family != 'Archlinux'  # TODO
 
 - name: "Install util-linux-extra"
   ansible.builtin.package:
@@ -45,73 +48,64 @@
     - not (ansible_facts.distribution == 'Ubuntu' and ansible_facts.distribution_version is version('24.04', '<'))
     - not (ansible_facts.distribution == 'Debian' and ansible_facts.distribution_version is version('12', '<'))
 
-- name: "Install Alpine specific packages"
+- name: "Install btrfs tools (Ubuntu <= 16.04)"
   ansible.builtin.package:
-    name:
-      - e2fsprogs-extra
-      - findmnt
-      - util-linux-misc
-      - wipefs
-      - xfsprogs-extra
+    name: btrfs-tools
     state: present
   when:
-    - ansible_facts.distribution == 'Alpine'
+    - ansible_distribution == 'Ubuntu'
+    - ansible_distribution_version is version('16.04', '<=')
 
 - name: "Install btrfs progs (OpenSuse)"
   ansible.builtin.package:
     name:
-      - python3-xml
+      - python{{ ansible_python.version.major }}-xml
       - btrfsprogs
     state: present
-  when: ansible_facts.os_family == 'Suse'
+  when: ansible_os_family == 'Suse'
 
 - name: "Install reiserfs utils (Fedora)"
   ansible.builtin.package:
     name: reiserfs-utils
     state: present
   when:
-    - ansible_facts.distribution == 'Fedora' and (ansible_facts.distribution_major_version | int < 35)
+    - ansible_distribution == 'Fedora' and (ansible_facts.distribution_major_version | int < 35)
 
-- name: "Install util-linux-systemd (for findmnt) (OpenSuse)"
+- name: "Install reiserfs and util-linux-systemd (for findmnt) (OpenSuse)"
   ansible.builtin.package:
     name:
+      - reiserfs
       - util-linux-systemd
     state: present
   when:
-    - ansible_facts.os_family == 'Suse'
+    - ansible_os_family == 'Suse'
 
 - name: "Install reiserfs progs (Debian and more)"
   ansible.builtin.package:
     name: reiserfsprogs
     state: present
   when:
-    - ansible_facts.system == 'Linux'
-    - ansible_facts.os_family not in ['Suse', 'RedHat', 'Alpine', 'Archlinux']
-    - ansible_facts.distribution != "Ubuntu" or (ansible_facts.distribution_major_version | int < 26)
+    - ansible_system == 'Linux'
+    - ansible_os_family not in ['Suse', 'RedHat', 'Alpine', 'Archlinux']
 
 - name: "Install reiserfs progs (FreeBSD)"
   ansible.builtin.package:
     name: progsreiserfs
     state: present
   when:
-    - ansible_facts.system == 'FreeBSD'
+    - ansible_system == 'FreeBSD'
 
 - name: "Install ocfs2 (Debian)"
   ansible.builtin.package:
     name: ocfs2-tools
     state: present
-  when: ansible_facts.os_family == 'Debian'
-
-- name: "Install GFS2"
-  ansible.builtin.package:
-    name: gfs2-utils
-    state: present
-  when: ansible_facts.os_family in ['Debian', 'Suse', 'Ubuntu'] or ansible_facts.distribution == 'Fedora'
+  when: ansible_os_family == 'Debian'
 
 - name: "Install f2fs tools and get version"
   when:
-    - ansible_facts.os_family != 'RedHat' or ansible_facts.distribution == 'Fedora'
-    - ansible_facts.system != "FreeBSD"
+    - ansible_os_family != 'RedHat' or ansible_distribution == 'Fedora'
+    - ansible_distribution != 'Ubuntu' or ansible_distribution_version is version('16.04', '>=')
+    - ansible_system != "FreeBSD"
   block:
     - name: "Install f2fs tools"
       ansible.builtin.package:
@@ -136,14 +130,14 @@
     name:
       - dosfstools
       - lvm2
-  when: ansible_facts.system == 'Linux'
+  when: ansible_system == 'Linux'
 
 - name: "Install fatresize and get version"
   when:
-    - ansible_facts.system == 'Linux'
-    - ansible_facts.os_family != 'Suse'
-    - ansible_facts.os_family != 'RedHat'
-    - ansible_facts.os_family != 'Alpine'
+    - ansible_system == 'Linux'
+    - ansible_os_family != 'Suse'
+    - ansible_os_family != 'RedHat' or (ansible_distribution == 'CentOS' and ansible_distribution_version is version('7.0', '=='))
+    - ansible_os_family != 'Alpine'
   block:
     - name: "Install fatresize"
       ansible.builtin.package:

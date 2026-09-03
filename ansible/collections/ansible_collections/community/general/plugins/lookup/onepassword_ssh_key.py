@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -8,6 +9,8 @@ DOCUMENTATION = r"""
 name: onepassword_ssh_key
 author:
   - Mohammed Babelly (@mohammedbabelly20)
+requirements:
+  - C(op) 1Password command line utility version 2 or later.
 short_description: Fetch SSH keys stored in 1Password
 version_added: "10.3.0"
 description:
@@ -15,6 +18,7 @@ description:
 notes:
   - By default, it returns the private key value in PKCS#8 format, unless O(ssh_format=true) is passed.
   - The pluging works only for C(SSHKEY) type items.
+  - This plugin requires C(op) version 2 or later.
 options:
   _terms:
     description: Identifier(s) (case-insensitive UUID or name) of item(s) to retrieve.
@@ -27,8 +31,8 @@ options:
     type: bool
 
 extends_documentation_fragment:
-  - community.general._onepassword
-  - community.general._onepassword.lookup
+  - community.general.onepassword
+  - community.general.onepassword.lookup
 """
 
 EXAMPLES = r"""
@@ -46,14 +50,12 @@ _raw:
 """
 import json
 
-from ansible.errors import AnsibleLookupError
-from ansible.plugins.lookup import LookupBase
-
 from ansible_collections.community.general.plugins.lookup.onepassword import (
     OnePass,
     OnePassCLIv2,
 )
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+from ansible.errors import AnsibleLookupError
+from ansible.plugins.lookup import LookupBase
 
 
 class LookupModule(LookupBase):
@@ -75,12 +77,15 @@ class LookupModule(LookupBase):
             raise AnsibleLookupError(f"No private key found for item {item_id}.")
 
         if ssh_format:
-            return private_key_field.get("ssh_formats", {}).get("openssh", {}).get("value", "")
+            return (
+                private_key_field.get("ssh_formats", {})
+                .get("openssh", {})
+                .get("value", "")
+            )
         return private_key_field.get("value", "")
 
     def run(self, terms, variables=None, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
         ssh_format = self.get_option("ssh_format")
         vault = self.get_option("vault")
@@ -108,4 +113,7 @@ class LookupModule(LookupBase):
         )
         op.assert_logged_in()
 
-        return [self.get_ssh_key(op.get_raw(term, vault), term, ssh_format=ssh_format) for term in terms]
+        return [
+            self.get_ssh_key(op.get_raw(term, vault), term, ssh_format=ssh_format)
+            for term in terms
+        ]

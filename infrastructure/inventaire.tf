@@ -127,12 +127,15 @@ locals {
   parefeux = {
     "fw-forti-01" = {
       description = "Pare-feu peripherique"
-      vcpu        = 2
-      memoire_mo  = 2048
-      disque_go   = 40
-      image       = var.image_fortios
-      ip_admin    = "10.10.10.254"
-      groupe      = "fortinet"
+      # La licence d'evaluation permanente de FortiFirewall-VM plafonne a 1 vCPU
+      # et 2048 Mo. Au-dela, FortiOS demarre mais annonce "License invalid" et
+      # restreint ses fonctions. Ne pas augmenter sans licence payante.
+      vcpu       = 1
+      memoire_mo = 2048
+      disque_go  = 40
+      image      = var.image_fortios
+      ip_admin   = "10.10.10.254"
+      groupe     = "fortinet"
       # La licence d'evaluation plafonne a 3 interfaces.
       reseaux = ["mgmt", "servers"]
     }

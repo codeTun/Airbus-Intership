@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013, Serge van Ginderachter <serge@vanginderachter.be>
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
-from __future__ import annotations
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 name: flattened
@@ -34,15 +36,13 @@ _raw:
     - Flattened list.
   type: list
 """
-
 from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 from ansible.utils.listify import listify_lookup_plugin_terms
 
-from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
-
 
 class LookupModule(LookupBase):
+
     def _check_list_of_one_list(self, term):
         # make sure term is not a list of one (list of one..) item
         # return the final non list item if so
@@ -55,11 +55,12 @@ class LookupModule(LookupBase):
         return term
 
     def _do_flatten(self, terms, variables):
+
         ret = []
         for term in terms:
             term = self._check_list_of_one_list(term)
 
-            if term == "None" or term == "null":
+            if term == 'None' or term == 'null':
                 # ignore undefined items
                 break
 
@@ -84,6 +85,5 @@ class LookupModule(LookupBase):
             raise AnsibleError("with_flattened expects a list")
 
         self.set_options(var_options=variables, direct=kwargs)
-        check_for_wrong_terms(self, direct=kwargs)
 
         return self._do_flatten(terms, variables)
