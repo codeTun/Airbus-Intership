@@ -20,6 +20,7 @@ exec rsync -avz \
   --exclude 'terraform.tfvars' \
   --exclude 'plan.tfplan' \
   --exclude 'ansible/inventaire/hosts.yml' \
+  --exclude 'infrastructure/publication/' \
   --exclude 'ansible/inventaire/group_vars/all/coffre.yml' \
   --exclude '*.qcow2' \
   --exclude '*.iso' \

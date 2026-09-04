@@ -70,6 +70,15 @@ resource "libvirt_domain" "vm" {
     wait_for_lease = false
   }
 
+  dynamic "network_interface" {
+    for_each = var.reseaux_secondaires
+    content {
+      network_id     = network_interface.value.reseau_id
+      mac            = network_interface.value.mac
+      wait_for_lease = false
+    }
+  }
+
   console {
     type        = "pty"
     target_type = "serial"

@@ -8,6 +8,7 @@
 terraform.tfvars
 *.auto.tfvars
 ansible/inventaire/hosts.yml
+infrastructure/publication/
 ansible/*.retry
 vault-pass.txt
 

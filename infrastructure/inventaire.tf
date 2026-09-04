@@ -80,6 +80,8 @@ locals {
       vlan        = "servers"
       ip          = "10.10.20.11"
       groupe      = "impression"
+      # Aucune interface supplementaire.
+      reseaux_secondaires = []
     }
 
     # Jitsi Meet en conteneurs. L'editeur annonce 4 vCPU et 8 Go pour une
@@ -93,6 +95,8 @@ locals {
       vlan        = "servers"
       ip          = "10.10.20.12"
       groupe      = "visioconference"
+      # Aucune interface supplementaire.
+      reseaux_secondaires = []
     }
 
     # Nom raccourci : NetBIOS plafonne a 15 caracteres, "srv-pointeuse-01" en
@@ -106,6 +110,8 @@ locals {
       vlan        = "servers"
       ip          = "10.10.20.13"
       groupe      = "pointeuses"
+      # Aucune interface supplementaire.
+      reseaux_secondaires = []
     }
 
     # Centreon publie 4 vCPU et 8 Go pour une production. Six machines
@@ -120,6 +126,13 @@ locals {
       vlan        = "mgmt"
       ip          = "10.10.10.30"
       groupe      = "supervision"
+      # Le pare-feu interne ne retransmet rien faute de licence, et aucun routage
+      # inter-VLAN n'existe donc. La station de supervision est raccordee au VLAN
+      # des serveurs pour les observer directement, pratique courante pour une
+      # station d'observation. A retirer le jour ou le routage sera effectif.
+      reseaux_secondaires = [
+        { vlan = "servers", ip = "10.10.20.30" },
+      ]
     }
   }
 
@@ -174,6 +187,21 @@ locals {
     )
   }
 
+  # Meme regle que pour les interfaces principales : VLAN et dernier octet.
+  reseaux_secondaires = {
+    for nom, s in local.serveurs : nom => [
+      for r in s.reseaux_secondaires : {
+        vlan   = r.vlan
+        ip     = r.ip
+        masque = 24
+        mac = format("52:54:00:00:%02x:%02x",
+          local.vlans[r.vlan].id,
+          tonumber(element(split(".", r.ip), 3))
+        )
+      }
+    ]
+  }
+
   ip_supervision = one([for nom, s in local.serveurs : s.ip if s.groupe == "supervision"])
 
   # Seules les machines reellement creees entrent dans l'inventaire. Sans ce
@@ -195,7 +223,12 @@ locals {
   groupes_os = merge(
     length(local.serveurs_linux) > 0 ? {
       linux = {
-        hosts = { for nom, s in local.serveurs_linux : nom => { ansible_host = s.ip } }
+        hosts = { for nom, s in local.serveurs_linux : nom => {
+          ansible_host = s.ip
+          # Adressees par le role commun, cloud-init ne s'executant qu'une fois.
+          # La liste est vide pour la plupart des machines.
+          interfaces_secondaires = local.reseaux_secondaires[nom]
+        } }
         vars = {
           ansible_python_interpreter = "/usr/bin/python3"
           ansible_become             = true
@@ -232,6 +265,28 @@ locals {
       }
     }
   }
+
+  # Interfaces web publiees sur l'hote. nginx relaie en TCP brut, sans dechiffrer :
+  # le certificat presente au navigateur reste celui du service, et aucun secret ne
+  # transite en clair par l'hote. Un seul point d'entree, donc une seule surface a
+  # defendre, au lieu d'un tunnel SSH a ouvrir avant chaque visite.
+  #
+  # Ports au-dessus de 8000 : le 80 sert deja la page par defaut de l'hote, et un
+  # port non privilegie evite d'elargir les droits du relais.
+  publications = {
+    "8080" = { cible = "sup-centreon-01", port = 80, service = "Centreon" }
+    "8081" = { cible = "srv-print-01", port = 443, service = "Console d'impression" }
+    "8443" = { cible = "fw-forti-01", port = 443, service = "FortiGate" }
+    "8444" = { cible = "fw-palo-01", port = 443, service = "Palo Alto, substitut FortiOS" }
+    "8445" = { cible = "srv-visio-01", port = 443, service = "Jitsi Meet" }
+  }
+
+  # Une cible est un serveur ou un pare-feu : l'adresse se lit dans l'un ou l'autre
+  # inventaire, jamais recopiee a la main dans la configuration du relais.
+  adresses_publiables = merge(
+    { for nom, s in local.serveurs : nom => s.ip },
+    { for nom, f in local.parefeux : nom => f.ip_admin },
+  )
 
   total_vcpu = sum([for s in local.serveurs : s.vcpu]) + sum([for f in local.parefeux : f.vcpu])
   total_mo   = sum([for s in local.serveurs : s.memoire_mo]) + sum([for f in local.parefeux : f.memoire_mo])

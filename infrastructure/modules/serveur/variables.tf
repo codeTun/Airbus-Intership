@@ -48,6 +48,21 @@ variable "ip" {
   type        = string
 }
 
+# Une machine peut etre raccordee a plusieurs reseaux. Le cas d'usage est la
+# station de supervision, qui doit joindre les machines de plusieurs VLAN sans
+# dependre d'un routage inter-VLAN. Aucune de ces interfaces ne porte de route
+# par defaut : la passerelle reste celle de l'interface principale.
+variable "reseaux_secondaires" {
+  description = "Interfaces supplementaires, chacune avec son reseau, sa MAC et son adresse."
+  type = list(object({
+    reseau_id = string
+    mac       = string
+    ip        = string
+    masque    = number
+  }))
+  default = []
+}
+
 variable "masque" {
   description = "Longueur du prefixe reseau."
   type        = number

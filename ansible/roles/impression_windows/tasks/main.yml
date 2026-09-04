@@ -31,22 +31,75 @@
   loop_control:
     label: "{{ item.nom }} ({{ item.port }}/{{ item.protocole }})"
 
+# Idempotent par la presence de la liaison HTTPS : si elle existe, rien n'est
+# refait, et le certificat n'est donc pas remplace a chaque execution.
+- name: Console IPP servie en HTTPS
+  ansible.windows.win_shell: |
+    $ErrorActionPreference = "Stop"
+    Import-Module WebAdministration
+    if (Get-WebBinding -Name "Default Web Site" -Protocol https -ErrorAction SilentlyContinue) {
+        "liaison deja en place"
+        exit 0
+    }
+    $cert = New-SelfSignedCertificate `
+              -DnsName "{{ inventory_hostname }}", "{{ ansible_host }}" `
+              -CertStoreLocation Cert:\LocalMachine\My `
+              -FriendlyName "{{ impression_windows_certificat_nom }}" `
+              -NotAfter (Get-Date).AddYears({{ impression_windows_certificat_annees }})
+    New-WebBinding -Name "Default Web Site" -Protocol https -Port 443
+    (Get-WebBinding -Name "Default Web Site" -Protocol https).AddSslCertificate($cert.Thumbprint, "My")
+    "liaison creee"
+  register: impression_windows_https
+  changed_when: "'liaison creee' in impression_windows_https.stdout"
+  tags: [impression, securite]
+
+# Le pilote doit figurer dans le magasin de la machine avant toute file, sans
+# quoi Add-Printer echoue sur un nom de pilote inconnu.
+- name: Pilote d'impression disponible
+  ansible.windows.win_powershell:
+    script: |
+      if (Get-PrinterDriver -Name "{{ impression_windows_pilote }}" -ErrorAction SilentlyContinue) {
+          $Ansible.Changed = $false
+      } else {
+          Add-PrinterDriver -Name "{{ impression_windows_pilote }}"
+      }
+  when: impression_windows_files | length > 0
+  tags: [impression, files]
+
+# Un port TCP/IP par file. Le port declare une destination, il ne la joint pas :
+# sa creation reussit donc alors qu'aucune imprimante n'existe a cette adresse.
+- name: Ports TCP/IP des files declares
+  ansible.windows.win_powershell:
+    script: |
+      if (Get-PrinterPort -Name "IP_{{ item.adresse }}" -ErrorAction SilentlyContinue) {
+          $Ansible.Changed = $false
+      } else {
+          Add-PrinterPort -Name "IP_{{ item.adresse }}" -PrinterHostAddress "{{ item.adresse }}"
+      }
+  loop: "{{ impression_windows_files }}"
+  loop_control:
+    label: "{{ item.nom }} vers {{ item.adresse }}"
+  tags: [impression, files]
+
+# Pas de -Published : cette option publie la file dans un annuaire Active
+# Directory, que le laboratoire n'a pas, et la commande echouerait.
 - name: Files d'attente declarees
   ansible.windows.win_powershell:
     script: |
-      $file = Get-Printer -Name "{{ item.nom }}" -ErrorAction SilentlyContinue
-      if (-not $file) {
-          Add-Printer -Name "{{ item.nom }}" `
-                      -DriverName "{{ item.pilote }}" `
-                      -PortName "{{ item.port }}" `
-                      -Shared -ShareName "{{ item.nom }}"
-          $Ansible.Changed = $true
-      } else {
+      if (Get-Printer -Name "{{ item.nom }}" -ErrorAction SilentlyContinue) {
           $Ansible.Changed = $false
+      } else {
+          Add-Printer -Name "{{ item.nom }}" `
+                      -DriverName "{{ item.pilote | default(impression_windows_pilote) }}" `
+                      -PortName "IP_{{ item.adresse }}" `
+                      -Shared -ShareName "{{ item.nom }}" `
+                      -Location "{{ item.emplacement }}" `
+                      -Comment "{{ impression_windows_commentaire_file }}"
       }
   loop: "{{ impression_windows_files }}"
   loop_control:
     label: "{{ item.nom }}"
+  tags: [impression, files]
 
 - name: Absence de l'installateur Xerox signalee
   ansible.builtin.debug:

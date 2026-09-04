@@ -6,7 +6,7 @@ PLAN  := plan.tfplan
 
 .DEFAULT_GOAL := aide
 
-.PHONY: aide init fmt valider verifier plan appliquer detruire etat sortie recette propre
+.PHONY: aide init fmt valider verifier plan appliquer detruire etat sortie publication recette propre
 
 aide: ## Affiche cette aide
 	@echo "Laboratoire virtualise, partie 1"
@@ -44,6 +44,15 @@ sortie: ## Reaffiche les sorties du dernier apply
 etat: ## Etat des machines et des reseaux vus par libvirt
 	@echo "--- machines ---"    && virsh list --all    2>/dev/null || echo "virsh absent sur cette machine"
 	@echo "--- reseaux  ---"    && virsh net-list --all 2>/dev/null || true
+
+publication: ## Pose le relais nginx de l'hote et le recharge
+	@test -f publication/60-labo-publication.conf \
+	  || { echo "Fichier absent : lancer d'abord make appliquer"; exit 1; }
+	sudo install -m 0644 publication/60-labo-publication.conf \
+	  /etc/nginx/modules-enabled/60-labo-publication.conf
+	sudo nginx -t
+	sudo systemctl reload nginx
+	@echo "Relais nginx recharge."
 
 recette: ## Confronte le laboratoire reel a ce que declare le code
 	@./recette.sh

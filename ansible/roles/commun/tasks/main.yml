@@ -144,6 +144,34 @@
   notify: Redemarrer rsyslog
   tags: [commun, journaux]
 
+# cloud-init n'adresse que l'interface principale, et il ne s'execute qu'au
+# premier demarrage : une carte ajoutee ensuite resterait sans adresse. Netplan
+# la prend donc en charge ici. Aucune route par defaut n'est posee, la passerelle
+# restant celle de l'interface principale.
+- name: Interfaces secondaires adressees
+  ansible.builtin.copy:
+    dest: /etc/netplan/60-labo-secondaires.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Genere par Ansible, role commun. Ne pas modifier a la main.
+      network:
+        version: 2
+        ethernets:
+      {% for interface in interfaces_secondaires %}
+          secondaire{{ loop.index0 }}:
+            match:
+              macaddress: "{{ interface.mac }}"
+            set-name: eth{{ loop.index }}
+            dhcp4: false
+            dhcp6: false
+            addresses: ["{{ interface.ip }}/{{ interface.masque }}"]
+      {% endfor %}
+  when: interfaces_secondaires | default([]) | length > 0
+  notify: Appliquer la configuration reseau
+  tags: [commun, reseau]
+
 - name: Carte d'identite de la machine mise a jour
   ansible.builtin.copy:
     dest: /etc/labo-airbus.yaml

@@ -177,6 +177,58 @@ while read -r nom ip attendu; do
   fi
 done <<<"$SERVEURS"
 
+# ------------------------------------------------------- publication des IHM
+titre "6. Publication des interfaces"
+
+if systemctl is-active --quiet nginx; then
+  resultat ok "nginx : le relais de publication tourne"
+else
+  resultat ko "nginx : le relais de publication est arrete"
+fi
+
+if systemctl is-enabled --quiet nginx; then
+  resultat ok "nginx : rearme au demarrage de l'hote"
+else
+  resultat ko "nginx : actif mais non rearme au demarrage de l'hote"
+fi
+
+# nginx garde en memoire la configuration lue a son demarrage : un fichier a jour
+# sur le disque ne prouve rien tant qu'il n'a pas ete recharge. D'ou deux
+# controles distincts, le fichier puis les ports reellement servis.
+GENERE=publication/60-labo-publication.conf
+POSE=/etc/nginx/modules-enabled/60-labo-publication.conf
+if [[ ! -f "$GENERE" ]]; then
+  resultat ko "relais : configuration non generee, lancer make appliquer"
+elif cmp -s "$GENERE" "$POSE"; then
+  resultat ok "relais : le fichier pose est celui genere par Terraform"
+else
+  resultat ko "relais : le fichier pose differe du code, lancer make publication"
+fi
+
+PUBLICATIONS=$(printf '%s' "$SORTIES" | python3 -c '
+import json,sys
+for port,v in sorted(json.load(sys.stdin)["publication"]["value"].items()):
+    print("|".join([port, v["protocole"], v["service"], v["destination"]]))
+' 2>/dev/null)
+
+if ! command -v curl >/dev/null 2>&1; then
+  printf '  %s[ -- ]%s curl absent : reponse des services non verifiee\n' "$jaune" "$net"
+  PUBLICATIONS=""
+fi
+
+# Un service qui repond, quel que soit son code : 200, une redirection vers la
+# page de connexion ou un 401 prouvent tous que le relais atteint sa cible. Seul
+# 000, c'est-a-dire aucune reponse, est un echec.
+while IFS='|' read -r port proto service destination; do
+  [[ -z "$port" ]] && continue
+  code=$(curl -sk -o /dev/null -m 8 -w '%{http_code}' "$proto://127.0.0.1:$port/" 2>/dev/null)
+  if [[ -n "$code" && "$code" != "000" ]]; then
+    resultat ok "port $port vers $destination : $service repond ($code)"
+  else
+    resultat ko "port $port vers $destination : $service ne repond pas"
+  fi
+done <<<"$PUBLICATIONS"
+
 # ------------------------------------------------------------------- conclusion
 titre "Resultat"
 printf '  %s%d controles reussis%s, %s%d en echec%s\n\n' \

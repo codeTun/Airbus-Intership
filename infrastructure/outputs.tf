@@ -94,3 +94,14 @@ output "etapes_suivantes" {
     "6. Repasser acces_internet_construction a false une fois les paquets installes",
   ]
 }
+
+output "publication" {
+  description = "Interfaces web publiees sur l'hote par le relais nginx."
+  value = {
+    for port, p in local.publications : port => {
+      service     = p.service
+      destination = format("%s:%d", local.adresses_publiables[p.cible], p.port)
+      protocole   = p.port == 80 ? "http" : "https"
+    }
+  }
+}

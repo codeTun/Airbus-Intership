@@ -16,3 +16,7 @@ ethernets:
     nameservers:
       search: ["${domaine_dns}"]
       addresses: ${jsonencode(dns)}
+
+# Les interfaces secondaires sont configurees par Ansible et non ici : cloud-init
+# ne s'execute qu'au premier demarrage, et une machine deja en service ne verrait
+# jamais sa nouvelle carte adressee.

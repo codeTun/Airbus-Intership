@@ -8,6 +8,12 @@ pointeuses_windows_fonctionnalites:
   - NET-Framework-45-Core
 
 pointeuses_windows_sql_instance: SQLEXPRESS
+
+# Une instance nommee prend par defaut un port dynamique, different a chaque
+# demarrage. Et l'installation silencieuse laisse ici les deux valeurs vides, si
+# bien que le moteur n'ecoute sur aucun port TCP. Un port fixe se filtre et se
+# supervise, contrairement a un port qui change.
+pointeuses_windows_port_sql: 1433
 pointeuses_windows_sql_version: "2022"
 
 # Installateur complet, pas le lanceur en ligne : lui seul accepte les

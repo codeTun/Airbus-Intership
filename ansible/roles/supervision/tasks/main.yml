@@ -272,6 +272,207 @@
     success_msg: Ligne de commande Centreon operationnelle.
   tags: [supervision, hotes]
 
+# La sonde des services systemd interroge chaque machine par SSH, avec un compte
+# sans privileges et une cle qui ne sert qu'a cela. Donner au systeme de
+# supervision le compte d'administration lui aurait donne les pleins pouvoirs sur
+# tout ce qu'il surveille.
+- name: Repertoire SSH du moteur de supervision present
+  ansible.builtin.file:
+    path: "{{ supervision_cle_privee | dirname }}"
+    state: directory
+    owner: centreon-engine
+    group: centreon-engine
+    mode: "0700"
+  tags: [supervision, sondes]
+
+- name: Cle dediee a la sonde engendree
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -q
+      -C "sonde centreon du laboratoire"
+      -f {{ supervision_cle_privee }}
+    creates: "{{ supervision_cle_privee }}"
+  tags: [supervision, sondes]
+
+- name: Droits de la cle de sonde
+  ansible.builtin.file:
+    path: "{{ item.chemin }}"
+    owner: centreon-engine
+    group: centreon-engine
+    mode: "{{ item.mode }}"
+  loop:
+    - {chemin: "{{ supervision_cle_privee }}", mode: "0600"}
+    - {chemin: "{{ supervision_cle_privee }}.pub", mode: "0644"}
+  tags: [supervision, sondes]
+
+- name: Cle publique de la sonde lue
+  ansible.builtin.slurp:
+    src: "{{ supervision_cle_privee }}.pub"
+  register: supervision_cle_publique
+  tags: [supervision, sondes]
+
+# delegate_to plutot qu'un play separe : la cle vient d'etre engendree, elle
+# n'existerait pas encore si la distribution passait par le role commun, qui
+# s'execute avant celui-ci.
+- name: Compte de sonde present sur les machines Linux
+  ansible.builtin.user:
+    name: "{{ supervision_compte_sonde }}"
+    comment: Compte de lecture pour la supervision
+    shell: /bin/sh
+    system: true
+    create_home: true
+    password: "!"
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['linux'] | default([]) }}"
+  tags: [supervision, sondes]
+
+# Sans ce paquet, les sondes lancees a distance n'existent pas sur la cible.
+- name: Sondes standard installees sur les machines observees
+  ansible.builtin.apt:
+    name: "{{ supervision_paquet_sondes }}"
+    state: present
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['linux'] | default([]) }}"
+  tags: [supervision, sondes]
+
+- name: Cle de la sonde autorisee sur les machines Linux
+  ansible.posix.authorized_key:
+    user: "{{ supervision_compte_sonde }}"
+    key: "{{ supervision_cle_publique.content | b64decode }}"
+    state: present
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['linux'] | default([]) }}"
+  tags: [supervision, sondes]
+
+# Rien de ce qui suit n'existe sur une plate-forme neuve. Le laboratoire batit
+# donc sa propre chaine de supervision, sans dependre d'aucun catalogue.
+- name: Commandes de controle connues
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o CMD -a show
+  register: supervision_commandes_connues
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# argv plutot qu'une ligne de commande : la definition contient des guillemets
+# doubles autour de la commande distante, et un shell les interpreterait en
+# fermant la chaine, tronquant la commande a cet endroit. Avec argv, la valeur
+# passe telle quelle, sans qu'aucun shell ne la relise.
+- name: Commandes de controle du laboratoire declarees
+  ansible.builtin.command:
+    argv:
+      - /usr/share/centreon/bin/centreon
+      - -u
+      - "{{ supervision_admin }}"
+      - -p
+      - "{{ supervision_admin_mot_de_passe }}"
+      - -o
+      - CMD
+      - -a
+      - add
+      - -v
+      - "{{ item.nom }};{{ item.type }};{{ item.ligne }}"
+  loop: "{{ supervision_commandes }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  when: item.nom not in (supervision_commandes_connues.stdout | default(''))
+  register: supervision_ajout_commandes
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+# La ligne d'une commande peut changer sans que son nom change : la creation
+# seule laisserait alors l'ancienne definition en place indefiniment.
+- name: Ligne de chaque commande mise a jour
+  ansible.builtin.command:
+    argv:
+      - /usr/share/centreon/bin/centreon
+      - -u
+      - "{{ supervision_admin }}"
+      - -p
+      - "{{ supervision_admin_mot_de_passe }}"
+      - -o
+      - CMD
+      - -a
+      - setparam
+      - -v
+      - "{{ item.nom }};line;{{ item.ligne }}"
+  loop: "{{ supervision_commandes }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  changed_when: false
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+- name: Modeles d'hote connus
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HTPL -a show
+  register: supervision_modeles_connus
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# Six champs obligatoires, meme vides : nom, alias, adresse, modele parent,
+# collecteur et groupe d'hotes. Un modele n'a pas de collecteur, mais le champ
+# doit exister, la classe heritant du decoupage des hotes.
+- name: Modele d'hote du laboratoire declare
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HTPL -a add
+    -v "{{ supervision_modele_hote }};Modele des machines du laboratoire;;;;"
+  when: supervision_modele_hote not in (supervision_modeles_connus.stdout | default(''))
+  register: supervision_ajout_modele
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+# setparam est declaratif : le rejouer pose la meme valeur, d'ou changed_when a false.
+- name: Parametres du modele d'hote poses
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HTPL -a setparam
+    -v "{{ supervision_modele_hote }};{{ item.key }};{{ item.value }}"
+  loop: "{{ supervision_modele_parametres | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} = {{ item.value }}"
+  register: supervision_parametres_modele
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# no_log masque la sortie des taches precedentes. Ce controle rend les messages
+# de Centreon, qui ne contiennent aucun secret, contrairement a la ligne de
+# commande elle-meme.
+- name: Chaine de supervision en place
+  ansible.builtin.assert:
+    that:
+      - (supervision_ajout_commandes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) == 0
+      - (supervision_ajout_modele.rc | default(0)) == 0
+      - (supervision_parametres_modele.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) == 0
+    # Les parentheses ne sont pas decoratives : en Jinja le filtre lie plus fort
+    # que le plus, donc sans elles seul le dernier terme serait filtre.
+    fail_msg: >-
+      La construction de la chaine de supervision a echoue. Messages rendus par
+      Centreon :
+      {{ (
+           (supervision_ajout_commandes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='stdout') | list)
+           + (supervision_parametres_modele.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='stdout') | list)
+           + [supervision_ajout_modele.stdout | default('')]
+         ) | reject('equalto', '') | list | join(' | ') }}
+    success_msg: >-
+      {{ supervision_commandes | length }} commandes de controle et le modele
+      {{ supervision_modele_hote }} sont en place.
+  tags: [supervision, sondes]
+
 - name: Machines du laboratoire declarees
   ansible.builtin.command: >-
     /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
@@ -283,6 +484,88 @@
   no_log: true
   notify: Redemarrer centreon
   tags: [supervision, hotes]
+
+# Les machines declarees avant l'existence du modele n'en portent aucun, et la
+# condition d'idempotence ci-dessus les ignorerait. settemplate est declaratif :
+# il pose le modele voulu, que la machine en ait deja un ou non.
+- name: Modele applique a chaque machine
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HOST -a settemplate
+    -v "{{ item }};{{ supervision_modele_hote }}"
+  loop: "{{ groups['serveurs'] | default([]) }}"
+  when: supervision_modele_hote | length > 0
+  changed_when: false
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, hotes]
+
+# Sans cette application, la machine herite des parametres du modele mais pas de
+# ses services. Sans effet tant que le modele n'en porte aucun, indispensable des
+# qu'il en portera.
+- name: Services du modele appliques a chaque machine
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o HOST -a applytpl
+    -v "{{ item }}"
+  loop: "{{ groups['serveurs'] | default([]) }}"
+  when: supervision_modele_hote | length > 0
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, hotes]
+
+- name: Modeles de service connus
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o STPL -a show
+  register: supervision_modeles_service_connus
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# Trois champs : description, alias, modele parent. Le parent reste vide.
+- name: Modeles de service declares
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o STPL -a add
+    -v "{{ item.nom }};{{ item.nom }};"
+  loop: "{{ supervision_modeles_service }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  when: item.nom not in (supervision_modeles_service_connus.stdout | default(''))
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+- name: Commande portee par chaque modele de service
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o STPL -a setparam
+    -v "{{ item.nom }};check_command;{{ item.commande }}"
+  loop: "{{ supervision_modeles_service }}"
+  loop_control:
+    label: "{{ item.nom }} -> {{ item.commande }}"
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+- name: Parametres communs des modeles de service
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o STPL -a setparam
+    -v "{{ item.0.nom }};{{ item.1.key }};{{ item.1.value }}"
+  loop: "{{ supervision_modeles_service | product(supervision_modele_service_parametres | dict2items) | list }}"
+  loop_control:
+    label: "{{ item.0.nom }} : {{ item.1.key }}"
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
 
 - name: Correspondance entre machines et sondes
   ansible.builtin.set_fact:
@@ -300,27 +583,98 @@
     label: "{{ item }}"
   tags: [supervision, sondes]
 
+- name: Sondes deja declarees
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -o SERVICE -a show
+  register: supervision_sondes_connues
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [supervision, sondes]
+
+# La condition porte sur le couple machine et description, pas sur la machine
+# seule : chercher la machine ferait ignorer toutes ses sondes des qu'elle est
+# declaree. La sortie a la forme "id machine;machine;id service;description;...".
 - name: Sondes declarees machine par machine
   ansible.builtin.command: >-
     /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
     -p {{ supervision_admin_mot_de_passe }} -o SERVICE -a add
-    -v "{{ item.0.machine }};{{ item.1.nom }};{{ item.1.commande }}"
+    -v "{{ item.0.machine }};{{ item.1.nom }};{{ item.1.modele }}"
   loop: "{{ query('subelements', supervision_affectations, 'controles', {'skip_missing': True}) }}"
   loop_control:
     label: "{{ item.0.machine }} / {{ item.1.nom }}"
-  when: item.0.machine not in (supervision_hotes.stdout | default(''))
-  changed_when: true
+  when: >-
+    supervision_sondes_connues.stdout_lines | default([])
+    | select('search', '^[0-9]+;' ~ item.0.machine ~ ';[0-9]+;' ~ item.1.nom ~ ';')
+    | list | length == 0
+  register: supervision_ajout_sondes
+  failed_when: false
   no_log: true
   notify: Redemarrer centreon
   tags: [supervision, sondes]
 
-- name: Configuration Centreon rechargee
+# L'argument est passe a la commande par la macro $ARG1$, un numero de port ou un
+# nom de service selon le modele. Le point d'exclamation est le separateur de
+# Centreon, et non une negation.
+- name: Argument de chaque sonde pose
   ansible.builtin.command: >-
     /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
-    -p {{ supervision_admin_mot_de_passe }} -a APPLYCFG -v central
+    -p {{ supervision_admin_mot_de_passe }} -o SERVICE -a setparam
+    -v "{{ item.0.machine }};{{ item.1.nom }};check_command_arguments;!{{ item.1.argument }}"
+  loop: "{{ query('subelements', supervision_affectations, 'controles', {'skip_missing': True}) }}"
+  loop_control:
+    label: "{{ item.0.machine }} / {{ item.1.nom }} = {{ item.1.argument }}"
+  register: supervision_arguments_sondes
+  changed_when: false
+  failed_when: false
+  no_log: true
+  notify: Redemarrer centreon
+  tags: [supervision, sondes]
+
+# no_log masque tout : ce controle rend les messages de Centreon, qui ne
+# contiennent aucun secret, contrairement a la ligne de commande.
+- name: Sondes effectivement en place
+  ansible.builtin.assert:
+    that:
+      - (supervision_ajout_sondes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) == 0
+      - (supervision_arguments_sondes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) == 0
+    fail_msg: >-
+      La declaration des sondes a echoue. Messages rendus par Centreon :
+      {{ (
+           (supervision_ajout_sondes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='stdout') | list)
+           + (supervision_arguments_sondes.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='stdout') | list)
+         ) | reject('equalto', '') | list | join(' | ') }}
+    success_msg: >-
+      {{ supervision_affectations | map(attribute='controles') | map('length') | sum }}
+      sondes reparties sur {{ supervision_affectations | length }} machines.
+  tags: [supervision, sondes]
+
+# Le nom du collecteur porte une majuscule. Et sans le controle qui suit, un
+# deploiement refuse passerait inapercu : le moteur continuerait de tourner sur
+# la configuration livree par le paquet, en ne surveillant rien.
+- name: Configuration Centreon deployee vers le collecteur
+  ansible.builtin.command: >-
+    /usr/share/centreon/bin/centreon -u {{ supervision_admin }}
+    -p {{ supervision_admin_mot_de_passe }} -a APPLYCFG
+    -v {{ supervision_collecteur }}
+  register: supervision_deploiement
   changed_when: true
   failed_when: false
   no_log: true
+  tags: [supervision, sondes]
+
+- name: Deploiement accepte par le moteur
+  ansible.builtin.assert:
+    that:
+      # APPLYCFG rend 0 en cas de succes et 1 des qu'une erreur de configuration
+      # subsiste. Le code de retour suffit, inutile de chercher un texte.
+      - (supervision_deploiement.rc | default(1)) == 0
+    fail_msg: >-
+      Le deploiement de la configuration a echoue (code
+      {{ supervision_deploiement.rc | default('inconnu') }}) :
+      {{ supervision_deploiement.stdout | default('aucune sortie') }}
+    success_msg: Configuration deployee vers le collecteur {{ supervision_collecteur }}.
   tags: [supervision, sondes]
 
 - name: L'interface web repond

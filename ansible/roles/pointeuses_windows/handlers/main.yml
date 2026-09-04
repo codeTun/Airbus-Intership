@@ -1,0 +1,6 @@
+---
+# Le moteur ne relit ses parametres reseau qu'au demarrage.
+- name: Redemarrer le moteur SQL
+  ansible.windows.win_service:
+    name: "MSSQL${{ pointeuses_windows_sql_instance }}"
+    state: restarted

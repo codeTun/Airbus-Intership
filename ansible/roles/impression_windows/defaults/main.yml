@@ -14,6 +14,14 @@ impression_windows_fonctionnalites:
   - NET-Framework-45-Core
   - NET-Framework-45-ASPNET
 
+# IIS n'attache aucun certificat par defaut : la console IPP repond alors en
+# HTTP simple, et l'authentification Windows y fait circuler un mot de passe
+# d'administrateur en clair. Un certificat auto-signe suffit a chiffrer le
+# transport ; il ne prouve pas l'identite du serveur, ce qui est acceptable sur
+# un reseau d'administration mais doit etre dit.
+impression_windows_certificat_nom: labo-impression
+impression_windows_certificat_annees: 3
+
 impression_windows_ports:
   - nom: IPP et console web
     port: 80
@@ -28,9 +36,25 @@ impression_windows_ports:
     port: 9100
     protocole: tcp
 
-# Un pilote doit exister sur la machine : laisser vide tant que le modele
-# d'imprimante n'est pas arrete.
-impression_windows_files: []
+# Pilote livre avec Windows, donc installable sans acces a Internet et sans
+# materiel. A remplacer par le pilote Xerox le jour ou le modele d'imprimante
+# est arrete : seule cette variable changera.
+impression_windows_pilote: Generic / Text Only
+
+# Files d'attente declarees sur le serveur. Aucune imprimante physique n'existe
+# dans le laboratoire : le port pointe vers une adresse du VLAN metier, ce qui
+# suffit a peupler la console IPP et a demontrer le partage SMB. Un travail
+# envoye resterait en attente, limite a enoncer telle quelle.
+impression_windows_files:
+  - nom: Xerox-Atelier-01
+    adresse: 10.10.30.50
+    emplacement: Atelier de production
+  - nom: Xerox-Bureau-01
+    adresse: 10.10.30.51
+    emplacement: Bureaux administratifs
+
+impression_windows_commentaire_file: >-
+  File de demonstration, aucun materiel raccorde
 
 # Renseigner le jour ou la licence Xerox est obtenue.
 impression_windows_installateur_xerox: ""

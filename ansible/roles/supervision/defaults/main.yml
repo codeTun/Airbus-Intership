@@ -36,7 +36,105 @@ supervision_port_web: 80
 # Connectors, dont la plupart exigent un abonnement. Le champ accepte d'etre
 # vide, et les controles sont de toute facon attaches explicitement par
 # supervision_controles. A renseigner le jour ou le role creera son propre modele.
-supervision_modele_hote: ""
+# Centreon 24.10 ne livre AUCUNE commande de controle ni aucun modele d'hote :
+# tout vient des Monitoring Connectors, dont la plupart exigent un abonnement.
+# Le laboratoire declare donc les siens, en s'appuyant sur monitoring-plugins-basic
+# present sur la machine et sur la macro $USER1$, que Centreon renseigne bien.
+supervision_commandes:
+  - nom: labo-hote-vivant
+    type: check
+    ligne: "$USER1$/check_icmp -H $HOSTADDRESS$ -w 200.0,20% -c 500.0,60% -n 3"
+  - nom: labo-port-tcp
+    type: check
+    ligne: "$USER1$/check_tcp -H $HOSTADDRESS$ -p $ARG1$ -w 3 -c 5"
+  # Aucune sonde reseau ne peut voir l'etat d'un service systemd : il faut
+  # interroger la machine. Compte dedie sans privileges, cle qui ne sert qu'a
+  # cela, et commande incapable de modifier quoi que ce soit.
+  - nom: labo-service-systemd
+    type: check
+    ligne: >-
+      $USER1$/check_by_ssh -H $HOSTADDRESS$ -l {{ supervision_compte_sonde }}
+      -i {{ supervision_cle_privee }} -o StrictHostKeyChecking=no
+      -C "systemctl is-active $ARG1$"
+  # Ces trois-la renvoient de vraies mesures apres le caractere |, ce qui
+  # alimente les courbes. Un simple etat de service ne donne qu'un voyant.
+  # Le chemin des sondes est fige : $USER1$ vaudrait celui du central, or les
+  # machines observees ne rangent pas forcement les leurs au meme endroit.
+  - nom: labo-ssh-charge
+    type: check
+    ligne: >-
+      $USER1$/check_by_ssh -H $HOSTADDRESS$ -l {{ supervision_compte_sonde }}
+      -i {{ supervision_cle_privee }} -o StrictHostKeyChecking=no
+      -C "{{ supervision_sondes_distantes }}/check_load -w $ARG1$ -c $ARG2$"
+  - nom: labo-ssh-disque
+    type: check
+    ligne: >-
+      $USER1$/check_by_ssh -H $HOSTADDRESS$ -l {{ supervision_compte_sonde }}
+      -i {{ supervision_cle_privee }} -o StrictHostKeyChecking=no
+      -C "{{ supervision_sondes_distantes }}/check_disk -w $ARG1$ -c $ARG2$ -p $ARG3$"
+  - nom: labo-ssh-memoire
+    type: check
+    ligne: >-
+      $USER1$/check_by_ssh -H $HOSTADDRESS$ -l {{ supervision_compte_sonde }}
+      -i {{ supervision_cle_privee }} -o StrictHostKeyChecking=no
+      -C "{{ supervision_sondes_distantes }}/check_swap -w $ARG1$ -c $ARG2$"
+
+# Compte sans privileges cree sur les machines Linux, uniquement pour que le
+# central puisse y lire l'etat des services. systemctl is-active n'exige aucun
+# droit particulier.
+supervision_compte_sonde: superviseur
+supervision_cle_privee: /var/lib/centreon-engine/.ssh/id_ed25519
+
+# Ou vivent les sondes standard sur les machines observees, apportees par le
+# paquet monitoring-plugins-basic que le role y installe.
+supervision_sondes_distantes: /usr/lib/nagios/plugins
+supervision_paquet_sondes: monitoring-plugins-basic
+
+# Modeles de service, un par famille de controle. Centreon rattache un service a
+# un modele, jamais directement a une commande.
+supervision_modeles_service:
+  - nom: labo-port-tcp
+    commande: labo-port-tcp
+  - nom: labo-service-systemd
+    commande: labo-service-systemd
+  - nom: labo-charge
+    commande: labo-ssh-charge
+  - nom: labo-disque
+    commande: labo-ssh-disque
+  - nom: labo-memoire
+    commande: labo-ssh-memoire
+
+supervision_modele_service_parametres:
+  check_period: 24x7
+  max_check_attempts: 3
+  normal_check_interval: 5
+  retry_check_interval: 1
+  active_checks_enabled: 1
+  notifications_enabled: 0
+
+supervision_modele_hote: labo-serveur
+
+# Les noms de parametres sont les colonnes de la table host, prefixe host_ retire :
+# la ligne de commande le remet elle-meme. D'ou check_interval, et non
+# normal_check_interval qui est le vocabulaire Nagios et que Centreon refuse.
+supervision_modele_parametres:
+  check_command: labo-hote-vivant
+  check_period: 24x7
+  max_check_attempts: 3
+  check_interval: 5
+  retry_check_interval: 1
+  active_checks_enabled: 1
+  # Le laboratoire n'a aucun relais de messagerie : une notification declaree ne
+  # partirait nulle part. Les activer obligeait en outre a resoudre un contact,
+  # ce que le moteur refusait, et la configuration entiere restait alors non
+  # deployee. Mieux vaut une supervision qui affiche les etats sans alerter
+  # qu'une chaine d'alerte decorative.
+  notifications_enabled: 0
+
+# Conserve pour memoire : le groupe existe et contient admin, mais le modele ne
+# le reference plus depuis que les notifications sont desactivees. A remettre le
+# jour ou un relais de messagerie sera disponible.
+supervision_groupe_contacts: Supervisors
 
 # Le collecteur par defaut porte une majuscule. La casse passe par accident,
 # la collation MariaDB y etant insensible, mais autant ecrire le vrai nom.
@@ -54,23 +152,37 @@ supervision_seuils:
   disque: {avertissement: 80, critique: 90}
 
 # Sondes propres a chaque groupe, reprises du cahier des charges.
+# Sondes propres a chaque groupe, reprises du cahier des charges. Le champ
+# "modele" designe un modele de service Centreon, et "argument" la valeur passee
+# a la commande par la macro $ARG1$ : un numero de port, ou un nom de service.
 supervision_controles:
-  # Machines Windows : des controles de port, valables quel que soit le
-  # systeme, plutot que des sondes systemd.
+  # Machines Windows : uniquement des controles de port. Leurs services se
+  # verifieraient par PowerShell et non par systemctl, ce qui demanderait une
+  # seconde commande ; les ports suffisent a etablir que le service repond.
   impression:
-    - {nom: Partage de files SMB, commande: check_tcp, argument: "445"}
-    - {nom: Impression brute, commande: check_tcp, argument: "9100"}
-    - {nom: Console IPP, commande: check_tcp, argument: "80"}
-  # Jitsi tourne en conteneurs : on controle Docker et le port web.
-  visioconference:
-    - {nom: Moteur Docker, commande: check_systemd_service, argument: docker}
-    - {nom: Interface web, commande: check_tcp, argument: "443"}
+    - {nom: Partage de fichiers SMB, modele: labo-port-tcp, argument: "445"}
+    - {nom: Impression brute, modele: labo-port-tcp, argument: "9100"}
+    - {nom: Console IPP, modele: labo-port-tcp, argument: "80"}
   pointeuses:
-    - {nom: Moteur SQL, commande: check_tcp, argument: "1433"}
-    - {nom: Terminaux biometriques, commande: check_tcp, argument: "11010"}
+    - {nom: Moteur SQL, modele: labo-port-tcp, argument: "1433"}
+    - {nom: Terminaux biometriques, modele: labo-port-tcp, argument: "11010"}
+  # Jitsi tourne en conteneurs : l'etat de Docker se lit par SSH, celui du
+  # service rendu par le port web.
+  # Les arguments sont separes par des points d'exclamation, separateur de
+  # Centreon : "4,4,4!8,8,8" devient $ARG1$ = 4,4,4 et $ARG2$ = 8,8,8.
+  visioconference:
+    - {nom: Moteur Docker, modele: labo-service-systemd, argument: docker}
+    - {nom: Interface web, modele: labo-port-tcp, argument: "443"}
+    - {nom: Charge processeur, modele: labo-charge, argument: "4,4,4!8,8,8"}
+    - {nom: Occupation disque, modele: labo-disque, argument: "20%!10%!/"}
+    - {nom: Memoire d echange, modele: labo-memoire, argument: "40%!20%"}
   supervision:
-    - {nom: Moteur Centreon, commande: check_systemd_service, argument: centengine}
-    - {nom: Base Centreon, commande: check_systemd_service, argument: mariadb}
+    - {nom: Moteur Centreon, modele: labo-service-systemd, argument: centengine}
+    - {nom: Base de donnees, modele: labo-service-systemd, argument: mariadb}
+    - {nom: Interface web, modele: labo-port-tcp, argument: "80"}
+    - {nom: Charge processeur, modele: labo-charge, argument: "4,4,4!8,8,8"}
+    - {nom: Occupation disque, modele: labo-disque, argument: "20%!10%!/"}
+    - {nom: Memoire d echange, modele: labo-memoire, argument: "40%!20%"}
 
 # Delai maximal entre une anomalie et sa notification.
 supervision_delai_notification_secondes: 60

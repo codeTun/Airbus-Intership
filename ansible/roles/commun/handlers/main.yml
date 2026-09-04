@@ -13,3 +13,10 @@
   ansible.builtin.service:
     name: rsyslog
     state: restarted
+
+# netplan apply ne coupe pas les sessions existantes, contrairement a un
+# redemarrage du service reseau.
+- name: Appliquer la configuration reseau
+  ansible.builtin.command:
+    cmd: netplan apply
+  changed_when: true

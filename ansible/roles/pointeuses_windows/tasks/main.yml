@@ -107,6 +107,33 @@
       Setup Bootstrap\Log\Summary.txt".
     success_msg: Moteur SQL Server Express en place.
 
+# Le nom de la cle porte le numero de version, MSSQL16 pour SQL Server 2022.
+# Le resoudre evite de le figer et de casser a la prochaine version.
+- name: Cle de registre de l'instance resolue
+  ansible.windows.win_shell: >-
+    (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL').'{{ pointeuses_windows_sql_instance }}'
+  register: pointeuses_windows_cle_instance
+  changed_when: false
+  tags: [pointeuses, base]
+
+# TCPENABLED active le protocole mais ne lui donne aucun port : les deux valeurs
+# restent vides et le moteur n'ecoute nulle part. Vider TcpDynamicPorts et poser
+# TcpPort impose le port fixe.
+- name: Port TCP fixe impose au moteur SQL
+  ansible.windows.win_regedit:
+    path: >-
+      HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\{{ pointeuses_windows_cle_instance.stdout | trim }}\MSSQLServer\SuperSocketNetLib\Tcp\IPAll
+    name: "{{ item.nom }}"
+    data: "{{ item.valeur }}"
+    type: string
+  loop:
+    - {nom: TcpPort, valeur: "{{ pointeuses_windows_port_sql }}"}
+    - {nom: TcpDynamicPorts, valeur: ""}
+  loop_control:
+    label: "{{ item.nom }} = {{ item.valeur | default('vide') }}"
+  notify: Redemarrer le moteur SQL
+  tags: [pointeuses, base]
+
 - name: Moteur SQL demarre et permanent
   ansible.windows.win_service:
     name: "MSSQL${{ pointeuses_windows_sql_instance }}"

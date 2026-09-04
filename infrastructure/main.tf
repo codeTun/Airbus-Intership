@@ -64,6 +64,17 @@ module "serveur" {
   ip         = each.value.ip
   passerelle = local.vlans[each.value.vlan].passerelle
 
+  # Terraform pose la carte, Ansible l'adresse : cloud-init ne s'executant qu'au
+  # premier demarrage, une machine deja en service ne verrait jamais la sienne.
+  reseaux_secondaires = [
+    for r in local.reseaux_secondaires[each.key] : {
+      reseau_id = module.reseau.ids[r.vlan]
+      mac       = r.mac
+      ip        = r.ip
+      masque    = r.masque
+    }
+  ]
+
   # libvirt fait tourner un resolveur par reseau, sur la passerelle de celui-ci.
   # Designer celle du VLAN mgmt donnerait aux machines des autres VLAN une
   # adresse qu'elles ne joignent pas, et toute resolution echouerait.
@@ -166,4 +177,39 @@ resource "local_file" "inventaire_ansible" {
   ])
 
   depends_on = [module.serveur, module.serveur_windows, module.parefeu]
+}
+
+# Configuration du relais de publication, generee ici pour que les adresses ne
+# soient ecrites qu'une seule fois, dans inventaire.tf. Le fichier se pose sur
+# l'hote par `make publication`, qui le copie et recharge nginx.
+#
+# Il vise /etc/nginx/modules-enabled/ et non sites-enabled/ : un bloc stream se
+# declare a la racine de la configuration, hors du bloc http, et modules-enabled
+# est le seul repertoire que Debian inclut a ce niveau. Le prefixe 60 le fait
+# charger apres 50-mod-stream.conf, qui fournit le module.
+resource "local_file" "publication_nginx" {
+  filename        = "${path.module}/publication/60-labo-publication.conf"
+  file_permission = "0644"
+
+  content = join("\n", concat(
+    [
+      "# Genere par Terraform a partir de infrastructure/inventaire.tf.",
+      "# Toute retouche manuelle sera perdue au prochain apply.",
+      "#",
+      "# Relais TCP brut : nginx ne dechiffre rien, le certificat vu par le",
+      "# navigateur est celui du service. Se pose dans modules-enabled, seul",
+      "# repertoire inclus hors du bloc http, ou un bloc stream peut vivre.",
+      "",
+      "stream {",
+    ],
+    [for port in sort(keys(local.publications)) :
+      format(
+        "    server { listen %s; proxy_pass %-18s }  # %s",
+        port,
+        format("%s:%d;", local.adresses_publiables[local.publications[port].cible], local.publications[port].port),
+        local.publications[port].service,
+      )
+    ],
+    ["}", ""],
+  ))
 }
